@@ -15,6 +15,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerinstance/armcontainerinstance"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/exp/slog"
 )
 
@@ -22,15 +24,18 @@ type serverRepository struct {
 	// https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity#DefaultAzureCredential
 	auth      *auth.Auth
 	appConfig *config.Config
+	rdb       *redis.Client
 }
 
 func NewServerRepository(
 	appConfig *config.Config,
 	auth *auth.Auth,
+	rdb *redis.Client,
 ) (entity.ServerRepository, error) {
 	return &serverRepository{
 		appConfig: appConfig,
 		auth:      auth,
+		rdb:       rdb,
 	}, nil
 }
 
@@ -75,15 +80,110 @@ func (s *serverRepository) GetUserAssignedManagedIdentity(server entity.Server) 
 	return server, nil
 }
 
+// https://learn.microsoft.com/en-us/rest/api/storagerp/storage-accounts/list-by-resource-group?view=rest-storagerp-2023-01-01&tabs=Go
+func (s *serverRepository) GetClientStorageAccount(server entity.Server) (armstorage.Account, error) {
+
+	// Check if the storage account is already cached in Redis
+	storageAccountStr, err := s.rdb.Get(context.Background(), server.UserAlias+"-storageAccount").Result()
+	if err == nil {
+		var storageAccount armstorage.Account
+		err = json.Unmarshal([]byte(storageAccountStr), &storageAccount)
+		if err != nil {
+			return armstorage.Account{}, err
+		}
+		return storageAccount, nil
+	}
+
+	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+	if err != nil {
+		slog.Error("not able to create client factory to get storage account", err)
+		return armstorage.Account{}, err
+	}
+
+	pager := clientFactory.NewAccountsClient().NewListByResourceGroupPager("repro-project", nil)
+	for pager.More() {
+		page, err := pager.NextPage(context.Background())
+		if err != nil {
+			slog.Error("not able to get next page for storage account", err)
+			return armstorage.Account{}, err
+		}
+		for _, account := range page.Value {
+			// Cache storage account in Redis
+			storageAccountStr, err := json.Marshal(account)
+			if err != nil {
+				slog.Error("not able to marshal storage account", err)
+			}
+			err = s.rdb.Set(context.Background(), server.UserAlias+"-storageAccount", storageAccountStr, 0).Err()
+			if err != nil {
+				slog.Error("not able to set storage account in redis", err)
+			}
+
+			return *account, nil // return the first storage account found.
+		}
+	}
+
+	return armstorage.Account{}, errors.New("storage account not found in resource group repro-project")
+}
+
+func (s *serverRepository) GetClientStorageAccountKey(server entity.Server) (string, error) {
+	// Check if the storage account key is already cached in Redis
+	storageAccountKey, err := s.rdb.Get(context.Background(), server.UserAlias+"-storageAccountKey").Result()
+	if err == nil {
+		return storageAccountKey, nil
+	}
+
+	storageAccount, err := s.GetClientStorageAccount(server)
+	if err != nil {
+		return "", err
+	}
+
+	client, err := armstorage.NewAccountsClient(server.SubscriptionId, s.auth.Cred, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := client.ListKeys(context.Background(), server.ResourceGroup, *storageAccount.Name, nil)
+	if err != nil {
+		return "", err
+	}
+
+	if len(resp.Keys) == 0 {
+		return "", fmt.Errorf("no storage account key found")
+	}
+
+	// Cache storage account key in Redis
+	err = s.rdb.Set(context.Background(), server.UserAlias+"-storageAccountKey", *resp.Keys[0].Value, 0).Err()
+	if err != nil {
+		slog.Error("not able to set storage account key in redis", err)
+	}
+
+	return *resp.Keys[0].Value, nil
+}
+
 func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (entity.Server, error) {
 
 	ctx := context.Background()
+
+	storageAccount, err := s.GetClientStorageAccount(server)
+	if err != nil {
+		return server, err
+	}
+
+	storageAccountKey, err := s.GetClientStorageAccountKey(server)
+	if err != nil {
+		return server, err
+	}
 
 	clientFactory, err := armcontainerinstance.NewContainerGroupsClient(server.SubscriptionId, s.auth.Cred, nil)
 	if err != nil {
 		slog.Error("failed to create client:", err)
 		return server, err
 	}
+
+	// random 4 digits
+	// rand.Seed(time.Now().UnixNano())
+	// random := fmt.Sprintf("%04d", rand.Intn(10000))
+	random := "0740"
 
 	poller, err := clientFactory.BeginCreateOrUpdate(ctx,
 		server.ResourceGroup,
@@ -107,17 +207,21 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 									Name:  to.Ptr("USER_ALIAS"),
 									Value: to.Ptr(server.UserAlias),
 								},
+								{
+									Name:  to.Ptr("ACTLABS_SERVER_PORT"),
+									Value: to.Ptr(strconv.Itoa(int(s.appConfig.ActlabsServerPort))),
+								},
 							},
 							VolumeMounts: []*armcontainerinstance.VolumeMount{
 								{
-									Name:      to.Ptr("emptydir"),
+									Name:      to.Ptr("proxy-caddyfile"),
 									MountPath: to.Ptr("/etc/caddy"),
 								},
 							},
 							Command: []*string{
 								to.Ptr("/bin/sh"),
 								to.Ptr("-c"),
-								to.Ptr("echo -e \"${USER_ALIAS}-actlabs-aci.eastus.azurecontainer.io {\n\treverse_proxy http://localhost:${ACTLABS_SERVER_PORT} {\n\t\theader_up Host {upstream_hostport}\n\t}\n}\" > /etc/caddy/Caddyfile"),
+								to.Ptr("echo -e \"${USER_ALIAS}-" + random + "-actlabs-aci.eastus.azurecontainer.io {\n\treverse_proxy http://localhost:${ACTLABS_SERVER_PORT}\n}\" > /etc/caddy/Caddyfile"),
 							},
 						},
 					},
@@ -146,7 +250,19 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 							VolumeMounts: []*armcontainerinstance.VolumeMount{
 								{
 									Name:      to.Ptr("emptydir"),
+									MountPath: to.Ptr("/mnt/emptydir"),
+								},
+								{
+									Name:      to.Ptr("proxy-caddyfile"),
 									MountPath: to.Ptr("/etc/caddy"),
+								},
+								{
+									Name:      to.Ptr("proxy-config"),
+									MountPath: to.Ptr("/config"),
+								},
+								{
+									Name:      to.Ptr("proxy-data"),
+									MountPath: to.Ptr("/data"),
 								},
 							},
 						},
@@ -182,11 +298,11 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 							EnvironmentVariables: []*armcontainerinstance.EnvironmentVariable{
 								{
 									Name:  to.Ptr("ARM_USE_MSI"),
-									Value: to.Ptr(strconv.FormatBool(s.appConfig.UseMsi)),
+									Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
 								},
 								{
 									Name:  to.Ptr("USE_MSI"),
-									Value: to.Ptr(strconv.FormatBool(s.appConfig.UseMsi)),
+									Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
 								},
 								{
 									Name:  to.Ptr("PROTECTED_LAB_SECRET"),
@@ -242,6 +358,18 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 									Name:      to.Ptr("emptydir"),
 									MountPath: to.Ptr("/mnt/emptydir"),
 								},
+								{
+									Name:      to.Ptr("proxy-caddyfile"),
+									MountPath: to.Ptr("/etc/caddy"),
+								},
+								{
+									Name:      to.Ptr("proxy-config"),
+									MountPath: to.Ptr("/config"),
+								},
+								{
+									Name:      to.Ptr("proxy-data"),
+									MountPath: to.Ptr("/data"),
+								},
 							},
 						},
 					},
@@ -260,12 +388,39 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 						},
 					},
 					Type:         to.Ptr(armcontainerinstance.ContainerGroupIPAddressTypePublic),
-					DNSNameLabel: to.Ptr(server.UserAlias + "-actlabs-aci"),
+					DNSNameLabel: to.Ptr(server.UserAlias + "-" + random + "-actlabs-aci"),
 				},
 				Volumes: []*armcontainerinstance.Volume{
 					{
 						Name:     to.Ptr("emptydir"),
 						EmptyDir: &struct{}{},
+					},
+					{
+						Name: to.Ptr("proxy-caddyfile"),
+						AzureFile: &armcontainerinstance.AzureFileVolume{
+							ShareName:          to.Ptr("proxy-caddyfile"),
+							ReadOnly:           to.Ptr(false),
+							StorageAccountName: storageAccount.Name,
+							StorageAccountKey:  to.Ptr(storageAccountKey),
+						},
+					},
+					{
+						Name: to.Ptr("proxy-config"),
+						AzureFile: &armcontainerinstance.AzureFileVolume{
+							ShareName:          to.Ptr("proxy-config"),
+							ReadOnly:           to.Ptr(false),
+							StorageAccountName: storageAccount.Name,
+							StorageAccountKey:  to.Ptr(storageAccountKey),
+						},
+					},
+					{
+						Name: to.Ptr("proxy-data"),
+						AzureFile: &armcontainerinstance.AzureFileVolume{
+							ShareName:          to.Ptr("proxy-data"),
+							ReadOnly:           to.Ptr(false),
+							StorageAccountName: storageAccount.Name,
+							StorageAccountKey:  to.Ptr(storageAccountKey),
+						},
 					},
 				},
 			},

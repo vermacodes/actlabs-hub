@@ -30,15 +30,13 @@ func main() {
 		panic(err)
 	}
 
-	rateLimiter := redis.NewRateLimiter(rdb)
-
 	auth, err := auth.NewAuth(appConfig)
 	if err != nil {
 		slog.Error("Error initializing auth", err)
 		panic(err)
 	}
 
-	serverRepository, err := repository.NewServerRepository(appConfig, auth)
+	serverRepository, err := repository.NewServerRepository(appConfig, auth, rdb)
 	if err != nil {
 		slog.Error("Error initializing server repository", err)
 		panic(err)
@@ -55,7 +53,7 @@ func main() {
 	config.AllowHeaders = []string{"Authorization", "Content-Type"}
 
 	router.Use(cors.New(config))
-	router.Use(middleware.Auth(rateLimiter))
+	router.Use(middleware.Auth())
 
 	handler.NewServerHandler(router.Group("/"), serverService)
 	handler.NewHealthzHandler(router.Group("/"))

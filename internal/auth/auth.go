@@ -21,7 +21,7 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 	var cred azcore.TokenCredential
 	var err error
 
-	if appConfig.UseMsi {
+	if appConfig.ActlabsHubUseMsi {
 		cred, err = azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{
 			ID: azidentity.ClientID(appConfig.ActlabsHubClientID),
 		})
