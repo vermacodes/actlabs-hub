@@ -1,9 +1,10 @@
 package redis
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/go-redis/redis"
+	"github.com/redis/go-redis/v9"
 )
 
 func NewRedisClient() (*redis.Client, error) {
@@ -13,7 +14,7 @@ func NewRedisClient() (*redis.Client, error) {
 		DB:       0,  // use default DB
 	})
 
-	_, err := client.Ping().Result()
+	_, err := client.Ping(context.TODO()).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to redis: %v", err)
 	}

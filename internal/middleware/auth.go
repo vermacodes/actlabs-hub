@@ -9,14 +9,12 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis_rate"
 	"golang.org/x/exp/slog"
 )
 
-func Auth(rateLimiter *redis_rate.Limiter) gin.HandlerFunc {
+func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		slog.Debug("Auth Middleware")
 
@@ -35,7 +33,6 @@ func Auth(rateLimiter *redis_rate.Limiter) gin.HandlerFunc {
 
 		err := handleAccessToken(c, accessToken)
 		if err != nil {
-			handleBadRequest(c, rateLimiter)
 			return
 		}
 		c.Next()
@@ -68,30 +65,4 @@ func handleAccessToken(c *gin.Context, accessToken string) error {
 	}
 
 	return nil
-}
-
-func handleBadRequest(c *gin.Context, rateLimiter *redis_rate.Limiter) bool {
-	token := c.GetHeader("Authorization")
-	if token == "" {
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return false
-	}
-
-	count, delay, allow := rateLimiter.Allow(token, 10, time.Minute*10)
-
-	slog.Info("bad request",
-		slog.Int64("count", count),
-		slog.Duration("delay", delay),
-		slog.Bool("allow", allow),
-	)
-
-	if !allow {
-		slog.Error("too many bad requests, token blocked",
-			slog.String("token", token),
-		)
-
-		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many bad requests, try again later"})
-	}
-
-	return allow
 }

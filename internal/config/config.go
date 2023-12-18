@@ -35,7 +35,8 @@ type Config struct {
 	HttpsPort                                      int32
 	ProtectedLabSecret                             string
 	TenantID                                       string
-	UseMsi                                         bool
+	ActlabsServerUseMsi                            bool
+	ActlabsHubUseMsi                               bool
 	// Add other configuration fields as needed
 }
 
@@ -67,7 +68,12 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("PROTECTED_LAB_SECRET not set")
 	}
 
-	useMsi, err := strconv.ParseBool(getEnvWithDefault("USE_MSI", "false"))
+	actlabsServerUseMsi, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_SERVER_USE_MSI", "false"))
+	if err != nil {
+		return nil, err
+	}
+
+	actlabsHubUseMsi, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_HUB_USE_MSI", "false"))
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +211,8 @@ func NewConfig() (*Config, error) {
 		HttpsPort:                                      int32(httpsPort),
 		ProtectedLabSecret:                             protectedLabSecret,
 		TenantID:                                       tenantID,
-		UseMsi:                                         useMsi,
+		ActlabsServerUseMsi:                            actlabsServerUseMsi,
+		ActlabsHubUseMsi:                               actlabsHubUseMsi,
 		// Set other fields
 	}, nil
 }
