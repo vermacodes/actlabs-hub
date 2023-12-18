@@ -1,0 +1,142 @@
+apiVersion: "2021-10-01"
+name: actlabs-hub-aci
+location: eastus
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    ${ACTLABS_HUB_MSI}: {}
+properties:
+  containers:
+    - name: caddy
+      properties:
+        image: ashishvermapu/caddy:latest
+        ports:
+          - protocol: TCP
+            port: ${HTTP_PORT}
+          - protocol: TCP
+            port: ${HTTPS_PORT}
+        environmentVariables:
+          - name: PROXY_CADDYFILE
+            value: ${PROXY_CADDYFILE}
+          - name: PROXY_CONFIG
+            value: ${PROXY_CONFIG}
+          - name: PROXY_DATA
+            value: ${PROXY_DATA}
+        resources:
+          requests:
+            memoryInGB: 0.5
+            cpu: 0.5
+          limits:
+            memoryInGB: 0.5
+            cpu: 0.5
+        volumeMounts:
+          - name: ${PROXY_CADDYFILE}
+            mountPath: /etc/caddy
+          - name: ${PROXY_CONFIG}
+            mountPath: /config
+          - name: ${PROXY_DATA}
+            mountPath: /data
+    - name: actlabs-hub
+      properties:
+        image: ashishvermapu/actlabs-hub:latest
+        ports:
+        - port: ${ACTLABS_HUB_PORT}
+          protocol: TCP
+        environmentVariables:
+        - name: ACTLABS_HUB_URL
+          value: ${ACTLABS_HUB_URL}
+        - name: ACTLABS_HUB_LOG_LEVEL
+          value: ${ACTLABS_HUB_LOG_LEVEL}
+        - name: ACTLABS_SERVER_PORT
+          value: ${ACTLABS_SERVER_PORT}
+        - name: ACTLABS_SERVER_READINESS_PROBE_PATH
+          value: ${ACTLABS_SERVER_READINESS_PROBE_PATH}
+        - name: ACTLABS_SERVER_ROOT_DIR
+          value: ${ACTLABS_SERVER_ROOT_DIR}
+        - name: ACTLABS_SERVER_UP_WAIT_TIME_SECONDS
+          value: ${ACTLABS_SERVER_UP_WAIT_TIME_SECONDS}
+        - name: ACTLABS_HUB_SUBSCRIPTION_ID
+          value: ${ACTLABS_HUB_SUBSCRIPTION_ID}
+        - name: ACTLABS_HUB_RESOURCE_GROUP
+          value: ${ACTLABS_HUB_RESOURCE_GROUP}
+        - name: ACTLABS_HUB_STORAGE_ACCOUNT
+          value: ${ACTLABS_HUB_STORAGE_ACCOUNT}
+        - name: ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME
+          value: ${ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME}
+        - name: AUTH_TOKEN_AUD
+          value: ${AUTH_TOKEN_AUD}
+        - name: AUTH_TOKEN_ISS
+          value: ${AUTH_TOKEN_ISS}
+        - name: HTTPS_PORT
+          value: ${HTTPS_PORT}
+        - name: HTTP_PORT
+          value: ${HTTP_PORT}
+        - name: PORT
+          value: ${ACTLABS_HUB_PORT}
+        - name: PROTECTED_LAB_SECRET
+          secureValue: ${PROTECTED_LAB_SECRET}
+        - name: ACTLABS_HUB_CLIENT_ID
+          value: ${ACTLABS_HUB_CLIENT_ID}
+        - name: TENANT_ID
+          value: ${TENANT_ID}
+        - name: USE_MSI
+          value: true
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: ${ACTLABS_HUB_PORT}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: ${ACTLABS_HUB_PORT}
+          initialDelaySeconds: 10
+          periodSeconds: 60
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          requests:
+            memoryInGB: 1.0
+            cpu: 1.0
+          limits:
+            memoryInGB: 1.0
+            cpu: 1.0
+        volumeMounts:
+          - name: ${PROXY_CADDYFILE}
+            mountPath: /etc/caddy
+          - name: ${PROXY_CONFIG}
+            mountPath: /config
+          - name: ${PROXY_DATA}
+            mountPath: /data
+  ipAddress:
+    ports:
+      - protocol: TCP
+        port: 80
+      - protocol: TCP
+        port: 443
+    type: Public        
+    dnsNameLabel: actlabs-hub
+  osType: Linux
+  volumes:
+    - name: ${PROXY_CADDYFILE}
+      azureFile:
+        shareName: ${PROXY_CADDYFILE}
+        storageAccountName: actlabs
+        storageAccountKey: ${STORAGE_ACCOUNT_KEY}
+    - name: ${PROXY_CONFIG}
+      azureFile:
+        shareName: ${PROXY_CONFIG}
+        storageAccountName: actlabs
+        storageAccountKey: ${STORAGE_ACCOUNT_KEY}
+    - name: ${PROXY_DATA}
+      azureFile:
+        shareName: ${PROXY_DATA}
+        storageAccountName: actlabs
+        storageAccountKey: ${STORAGE_ACCOUNT_KEY}
+tags: null
+type: Microsoft.ContainerInstance/containerGroups
