@@ -189,6 +189,57 @@ function create_storage_account() {
         fi
     fi
 
+    # check if a fileshare named 'proxy-caddyfile' exists in the storage account
+    # if not create one
+    log "checking if fileshare proxy-caddyfile exists in storage account ${STORAGE_ACCOUNT_NAME}"
+    FILESHARE_EXISTS=$(az storage share exists --name "proxy-caddyfile" --account-name "${STORAGE_ACCOUNT_NAME}" --account-key "${STORAGE_ACCOUNT_KEY}" --query "exists" -o tsv)
+    if [[ "${FILESHARE_EXISTS}" == "true" ]]; then
+        log "Fileshare proxy-caddyfile already exists in storage account ${STORAGE_ACCOUNT_NAME}"
+    else
+        log "Fileshare proxy-caddyfile does not exist in storage account ${STORAGE_ACCOUNT_NAME}, creating"
+        az storage share create --name "proxy-caddyfile" --account-name "${STORAGE_ACCOUNT_NAME}"
+        if [ $? -ne 0 ]; then
+            err "Failed to create fileshare proxy-caddyfile in storage account ${STORAGE_ACCOUNT_NAME}"
+            return 1
+        else
+            log "Fileshare proxy-caddyfile created in storage account ${STORAGE_ACCOUNT_NAME}"
+        fi
+    fi
+
+    # check if a fileshare named 'proxy-config' exists in the storage account
+    # if not create one
+    log "checking if fileshare proxy-config exists in storage account ${STORAGE_ACCOUNT_NAME}"
+    FILESHARE_EXISTS=$(az storage share exists --name "proxy-config" --account-name "${STORAGE_ACCOUNT_NAME}" --account-key "${STORAGE_ACCOUNT_KEY}" --query "exists" -o tsv)
+    if [[ "${FILESHARE_EXISTS}" == "true" ]]; then
+        log "Fileshare proxy-config already exists in storage account ${STORAGE_ACCOUNT_NAME}"
+    else
+        log "Fileshare proxy-config does not exist in storage account ${STORAGE_ACCOUNT_NAME}, creating"
+        az storage share create --name "proxy-config" --account-name "${STORAGE_ACCOUNT_NAME}"
+        if [ $? -ne 0 ]; then
+            err "Failed to create fileshare proxy-config in storage account ${STORAGE_ACCOUNT_NAME}"
+            return 1
+        else
+            log "Fileshare proxy-config created in storage account ${STORAGE_ACCOUNT_NAME}"
+        fi
+    fi
+
+    # check if a fileshare named 'proxy-data' exists in the storage account
+    # if not create one
+    log "checking if fileshare proxy-data exists in storage account ${STORAGE_ACCOUNT_NAME}"
+    FILESHARE_EXISTS=$(az storage share exists --name "proxy-data" --account-name "${STORAGE_ACCOUNT_NAME}" --account-key "${STORAGE_ACCOUNT_KEY}" --query "exists" -o tsv)
+    if [[ "${FILESHARE_EXISTS}" == "true" ]]; then
+        log "Fileshare proxy-data already exists in storage account ${STORAGE_ACCOUNT_NAME}"
+    else
+        log "Fileshare proxy-data does not exist in storage account ${STORAGE_ACCOUNT_NAME}, creating"
+        az storage share create --name "proxy-data" --account-name "${STORAGE_ACCOUNT_NAME}"
+        if [ $? -ne 0 ]; then
+            err "Failed to create fileshare proxy-data in storage account ${STORAGE_ACCOUNT_NAME}"
+            return 1
+        else
+            log "Fileshare proxy-data created in storage account ${STORAGE_ACCOUNT_NAME}"
+        fi
+    fi
+
     return 0
 }
 
