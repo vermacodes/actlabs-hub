@@ -41,8 +41,14 @@ func main() {
 		slog.Error("Error initializing server repository", err)
 		panic(err)
 	}
+	labRepository, err := repository.NewLabRepository(auth, appConfig, rdb)
+	if err != nil {
+		slog.Error("Error initializing lab repository", err)
+		panic(err)
+	}
 
 	serverService := service.NewServerService(serverRepository, appConfig)
+	labService := service.NewLabService(labRepository)
 
 	router := gin.Default()
 	router.SetTrustedProxies(nil)
@@ -55,8 +61,9 @@ func main() {
 	router.Use(cors.New(config))
 	router.Use(middleware.Auth())
 
-	handler.NewServerHandler(router.Group("/"), serverService)
 	handler.NewHealthzHandler(router.Group("/"))
+	handler.NewServerHandler(router.Group("/"), serverService)
+	handler.NewLabHandler(router.Group("/"), labService)
 
 	port := os.Getenv("PORT")
 	if port == "" {
