@@ -180,11 +180,6 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 		return server, err
 	}
 
-	// random 4 digits
-	// rand.Seed(time.Now().UnixNano())
-	// random := fmt.Sprintf("%04d", rand.Intn(10000))
-	random := "0740"
-
 	poller, err := clientFactory.BeginCreateOrUpdate(ctx,
 		server.ResourceGroup,
 		server.UserAlias+"-aci", armcontainerinstance.ContainerGroup{
@@ -221,7 +216,7 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 							Command: []*string{
 								to.Ptr("/bin/sh"),
 								to.Ptr("-c"),
-								to.Ptr("echo -e \"${USER_ALIAS}-" + random + "-actlabs-aci.eastus.azurecontainer.io {\n\treverse_proxy http://localhost:${ACTLABS_SERVER_PORT}\n}\" > /etc/caddy/Caddyfile"),
+								to.Ptr("echo -e \"${USER_ALIAS}-actlabs-aci.eastus.azurecontainer.io {\n\treverse_proxy http://localhost:${ACTLABS_SERVER_PORT}\n}\" > /etc/caddy/Caddyfile"),
 							},
 						},
 					},
@@ -388,7 +383,7 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 						},
 					},
 					Type:         to.Ptr(armcontainerinstance.ContainerGroupIPAddressTypePublic),
-					DNSNameLabel: to.Ptr(server.UserAlias + "-" + random + "-actlabs-aci"),
+					DNSNameLabel: to.Ptr(server.UserAlias + "-actlabs-aci"),
 				},
 				Volumes: []*armcontainerinstance.Volume{
 					{
