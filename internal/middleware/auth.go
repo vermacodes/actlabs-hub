@@ -1,12 +1,8 @@
 package middleware
 
 import (
-	"actlabs-hub/internal/entity"
-	"actlabs-hub/internal/helper"
-	"bytes"
-	"encoding/json"
+	"actlabs-hub/internal/auth"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 
@@ -40,16 +36,16 @@ func Auth() gin.HandlerFunc {
 }
 
 func handleAccessToken(c *gin.Context, accessToken string) error {
-	body, _ := io.ReadAll(c.Request.Body)
-	server := entity.Server{}
-	if err := json.Unmarshal(body, &server); err != nil {
-		slog.Error("error binding json", slog.String("error", err.Error()))
-		c.AbortWithStatus(http.StatusBadRequest)
-		return err
-	}
+	// body, _ := io.ReadAll(c.Request.Body)
+	// server := entity.Server{}
+	// if err := json.Unmarshal(body, &server); err != nil {
+	// 	slog.Error("error binding json", slog.String("error", err.Error()))
+	// 	c.AbortWithStatus(http.StatusBadRequest)
+	// 	return err
+	// }
 
-	// Reassign the body so it can be read again in the handler
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+	// // Reassign the body so it can be read again in the handler
+	// c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	splitToken := strings.Split(accessToken, "Bearer ")
 	if len(splitToken) < 2 {
@@ -57,7 +53,7 @@ func handleAccessToken(c *gin.Context, accessToken string) error {
 		return errors.New("found something in the Authorization header, but it's not a bearer token")
 	}
 
-	ok, err := helper.VerifyToken(accessToken, server.UserPrincipalId)
+	ok, err := auth.VerifyToken(accessToken)
 	if err != nil || !ok {
 		slog.Error("token verification failed", slog.String("error", err.Error()))
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
