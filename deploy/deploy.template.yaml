@@ -79,8 +79,10 @@ properties:
           value: ${ACTLABS_HUB_CLIENT_ID}
         - name: TENANT_ID
           value: ${TENANT_ID}
-        - name: USE_MSI
-          value: true
+        - name: ACTLABS_HUB_USE_MSI
+          value: ${ACTLABS_HUB_USE_MSI}
+        - name: ACTLABS_SERVER_USE_MSI
+          value: ${ACTLABS_SERVER_USE_MSI}
         readinessProbe:
           httpGet:
             path: /healthz
