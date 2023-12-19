@@ -43,46 +43,51 @@ properties:
         - port: ${ACTLABS_HUB_PORT}
           protocol: TCP
         environmentVariables:
-        - name: ACTLABS_HUB_URL
-          value: ${ACTLABS_HUB_URL}
-        - name: ACTLABS_HUB_LOG_LEVEL
-          value: ${ACTLABS_HUB_LOG_LEVEL}
-        - name: ACTLABS_SERVER_PORT
-          value: ${ACTLABS_SERVER_PORT}
-        - name: ACTLABS_SERVER_READINESS_PROBE_PATH
-          value: ${ACTLABS_SERVER_READINESS_PROBE_PATH}
-        - name: ACTLABS_SERVER_ROOT_DIR
-          value: ${ACTLABS_SERVER_ROOT_DIR}
-        - name: ACTLABS_SERVER_UP_WAIT_TIME_SECONDS
-          value: ${ACTLABS_SERVER_UP_WAIT_TIME_SECONDS}
-        - name: ACTLABS_HUB_SUBSCRIPTION_ID
-          value: ${ACTLABS_HUB_SUBSCRIPTION_ID}
-        - name: ACTLABS_HUB_RESOURCE_GROUP
-          value: ${ACTLABS_HUB_RESOURCE_GROUP}
-        - name: ACTLABS_HUB_STORAGE_ACCOUNT
-          value: ${ACTLABS_HUB_STORAGE_ACCOUNT}
-        - name: ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME
-          value: ${ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME}
-        - name: AUTH_TOKEN_AUD
-          value: ${AUTH_TOKEN_AUD}
-        - name: AUTH_TOKEN_ISS
-          value: ${AUTH_TOKEN_ISS}
-        - name: HTTPS_PORT
-          value: ${HTTPS_PORT}
-        - name: HTTP_PORT
-          value: ${HTTP_PORT}
-        - name: PORT
-          value: ${ACTLABS_HUB_PORT}
-        - name: PROTECTED_LAB_SECRET
-          secureValue: ${PROTECTED_LAB_SECRET}
-        - name: ACTLABS_HUB_CLIENT_ID
-          value: ${ACTLABS_HUB_CLIENT_ID}
-        - name: TENANT_ID
-          value: ${TENANT_ID}
-        - name: ACTLABS_HUB_USE_MSI
-          value: ${ACTLABS_HUB_USE_MSI}
-        - name: ACTLABS_SERVER_USE_MSI
-          value: ${ACTLABS_SERVER_USE_MSI}
+        # Hub
+          - name: ACTLABS_HUB_URL
+            value: ${ACTLABS_HUB_URL}
+          - name: ACTLABS_HUB_LOG_LEVEL
+            value: ${ACTLABS_HUB_LOG_LEVEL}
+          - name: ACTLABS_HUB_SUBSCRIPTION_ID
+            value: ${ACTLABS_HUB_SUBSCRIPTION_ID}
+          - name: ACTLABS_HUB_RESOURCE_GROUP
+            value: ${ACTLABS_HUB_RESOURCE_GROUP}
+          - name: ACTLABS_HUB_STORAGE_ACCOUNT
+            value: ${ACTLABS_HUB_STORAGE_ACCOUNT}
+          - name: ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME
+            value: ${ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME}
+          - name: ACTLABS_HUB_CLIENT_ID
+            value: ${ACTLABS_HUB_CLIENT_ID}
+          - name: ACTLABS_HUB_USE_MSI
+            value: ${ACTLABS_HUB_USE_MSI}
+          - name: PORT
+            value: ${ACTLABS_HUB_PORT}
+
+        # Server
+          - name: ACTLABS_SERVER_PORT
+            value: ${ACTLABS_SERVER_PORT}
+          - name: ACTLABS_SERVER_READINESS_PROBE_PATH
+            value: ${ACTLABS_SERVER_READINESS_PROBE_PATH}
+          - name: ACTLABS_SERVER_ROOT_DIR
+            value: ${ACTLABS_SERVER_ROOT_DIR}
+          - name: ACTLABS_SERVER_UP_WAIT_TIME_SECONDS
+            value: ${ACTLABS_SERVER_UP_WAIT_TIME_SECONDS}
+          - name: ACTLABS_SERVER_USE_MSI
+            value: ${ACTLABS_SERVER_USE_MSI}
+
+        # Other
+          - name: AUTH_TOKEN_AUD
+            value: ${AUTH_TOKEN_AUD}
+          - name: AUTH_TOKEN_ISS
+            value: ${AUTH_TOKEN_ISS}
+          - name: HTTPS_PORT
+            value: ${HTTPS_PORT}
+          - name: HTTP_PORT
+            value: ${HTTP_PORT}
+          - name: PROTECTED_LAB_SECRET
+            secureValue: ${PROTECTED_LAB_SECRET}
+          - name: TENANT_ID
+            value: ${TENANT_ID}
         readinessProbe:
           httpGet:
             path: /healthz
