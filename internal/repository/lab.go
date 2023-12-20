@@ -167,6 +167,12 @@ func (l *labRepository) GetLabWithVersions(ctx context.Context, typeOfLab string
 					return labs, err
 				}
 
+				lab.VersionId = *blob.VersionID
+				lab.IsCurrentVersion = false
+				if blob.IsCurrentVersion != nil {
+					lab.IsCurrentVersion = *blob.IsCurrentVersion
+				}
+
 				labs = append(labs, lab)
 			}
 		}

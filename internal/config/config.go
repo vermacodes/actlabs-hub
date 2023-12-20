@@ -12,6 +12,9 @@ import (
 type Config struct {
 	ActlabsHubClientID                             string
 	ActlabsHubManagedServersTableName              string
+	ActlabsHubReadinessAssignmentsTableName        string
+	ActlabsHubChallengesTableName                  string
+	ActlabsHubProfilesTableName                    string
 	ActlabsHubResourceGroup                        string
 	ActlabsHubStorageAccount                       string
 	ActlabsHubSubscriptionID                       string
@@ -183,11 +186,29 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME not set")
 	}
 
+	actlabsHubReadinessAssignmentsTableName := getEnv("ACTLABS_HUB_READINESS_ASSIGNMENTS_TABLE_NAME")
+	if actlabsHubReadinessAssignmentsTableName == "" {
+		return nil, fmt.Errorf("ACTLABS_HUB_READINESS_ASSIGNMENTS_TABLE_NAME not set")
+	}
+
+	actlabsHubChallengesTableName := getEnv("ACTLABS_HUB_CHALLENGES_TABLE_NAME")
+	if actlabsHubChallengesTableName == "" {
+		return nil, fmt.Errorf("ACTLABS_HUB_CHALLENGES_TABLE_NAME not set")
+	}
+
+	actlabsHubProfilesTableName := getEnv("ACTLABS_HUB_PROFILES_TABLE_NAME")
+	if actlabsHubProfilesTableName == "" {
+		return nil, fmt.Errorf("ACTLABS_HUB_PROFILES_TABLE_NAME not set")
+	}
+
 	// Retrieve other environment variables and check them as needed
 
 	return &Config{
 		ActlabsHubClientID:                             actlabsHubClientID,
 		ActlabsHubManagedServersTableName:              actlabsHubManagedServersTableName,
+		ActlabsHubReadinessAssignmentsTableName:        actlabsHubReadinessAssignmentsTableName,
+		ActlabsHubChallengesTableName:                  actlabsHubChallengesTableName,
+		ActlabsHubProfilesTableName:                    actlabsHubProfilesTableName,
 		ActlabsHubResourceGroup:                        actlabsHubResourceGroup,
 		ActlabsHubStorageAccount:                       actlabsHubStorageAccount,
 		ActlabsHubSubscriptionID:                       actlabsHubSubscriptionID,
