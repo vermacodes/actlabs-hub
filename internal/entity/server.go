@@ -24,9 +24,11 @@ type Server struct {
 }
 
 type ServerService interface {
+	RegisterSubscription(subscriptionId string, userPrincipalName string, userPrincipalId string) error
+
 	DeployServer(server Server) (Server, error)
-	DestroyServer(server Server) error
-	GetServer(server Server) (Server, error)
+	DestroyServer(userPrincipalName string) error
+	GetServer(userPrincipalName string) (Server, error)
 
 	UpdateActivityStatus(userPrincipalName string) error
 }

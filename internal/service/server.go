@@ -28,7 +28,39 @@ func NewServerService(
 	}
 }
 
+func (s *serverService) RegisterSubscription(subscriptionId string, userPrincipalName string, userPrincipalId string) error {
+	server := entity.Server{
+		PartitionKey:      "actlabs",
+		RowKey:            userPrincipalName,
+		SubscriptionId:    subscriptionId,
+		UserPrincipalId:   userPrincipalId,
+		UserPrincipalName: userPrincipalName,
+	}
+
+	s.ServerDefaults(&server) // Set defaults.
+
+	if err := s.Validate(server); err != nil {
+		slog.Error("Error:", err)
+		return err
+	}
+
+	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
+		slog.Error("Error:", err)
+		return err
+	}
+
+	return nil
+}
+
 func (s *serverService) DeployServer(server entity.Server) (entity.Server, error) {
+	// get server from db.
+	serverFromDB, err := s.serverRepository.GetServerFromDatabase("actlabs", server.UserPrincipalName)
+	if err != nil {
+		slog.Error("Error:", err)
+		return server, err
+	}
+
+	server.SubscriptionId = serverFromDB.SubscriptionId
 
 	// Validate input.
 	if err := s.Validate(server); err != nil {
@@ -40,7 +72,7 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	// s.ContainerAppEnvironment(&server) // Create container app environment if it doesn't exist.
 	s.UserAssignedIdentity(&server) // Managed Identity
 
-	server, err := s.serverRepository.DeployAzureContainerGroup(server)
+	server, err = s.serverRepository.DeployAzureContainerGroup(server)
 	if err != nil {
 		slog.Error("Error:", err)
 		return server, err
@@ -58,12 +90,13 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		if err := s.serverRepository.EnsureServerUp(server); err == nil {
 			slog.Info("Server is up and running")
 
-			server.Status = "running"
+			server.Status = "Running"
 			server.LastUserActivityTime = time.Now().Format(time.RFC3339)
 
 			// Update server in database.
 			if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
 				slog.Error("not able to update server in database", err)
+				return server, fmt.Errorf("server has been deployed but failed to update status in database: %w", err)
 			}
 
 			return server, err
@@ -71,13 +104,21 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		time.Sleep(5 * time.Second)
 	}
 
-	server.Status = "failed"
+	server.Status = "Failed"
 
 	return server, nil
 }
 
-func (s *serverService) DestroyServer(server entity.Server) error {
+func (s *serverService) DestroyServer(userPrincipalName string) error {
 
+	// get server from db.
+	server, err := s.serverRepository.GetServerFromDatabase("actlabs", userPrincipalName)
+	if err != nil {
+		slog.Error("Error:", err)
+		return err
+	}
+
+	// Validate object.
 	if err := s.Validate(server); err != nil {
 		slog.Error("Error:", err)
 		return err
@@ -86,23 +127,34 @@ func (s *serverService) DestroyServer(server entity.Server) error {
 	s.ServerDefaults(&server)
 
 	if err := s.serverRepository.DestroyAzureContainerGroup(server); err != nil {
-		slog.Error("Error:", err)
+		slog.Error("error destroying server:", err)
 		return err
+	}
+
+	server.Status = "Destroyed"
+
+	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
+		slog.Error("error updating server status after destroy:", err)
+		return fmt.Errorf("server has been destroyed but failed to update status in database: %w", err)
 	}
 
 	return nil
 }
 
-func (s *serverService) GetServer(server entity.Server) (entity.Server, error) {
-	// Validate input.
-	if err := s.Validate(server); err != nil {
-		slog.Error("Error:", err)
-		return server, err
+func (s *serverService) GetServer(userPrincipalName string) (entity.Server, error) {
+	// get server from db.
+	server, err := s.serverRepository.GetServerFromDatabase("actlabs", userPrincipalName)
+	if err != nil {
+		slog.Error("error getting server status from db:", err)
+
+		if strings.Contains(err.Error(), "404 Not Found") {
+			server.Status = "Unregistered"
+			return server, nil
+		}
+
+		return server, fmt.Errorf("not able to get server status from database: %w", err)
 	}
-
-	s.ServerDefaults(&server) // Set defaults.
-
-	return s.serverRepository.GetAzureContainerGroup(server)
+	return server, nil
 }
 
 func (s *serverService) UpdateActivityStatus(userPrincipalName string) error {
@@ -160,6 +212,22 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 
 	if server.ResourceGroup == "" {
 		server.ResourceGroup = "repro-project"
+	}
+
+	if server.InactivityDurationInMinutes == 0 {
+		server.InactivityDurationInMinutes = 60
+	}
+
+	if server.AutoCreate == false {
+		server.AutoCreate = true
+	}
+
+	if server.AutoDestroy == false {
+		server.AutoDestroy = true
+	}
+
+	if server.Status == "" {
+		server.Status = "Registered"
 	}
 }
 
