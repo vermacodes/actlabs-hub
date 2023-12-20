@@ -326,7 +326,7 @@ function assign_actlabs_contributor_role() {
     else
         log "assigning actlabs 'Contributor' role on the resource group"
         # Assign actlabs the 'Contributor' role on the resource group
-        az role assignment create --assignee "${ACTLABS_APP_ID}" --role Contributor --resource-group "${RESOURCE_GROUP}" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+        az role assignment create --assignee "${ACTLABS_APP_ID}" --role Contributor --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
         if [ $? -ne 0 ]; then
             err "failed to assign actlabs 'Contributor' role on the resource group"
             return 1
