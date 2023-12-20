@@ -81,7 +81,7 @@ func main() {
 
 	handler.NewHealthzHandler(router.Group("/"))
 	handler.NewServerHandler(router.Group("/"), serverService)
-	handler.NewLabHandler(router.Group("/"), labService)
+	handler.NewLabHandler(router.Group("/"), labService, appConfig)
 	handler.NewAssignmentHandler(router.Group("/"), assignmentService)
 	handler.NewChallengeHandler(router.Group("/"), challengeService)
 	handler.NewAuthHandler(router.Group("/"), authService)
