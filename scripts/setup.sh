@@ -37,7 +37,7 @@ function sleep_with_progress() {
     # Check if TOTAL_SECONDS is a positive integer
     if ! [[ "$TOTAL_SECONDS" =~ ^[0-9]+$ ]]; then
         log "Error: Invalid number of seconds"
-        return 1
+        exit 1
     fi
 
     if [[ -n "${MESSAGE}" ]]; then
@@ -117,7 +117,7 @@ function create_resource_group() {
         az group create --name "${RESOURCE_GROUP}" --location "${LOCATION}"
         if [ $? -ne 0 ]; then
             err "failed to create resource group ${RESOURCE_GROUP}"
-            return 1
+            exit 1
         else
             log "resource group ${RESOURCE_GROUP} created"
         fi
@@ -145,7 +145,7 @@ function create_storage_account() {
         az storage account create --name "${STORAGE_ACCOUNT_NAME}" --resource-group "${RESOURCE_GROUP}" --sku Standard_LRS
         if [ $? -ne 0 ]; then
             err "failed to create storage account ${STORAGE_ACCOUNT_NAME}"
-            return 1
+            exit 1
         else
             log "storage account ${STORAGE_ACCOUNT_NAME} created"
         fi
@@ -165,7 +165,7 @@ function create_storage_account() {
         az storage container create --name "tfstate" --account-name "${STORAGE_ACCOUNT_NAME}"
         if [ $? -ne 0 ]; then
             err "Failed to create blob container tfstate in storage account ${STORAGE_ACCOUNT_NAME}"
-            return 1
+            exit 1
         else
             log "Blob container tfstate created in storage account ${STORAGE_ACCOUNT_NAME}"
         fi
@@ -182,7 +182,7 @@ function create_storage_account() {
         az storage container create --name "labs" --account-name "${STORAGE_ACCOUNT_NAME}"
         if [ $? -ne 0 ]; then
             err "Failed to create blob container labs in storage account ${STORAGE_ACCOUNT_NAME}"
-            return 1
+            exit 1
         else
             log "Blob container labs created in storage account ${STORAGE_ACCOUNT_NAME}"
         fi
@@ -199,7 +199,7 @@ function create_storage_account() {
         az storage share create --name "proxy-caddyfile" --account-name "${STORAGE_ACCOUNT_NAME}"
         if [ $? -ne 0 ]; then
             err "Failed to create fileshare proxy-caddyfile in storage account ${STORAGE_ACCOUNT_NAME}"
-            return 1
+            exit 1
         else
             log "Fileshare proxy-caddyfile created in storage account ${STORAGE_ACCOUNT_NAME}"
         fi
@@ -216,7 +216,7 @@ function create_storage_account() {
         az storage share create --name "proxy-config" --account-name "${STORAGE_ACCOUNT_NAME}"
         if [ $? -ne 0 ]; then
             err "Failed to create fileshare proxy-config in storage account ${STORAGE_ACCOUNT_NAME}"
-            return 1
+            exit 1
         else
             log "Fileshare proxy-config created in storage account ${STORAGE_ACCOUNT_NAME}"
         fi
@@ -233,7 +233,7 @@ function create_storage_account() {
         az storage share create --name "proxy-data" --account-name "${STORAGE_ACCOUNT_NAME}"
         if [ $? -ne 0 ]; then
             err "Failed to create fileshare proxy-data in storage account ${STORAGE_ACCOUNT_NAME}"
-            return 1
+            exit 1
         else
             log "Fileshare proxy-data created in storage account ${STORAGE_ACCOUNT_NAME}"
         fi
@@ -257,7 +257,7 @@ function create_managed_identity() {
         az identity create --name "${USER_ALIAS}-msi" --resource-group "${RESOURCE_GROUP}"
         if [ $? -ne 0 ]; then
             err "failed to create managed identity ${USER_ALIAS}-msi"
-            return 1
+            exit 1
         else
             log "managed identity ${USER_ALIAS}-msi created"
             sleep_with_progress 120 "Waiting for the managed identity to be created and synced to Azure AD"
@@ -284,7 +284,7 @@ function assign_contributor_role() {
         az role assignment create --assignee "${MANAGED_IDENTITY_CLIENT_ID}" --role Contributor --scope "/subscriptions/${SUBSCRIPTION_ID}"
         if [ $? -ne 0 ]; then
             err "failed to assign managed identity ${USER_ALIAS}-msi 'Contributor' role on the subscription"
-            return 1
+            exit 1
         else
             log "managed identity ${USER_ALIAS}-msi assigned 'Contributor' role on the subscription"
         fi
@@ -307,7 +307,7 @@ function assign_user_access_administrator_role() {
         az role assignment create --assignee "${MANAGED_IDENTITY_CLIENT_ID}" --role "User Access Administrator" --scope "/subscriptions/${SUBSCRIPTION_ID}"
         if [ $? -ne 0 ]; then
             err "failed to assign managed identity ${USER_ALIAS}-msi 'User Access Administrator' role on the subscription"
-            return 1
+            exit 1
         else
             log "managed identity ${USER_ALIAS}-msi assigned 'User Access Administrator' role on the subscription"
         fi
@@ -329,7 +329,7 @@ function assign_actlabs_contributor_role() {
         az role assignment create --assignee "${ACTLABS_APP_ID}" --role Contributor --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
         if [ $? -ne 0 ]; then
             err "failed to assign actlabs 'Contributor' role on the resource group"
-            return 1
+            exit 1
         else
             log "actlabs assigned 'Contributor' role on the resource group"
         fi
@@ -348,10 +348,10 @@ function assign_actlabs_reader_role() {
     else
         log "assigning actlabs 'Reader' role on the subscription"
         # Assign actlabs the 'Reader' role on the subscription
-        az role assignment create --assignee "${ACTLABS_APP_ID}" --role Reader --subscription "${SUBSCRIPTION_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}"
+        az role assignment create --assignee "${ACTLABS_APP_ID}" --role Reader --scope "/subscriptions/${SUBSCRIPTION_ID}"
         if [ $? -ne 0 ]; then
             err "failed to assign actlabs 'Reader' role on the subscription"
-            return 1
+            exit 1
         else
             log "actlabs assigned 'Reader' role on the subscription"
         fi
