@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"actlabs-hub/internal/entity"
 	"crypto/rand"
 	"sort"
 	"strings"
@@ -73,4 +74,28 @@ func GetTodaysDateTimeISOString() string {
 
 func UserAlias(userPrincipalName string) string {
 	return strings.Split(userPrincipalName, "@")[0]
+}
+
+// ConvertProfileToRecord converts a Profile to a ProfileRecord.
+func ConvertProfileToRecord(profile entity.Profile) entity.ProfileRecord {
+	return entity.ProfileRecord{
+		PartitionKey:  "actlabs",             // this is a static value.
+		RowKey:        profile.UserPrincipal, // UserPrincipal is the unique identifier for the user.
+		ObjectId:      profile.ObjectId,
+		UserPrincipal: profile.UserPrincipal,
+		DisplayName:   profile.DisplayName,
+		ProfilePhoto:  profile.ProfilePhoto,
+		Roles:         strings.Join(profile.Roles, ","),
+	}
+}
+
+// ConvertRecordToProfile converts a ProfileRecord to a Profile.
+func ConvertRecordToProfile(record entity.ProfileRecord) entity.Profile {
+	return entity.Profile{
+		ObjectId:      record.ObjectId,
+		UserPrincipal: record.UserPrincipal,
+		DisplayName:   record.DisplayName,
+		ProfilePhoto:  record.ProfilePhoto,
+		Roles:         strings.Split(record.Roles, ","),
+	}
 }

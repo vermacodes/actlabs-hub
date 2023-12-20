@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"actlabs-hub/internal/auth"
+	"actlabs-hub/internal/entity"
+	"actlabs-hub/internal/helper"
 	"errors"
 	"net/http"
 	"strings"
@@ -27,7 +29,7 @@ func Auth() gin.HandlerFunc {
 			return
 		}
 
-		err := handleAccessToken(c, accessToken)
+		err := verifyAccessToken(c, accessToken)
 		if err != nil {
 			return
 		}
@@ -35,18 +37,94 @@ func Auth() gin.HandlerFunc {
 	}
 }
 
-func handleAccessToken(c *gin.Context, accessToken string) error {
-	// body, _ := io.ReadAll(c.Request.Body)
-	// server := entity.Server{}
-	// if err := json.Unmarshal(body, &server); err != nil {
-	// 	slog.Error("error binding json", slog.String("error", err.Error()))
-	// 	c.AbortWithStatus(http.StatusBadRequest)
-	// 	return err
-	// }
+func AdminRequired(authService entity.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		slog.Debug("Middleware: AdminRequired")
 
-	// // Reassign the body so it can be read again in the handler
-	// c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+		authToken := c.GetHeader("Authorization")
 
+		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(authToken)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		// Get the roles for the calling user
+		profile, err := authService.GetProfile(callingUserPrincipal)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		// Check if the calling user has the admin role
+		if !helper.Contains(profile.Roles, "admin") {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user is not an admin"})
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func MentorRequired(authService entity.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		slog.Debug("Middleware: MentorRequired")
+
+		authToken := c.GetHeader("Authorization")
+
+		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(authToken)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Get the roles for the calling user
+		profile, err := authService.GetProfile(callingUserPrincipal)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Check if the calling user has the mentor role
+		if !helper.Contains(profile.Roles, "mentor") {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user is not an mentor"})
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func ContributorRequired(authService entity.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		slog.Debug("Middleware: contributorRequired")
+
+		authToken := c.GetHeader("Authorization")
+
+		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(authToken)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Get the roles for the calling user
+		profile, err := authService.GetProfile(callingUserPrincipal)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Check if the calling user has the mentor role
+		if !helper.Contains(profile.Roles, "contributor") {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user is not an contributor"})
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func verifyAccessToken(c *gin.Context, accessToken string) error {
 	splitToken := strings.Split(accessToken, "Bearer ")
 	if len(splitToken) < 2 {
 		c.AbortWithStatus(http.StatusUnauthorized)

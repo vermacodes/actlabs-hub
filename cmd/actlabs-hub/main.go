@@ -46,9 +46,27 @@ func main() {
 		slog.Error("Error initializing lab repository", err)
 		panic(err)
 	}
+	assignmentRepository, err := repository.NewAssignmentRepository(auth, appConfig, rdb)
+	if err != nil {
+		slog.Error("Error initializing assignment repository", err)
+		panic(err)
+	}
+	challengeRepository, err := repository.NewChallengeRepository(auth, appConfig, rdb)
+	if err != nil {
+		slog.Error("Error initializing challenge repository", err)
+		panic(err)
+	}
+	authRepository, err := repository.NewAuthRepository(auth, appConfig, rdb)
+	if err != nil {
+		slog.Error("Error initializing auth repository", err)
+		panic(err)
+	}
 
 	serverService := service.NewServerService(serverRepository, appConfig)
 	labService := service.NewLabService(labRepository)
+	assignmentService := service.NewAssignmentService(assignmentRepository, labService)
+	challengeService := service.NewChallengeService(challengeRepository, labService)
+	authService := service.NewAuthService(authRepository)
 
 	router := gin.Default()
 	router.SetTrustedProxies(nil)
@@ -64,6 +82,22 @@ func main() {
 	handler.NewHealthzHandler(router.Group("/"))
 	handler.NewServerHandler(router.Group("/"), serverService)
 	handler.NewLabHandler(router.Group("/"), labService)
+	handler.NewAssignmentHandler(router.Group("/"), assignmentService)
+	handler.NewChallengeHandler(router.Group("/"), challengeService)
+	handler.NewAuthHandler(router.Group("/"), authService)
+
+	adminRouter := router.Group("/")
+	adminRouter.Use(middleware.AdminRequired(authService))
+	handler.NewAdminAuthHandler(adminRouter, authService)
+
+	mentorRouter := router.Group("/")
+	mentorRouter.Use(middleware.MentorRequired(authService))
+	handler.NewLabHandlerMentorRequired(mentorRouter, labService)
+	handler.NewAssignmentHandlerMentorRequired(mentorRouter, assignmentService)
+
+	contributorRouter := router.Group("/")
+	contributorRouter.Use(middleware.ContributorRequired(authService))
+	handler.NewLabHandlerContributorRequired(contributorRouter, labService)
 
 	port := os.Getenv("PORT")
 	if port == "" {
