@@ -114,8 +114,8 @@ properties:
           timeoutSeconds: 1
         resources:
           requests:
-            memoryInGB: 1.0
-            cpu: 1.0
+            memoryInGB: 0.5
+            cpu: 0.5
           limits:
             memoryInGB: 1.0
             cpu: 1.0

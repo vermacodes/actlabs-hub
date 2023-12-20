@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"actlabs-hub/internal/auth"
+	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
 
 	"github.com/gin-gonic/gin"
@@ -12,12 +13,14 @@ import (
 
 type labHandler struct {
 	labService entity.LabService
+	appConfig  *config.Config
 }
 
 // Authenticated user.
-func NewLabHandler(r *gin.RouterGroup, labService entity.LabService) {
+func NewLabHandler(r *gin.RouterGroup, labService entity.LabService, appConfig *config.Config) {
 	handler := &labHandler{
 		labService: labService,
+		appConfig:  appConfig,
 	}
 	// all private lab operations.
 	r.GET("/lab/private/:typeOfLab", handler.GetLabs)
@@ -62,7 +65,7 @@ func (l *labHandler) GetLab(c *gin.Context) {
 	labId := c.Param("labId")
 
 	protectedLabSecret := c.Request.Header.Get("ProtectedLabSecret")
-	if protectedLabSecret != "supersecret" {
+	if protectedLabSecret != l.appConfig.ProtectedLabSecret {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Protected lab secret is invalid."})
 		return
 	}
