@@ -8,15 +8,15 @@ import (
 )
 
 func SetupLogger() {
-	logLevel := os.Getenv("LOG_LEVEL")
+	logLevel := os.Getenv("ACTLABS_HUB_LOG_LEVEL")
 	if logLevel == "" {
-		slog.Info("LOG_LEVEL not set will default to 0")
+		slog.Info("ACTLABS_HUB_LOG_LEVEL not set will default to 0")
 		logLevel = "0"
 	}
 
 	logLevelInt, err := strconv.Atoi(logLevel)
 	if err != nil {
-		slog.Error("Error converting LOG_LEVEL to int will default to 0", err)
+		slog.Error("Error converting ACTLABS_HUB_LOG_LEVEL to int will default to 0", err)
 		logLevelInt = 0
 	}
 
