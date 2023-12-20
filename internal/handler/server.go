@@ -17,6 +17,8 @@ func NewServerHandler(r *gin.RouterGroup, serverService entity.ServerService) {
 		serverService: serverService,
 	}
 
+	r.PUT("/server/register/:subscriptionId", handler.RegisterSubscription)
+
 	r.GET("/server", handler.GetServer)
 	r.PUT("/server", handler.DeployServer)
 	r.DELETE("/server", handler.DestroyServer)
@@ -24,20 +26,34 @@ func NewServerHandler(r *gin.RouterGroup, serverService entity.ServerService) {
 	r.PUT("/server/activity/:userPrincipalName", handler.UpdateActivityStatus)
 }
 
+func (h *serverHandler) RegisterSubscription(c *gin.Context) {
+	subscriptionId := c.Param("subscriptionId")
+	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
+	}
+
+	userPrincipalId, err := auth.GetUserObjectIdFromToken(c.GetHeader("Authorization"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
+	}
+
+	if err := h.serverService.RegisterSubscription(subscriptionId, userPrincipalName, userPrincipalId); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"status": "success"})
+}
+
 func (h *serverHandler) GetServer(c *gin.Context) {
 
-	server := entity.Server{}
-	if err := c.ShouldBindJSON(&server); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
 	}
 
-	if !auth.VerifyUserObjectId(server.UserPrincipalId, c.GetHeader("Authorization")) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid request"})
-		return
-	}
-
-	server, err := h.serverService.GetServer(server)
+	server, err := h.serverService.GetServer(userPrincipalName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -68,18 +84,12 @@ func (h *serverHandler) DeployServer(c *gin.Context) {
 }
 
 func (h *serverHandler) DestroyServer(c *gin.Context) {
-	server := entity.Server{}
-	if err := c.ShouldBindJSON(&server); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
 	}
 
-	if !auth.VerifyUserObjectId(server.UserPrincipalId, c.GetHeader("Authorization")) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid request"})
-		return
-	}
-
-	err := h.serverService.DestroyServer(server)
+	err = h.serverService.DestroyServer(userPrincipalName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

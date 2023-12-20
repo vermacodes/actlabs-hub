@@ -54,7 +54,6 @@ function sleep_with_progress() {
         log "${MINUTES} minutes and ${SECONDS_REMAINING} seconds remaining"
         sleep 10
         TOTAL_SECONDS=$((TOTAL_SECONDS - 10))
-        log "Seconds remaining: ${TOTAL_SECONDS}"
     done
 }
 
@@ -282,7 +281,7 @@ function assign_contributor_role() {
     else
         log "assigning managed identity ${USER_ALIAS}-msi 'Contributor' role on the subscription"
         # Assign the managed identity the 'Contributor' role on the subscription
-        az role assignment create --assignee "${MANAGED_IDENTITY_CLIENT_ID}" --role Contributor
+        az role assignment create --assignee "${MANAGED_IDENTITY_CLIENT_ID}" --role Contributor --scope "/subscriptions/${SUBSCRIPTION_ID}"
         if [ $? -ne 0 ]; then
             err "failed to assign managed identity ${USER_ALIAS}-msi 'Contributor' role on the subscription"
             return 1
@@ -305,7 +304,7 @@ function assign_user_access_administrator_role() {
     else
         log "assigning managed identity ${USER_ALIAS}-msi 'User Access Administrator' role on the subscription"
         # Assign the managed identity the 'User Access Administrator' role on the subscription
-        az role assignment create --assignee "${MANAGED_IDENTITY_CLIENT_ID}" --role "User Access Administrator"
+        az role assignment create --assignee "${MANAGED_IDENTITY_CLIENT_ID}" --role "User Access Administrator" --scope "/subscriptions/${SUBSCRIPTION_ID}"
         if [ $? -ne 0 ]; then
             err "failed to assign managed identity ${USER_ALIAS}-msi 'User Access Administrator' role on the subscription"
             return 1
@@ -327,7 +326,7 @@ function assign_actlabs_contributor_role() {
     else
         log "assigning actlabs 'Contributor' role on the resource group"
         # Assign actlabs the 'Contributor' role on the resource group
-        az role assignment create --assignee "${ACTLABS_APP_ID}" --role Contributor --resource-group "${RESOURCE_GROUP}"
+        az role assignment create --assignee "${ACTLABS_APP_ID}" --role Contributor --resource-group "${RESOURCE_GROUP}" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
         if [ $? -ne 0 ]; then
             err "failed to assign actlabs 'Contributor' role on the resource group"
             return 1
@@ -349,7 +348,7 @@ function assign_actlabs_reader_role() {
     else
         log "assigning actlabs 'Reader' role on the subscription"
         # Assign actlabs the 'Reader' role on the subscription
-        az role assignment create --assignee "${ACTLABS_APP_ID}" --role Reader --subscription "${SUBSCRIPTION_ID}"
+        az role assignment create --assignee "${ACTLABS_APP_ID}" --role Reader --subscription "${SUBSCRIPTION_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}"
         if [ $? -ne 0 ]; then
             err "failed to assign actlabs 'Reader' role on the subscription"
             return 1
