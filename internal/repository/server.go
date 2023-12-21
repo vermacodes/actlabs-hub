@@ -544,9 +544,12 @@ func (s *serverRepository) IsUserOwner(server entity.Server) (bool, error) {
 		}
 		for _, roleAssignment := range page.Value {
 			slog.Debug("Role Assignment: " + *roleAssignment.Properties.PrincipalID + " " + *roleAssignment.Properties.Scope + " " + *roleAssignment.Properties.RoleDefinitionID)
+
+			ownerRoleDefinitionID := "/subscriptions/" + server.SubscriptionId + "/providers" + entity.OwnerRoleDefinitionId
+
 			if *roleAssignment.Properties.PrincipalID == server.UserPrincipalId &&
 				*roleAssignment.Properties.Scope == "/subscriptions/"+server.SubscriptionId &&
-				*roleAssignment.Properties.RoleDefinitionID == entity.OwnerRoleDefinitionId {
+				*roleAssignment.Properties.RoleDefinitionID == ownerRoleDefinitionID {
 				return true, nil
 			}
 		}
