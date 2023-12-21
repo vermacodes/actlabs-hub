@@ -1,6 +1,6 @@
 package entity
 
-const OwnerRoleDefinitionId string = "/subscriptions/da846304-0089-48e0-bfa7-65f68a3eb74f/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+const OwnerRoleDefinitionId string = "/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
 
 type Server struct {
 	PartitionKey                string `json:"PartitionKey"`
