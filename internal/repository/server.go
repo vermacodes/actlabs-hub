@@ -54,7 +54,7 @@ func (s *serverRepository) GetAzureContainerGroup(server entity.Server) (entity.
 	}
 
 	server.Endpoint = *res.Properties.IPAddress.Fqdn
-	server.Status = string(*res.Properties.ProvisioningState)
+	server.Status = s.ParseServerStatus(*res.Properties.ProvisioningState)
 
 	return server, nil
 }
@@ -432,7 +432,7 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 	}
 
 	server.Endpoint = *resp.Properties.IPAddress.Fqdn
-	server.Status = *resp.Properties.ProvisioningState
+	server.Status = s.ParseServerStatus(*resp.Properties.ProvisioningState)
 
 	return server, nil
 }
@@ -594,4 +594,22 @@ func (s *serverRepository) GetServerFromDatabase(partitionKey string, rowKey str
 
 	return server, nil
 
+}
+
+func (s *serverRepository) ParseServerStatus(status string) entity.ServerStatus {
+	switch status {
+	case "Succeeded":
+		return entity.ServerStatusRunning
+	case "Running":
+		return entity.ServerStatusRunning
+	case "Creating":
+		return entity.ServerStatusStarting
+	case "Pending":
+		return entity.ServerStatusStarting
+	case "Stopped":
+		return entity.ServerStatusStopped
+	// Add other cases as needed...
+	default:
+		return entity.ServerStatusUnknown
+	}
 }
