@@ -87,6 +87,21 @@ get_subscription_id() {
     log "SUBSCRIPTION_ID: $SUBSCRIPTION_ID"
 }
 
+# Function to ensure that user is the owner of the subscription
+ensure_user_is_owner() {
+    # Check if the user is the owner of the subscription
+    USER_ROLE=$(az role assignment list --assignee "${UPN}" --scope "/subscriptions/${SUBSCRIPTION_ID}" --query "[?roleDefinitionName=='Owner'].roleDefinitionName" -o tsv)
+
+    if [[ -n "${USER_ROLE}" ]]; then
+        log "user ${UPN} is the owner of the subscription"
+    else
+        err "user ${UPN} is not the owner of the subscription"
+        exit 1
+    fi
+
+    return 0
+}
+
 # Function to check if a resource group exists
 # If the resource group doesn't exist, create one
 function create_resource_group() {
@@ -370,6 +385,7 @@ function print_next_steps() {
 # Call the functions
 get_upn
 get_subscription_id
+ensure_user_is_owner
 create_resource_group
 create_storage_account
 create_managed_identity
