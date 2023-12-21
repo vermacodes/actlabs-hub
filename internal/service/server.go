@@ -60,6 +60,12 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		return server, err
 	}
 
+	// if server is already deployed or deploying, return.
+	if serverFromDB.Status == entity.ServerStatusDeploying || serverFromDB.Status == entity.ServerStatusRunning {
+		slog.Info("Server is already deployed or deploying")
+		return serverFromDB, nil
+	}
+
 	server.SubscriptionId = serverFromDB.SubscriptionId
 
 	// Validate input.
@@ -71,6 +77,14 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	s.ServerDefaults(&server) // Set defaults.
 	// s.ContainerAppEnvironment(&server) // Create container app environment if it doesn't exist.
 	s.UserAssignedIdentity(&server) // Managed Identity
+
+	// Before deploying, update the status in db.
+	server.Status = entity.ServerStatusDeploying
+	// Update server in database.
+	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
+		slog.Error("not able to update server in database", err)
+		return server, fmt.Errorf("server deployment interrupted because not able to update status in db : %w", err)
+	}
 
 	server, err = s.serverRepository.DeployAzureContainerGroup(server)
 	if err != nil {
@@ -90,8 +104,9 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		if err := s.serverRepository.EnsureServerUp(server); err == nil {
 			slog.Info("Server is up and running")
 
-			server.Status = "Running"
+			server.Status = entity.ServerStatusRunning
 			server.LastUserActivityTime = time.Now().Format(time.RFC3339)
+			server.DeployedAtTime = time.Now().Format(time.RFC3339)
 
 			// Update server in database.
 			if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
@@ -104,7 +119,7 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		time.Sleep(5 * time.Second)
 	}
 
-	server.Status = "Failed"
+	server.Status = entity.ServerStatusFailed
 
 	return server, nil
 }
@@ -131,7 +146,8 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 		return err
 	}
 
-	server.Status = "Destroyed"
+	server.Status = entity.ServerStatusDestroyed
+	server.DestroyedAtTime = time.Now().Format(time.RFC3339)
 
 	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
 		slog.Error("error updating server status after destroy:", err)
@@ -148,7 +164,7 @@ func (s *serverService) GetServer(userPrincipalName string) (entity.Server, erro
 		slog.Error("error getting server status from db:", err)
 
 		if strings.Contains(err.Error(), "404 Not Found") {
-			server.Status = "Unregistered"
+			server.Status = entity.ServerStatusUnregistered
 			return server, nil
 		}
 
@@ -218,16 +234,16 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 		server.InactivityDurationInMinutes = 60
 	}
 
-	if server.AutoCreate == false {
+	if !server.AutoCreate {
 		server.AutoCreate = true
 	}
 
-	if server.AutoDestroy == false {
+	if !server.AutoDestroy {
 		server.AutoDestroy = true
 	}
 
 	if server.Status == "" {
-		server.Status = "Registered"
+		server.Status = entity.ServerStatusRegistered
 	}
 }
 
