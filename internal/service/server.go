@@ -232,8 +232,12 @@ func (s *serverService) Validate(server entity.Server) error {
 
 	ok, err := s.serverRepository.IsUserOwner(server)
 	if err != nil {
-		slog.Error("Error:", err)
-		return err
+		slog.Error("failed to verify if user is the owner of subscription:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return fmt.Errorf("failed to verify if user is the owner of subscription")
 	}
 	if !ok {
 		slog.Error("Error: user is not the owner of the subscription")
