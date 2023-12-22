@@ -1,24 +1,29 @@
 package entity
 
+import (
+	"context"
+)
+
 const OwnerRoleDefinitionId string = "/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
 
 type ServerStatus string
 
 const (
-	ServerStatusDeployed     ServerStatus = "Deployed"
-	ServerStatusDeploying    ServerStatus = "Deploying"
-	ServerStatusDestroyed    ServerStatus = "Destroyed"
-	ServerSTatusDestroying   ServerStatus = "Destroying"
-	ServerStatusFailed       ServerStatus = "Failed"
-	ServerStatusRegistered   ServerStatus = "Registered"
-	ServerStatusRunning      ServerStatus = "Running"
-	ServerStatusStarting     ServerStatus = "Starting"
-	ServerStatusStopped      ServerStatus = "Stopped"
-	ServerStatusStopping     ServerStatus = "Stopping"
-	ServerStatusSucceeded    ServerStatus = "Succeeded"
-	ServerStatusUnknown      ServerStatus = "Unknown"
-	ServerStatusUnregistered ServerStatus = "Unregistered"
-	ServerStatusUpdating     ServerStatus = "Updating"
+	ServerStatusAutoDestroyed ServerStatus = "AutoDestroyed"
+	ServerStatusDeployed      ServerStatus = "Deployed"
+	ServerStatusDeploying     ServerStatus = "Deploying"
+	ServerStatusDestroyed     ServerStatus = "Destroyed"
+	ServerSTatusDestroying    ServerStatus = "Destroying"
+	ServerStatusFailed        ServerStatus = "Failed"
+	ServerStatusRegistered    ServerStatus = "Registered"
+	ServerStatusRunning       ServerStatus = "Running"
+	ServerStatusStarting      ServerStatus = "Starting"
+	ServerStatusStopped       ServerStatus = "Stopped"
+	ServerStatusStopping      ServerStatus = "Stopping"
+	ServerStatusSucceeded     ServerStatus = "Succeeded"
+	ServerStatusUnknown       ServerStatus = "Unknown"
+	ServerStatusUnregistered  ServerStatus = "Unregistered"
+	ServerStatusUpdating      ServerStatus = "Updating"
 )
 
 type Server struct {
@@ -44,9 +49,14 @@ type Server struct {
 	InactivityDurationInMinutes int          `json:"inactivityDurationInMinutes"`
 }
 
+type ManagedServerActionStatus struct {
+	InProgress bool `json:"inProgress"`
+}
+
 type ServerService interface {
 	RegisterSubscription(subscriptionId string, userPrincipalName string, userPrincipalId string) error
 
+	UpdateServer(server Server) error // just updates in db. used to set flags like autoDestroy, autoCreate, etc.
 	DeployServer(server Server) (Server, error)
 	DestroyServer(userPrincipalName string) error
 	GetServer(userPrincipalName string) (Server, error)
@@ -62,6 +72,7 @@ type ServerRepository interface {
 	CreateUserAssignedManagedIdentity(server Server) (Server, error)
 
 	EnsureServerUp(server Server) error
+	EnsureServerIdle(server Server) (bool, error)
 
 	DestroyAzureContainerGroup(server Server) error
 
@@ -69,4 +80,5 @@ type ServerRepository interface {
 
 	UpsertServerInDatabase(server Server) error
 	GetServerFromDatabase(partitionKey string, rowKey string) (Server, error)
+	GetAllServersFromDatabase(ctx context.Context) ([]Server, error)
 }

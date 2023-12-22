@@ -52,6 +52,34 @@ func (s *serverService) RegisterSubscription(subscriptionId string, userPrincipa
 	return nil
 }
 
+func (s *serverService) UpdateServer(server entity.Server) error {
+	// get server from db.
+	serverFromDB, err := s.serverRepository.GetServerFromDatabase("actlabs", server.UserPrincipalName)
+	if err != nil {
+		slog.Error("Error:", err)
+		return err
+	}
+
+	// only update some properties
+	serverFromDB.AutoCreate = server.AutoCreate
+	serverFromDB.AutoDestroy = server.AutoDestroy
+	serverFromDB.InactivityDurationInMinutes = server.InactivityDurationInMinutes
+
+	// Validate object.
+	if err := s.Validate(serverFromDB); err != nil {
+		slog.Error("Error:", err)
+		return err
+	}
+
+	// Update server in database.
+	if err := s.serverRepository.UpsertServerInDatabase(serverFromDB); err != nil {
+		slog.Error("Error:", err)
+		return err
+	}
+
+	return nil
+}
+
 func (s *serverService) DeployServer(server entity.Server) (entity.Server, error) {
 	// get server from db.
 	serverFromDB, err := s.serverRepository.GetServerFromDatabase("actlabs", server.UserPrincipalName)

@@ -9,6 +9,7 @@ import (
 	"actlabs-hub/internal/redis"
 	"actlabs-hub/internal/repository"
 	"actlabs-hub/internal/service"
+	"context"
 	"os"
 
 	"github.com/gin-contrib/cors"
@@ -67,6 +68,9 @@ func main() {
 	assignmentService := service.NewAssignmentService(assignmentRepository, labService)
 	challengeService := service.NewChallengeService(challengeRepository, labService)
 	authService := service.NewAuthService(authRepository)
+	autoDestroyService := service.NewAutoDestroyService(appConfig, serverRepository)
+
+	go autoDestroyService.MonitorAndDestroyInactiveServers(context.Background())
 
 	router := gin.Default()
 	router.SetTrustedProxies(nil)

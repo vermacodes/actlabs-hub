@@ -19,6 +19,8 @@ type Config struct {
 	ActlabsHubStorageAccount                       string
 	ActlabsHubSubscriptionID                       string
 	ActlabsHubURL                                  string
+	ActlabsHubAutoDestroyPollingIntervalSeconds    int32
+	ActlabsHubAutoDestroyIdleTimeSeconds           int32
 	ActlabsServerCaddyCPU                          float64
 	ActlabsServerCaddyMemory                       float64
 	ActlabsServerCPU                               float64
@@ -201,6 +203,16 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_HUB_PROFILES_TABLE_NAME not set")
 	}
 
+	actlabsHubAutoDestroyPollingIntervalSeconds, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_HUB_AUTO_DESTROY_POLLING_INTERVAL_SECONDS", "600"), 10, 32)
+	if err != nil {
+		return nil, err
+	}
+
+	actlabsHubAutoDestroyIdleTimeSeconds, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_HUB_AUTO_DESTROY_IDLE_TIME_SECONDS", "3600"), 10, 32)
+	if err != nil {
+		return nil, err
+	}
+
 	// Retrieve other environment variables and check them as needed
 
 	return &Config{
@@ -213,6 +225,8 @@ func NewConfig() (*Config, error) {
 		ActlabsHubStorageAccount:                       actlabsHubStorageAccount,
 		ActlabsHubSubscriptionID:                       actlabsHubSubscriptionID,
 		ActlabsHubURL:                                  actlabsHubURL,
+		ActlabsHubAutoDestroyPollingIntervalSeconds:    int32(actlabsHubAutoDestroyPollingIntervalSeconds),
+		ActlabsHubAutoDestroyIdleTimeSeconds:           int32(actlabsHubAutoDestroyIdleTimeSeconds),
 		ActlabsServerCaddyCPU:                          actlabsServerCaddyCPUFloat,
 		ActlabsServerCaddyMemory:                       actlabsServerCaddyMemoryFloat,
 		ActlabsServerCPU:                               actlabsServerCPUFloat,
