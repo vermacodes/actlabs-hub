@@ -550,21 +550,21 @@ func (s *serverRepository) CreateUserAssignedManagedIdentity(server entity.Serve
 
 // verify that user is the owner of the subscription
 func (s *serverRepository) IsUserOwner(server entity.Server) (bool, error) {
-	slog.Debug("Checking if user " + server.UserAlias + " is owner of the subscription " + server.SubscriptionId)
+	slog.Debug("is user owner of subscription",
+		slog.String("userPrincipalName", server.UserPrincipalName),
+		slog.String("subscriptionId", server.SubscriptionId),
+	)
 
 	if server.UserAlias == "" {
-		slog.Error("Error: userId is empty")
 		return false, errors.New("userId is required")
 	}
 
 	if server.SubscriptionId == "" {
-		slog.Error("Error: subscriptionId is empty")
 		return false, errors.New("subscriptionId is required")
 	}
 
 	clientFactory, err := armauthorization.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
 	if err != nil {
-		slog.Error("failed to create client:", err)
 		return false, err
 	}
 
@@ -577,11 +577,9 @@ func (s *serverRepository) IsUserOwner(server entity.Server) (bool, error) {
 	for pager.More() {
 		page, err := pager.NextPage(context.Background())
 		if err != nil {
-			slog.Error("failed to get the next page:", err)
 			return false, err
 		}
 		for _, roleAssignment := range page.Value {
-			slog.Debug("Role Assignment: " + *roleAssignment.Properties.PrincipalID + " " + *roleAssignment.Properties.Scope + " " + *roleAssignment.Properties.RoleDefinitionID)
 
 			ownerRoleDefinitionID := "/subscriptions/" + server.SubscriptionId + "/providers" + entity.OwnerRoleDefinitionId
 
