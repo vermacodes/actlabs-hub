@@ -12,10 +12,15 @@ import (
 type Config struct {
 	ActlabsHubClientID                             string
 	ActlabsHubManagedServersTableName              string
+	ActlabsHubReadinessAssignmentsTableName        string
+	ActlabsHubChallengesTableName                  string
+	ActlabsHubProfilesTableName                    string
 	ActlabsHubResourceGroup                        string
 	ActlabsHubStorageAccount                       string
 	ActlabsHubSubscriptionID                       string
 	ActlabsHubURL                                  string
+	ActlabsHubAutoDestroyPollingIntervalSeconds    int32
+	ActlabsHubAutoDestroyIdleTimeSeconds           int32
 	ActlabsServerCaddyCPU                          float64
 	ActlabsServerCaddyMemory                       float64
 	ActlabsServerCPU                               float64
@@ -183,15 +188,45 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME not set")
 	}
 
+	actlabsHubReadinessAssignmentsTableName := getEnv("ACTLABS_HUB_READINESS_ASSIGNMENTS_TABLE_NAME")
+	if actlabsHubReadinessAssignmentsTableName == "" {
+		return nil, fmt.Errorf("ACTLABS_HUB_READINESS_ASSIGNMENTS_TABLE_NAME not set")
+	}
+
+	actlabsHubChallengesTableName := getEnv("ACTLABS_HUB_CHALLENGES_TABLE_NAME")
+	if actlabsHubChallengesTableName == "" {
+		return nil, fmt.Errorf("ACTLABS_HUB_CHALLENGES_TABLE_NAME not set")
+	}
+
+	actlabsHubProfilesTableName := getEnv("ACTLABS_HUB_PROFILES_TABLE_NAME")
+	if actlabsHubProfilesTableName == "" {
+		return nil, fmt.Errorf("ACTLABS_HUB_PROFILES_TABLE_NAME not set")
+	}
+
+	actlabsHubAutoDestroyPollingIntervalSeconds, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_HUB_AUTO_DESTROY_POLLING_INTERVAL_SECONDS", "600"), 10, 32)
+	if err != nil {
+		return nil, err
+	}
+
+	actlabsHubAutoDestroyIdleTimeSeconds, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_HUB_AUTO_DESTROY_IDLE_TIME_SECONDS", "3600"), 10, 32)
+	if err != nil {
+		return nil, err
+	}
+
 	// Retrieve other environment variables and check them as needed
 
 	return &Config{
 		ActlabsHubClientID:                             actlabsHubClientID,
 		ActlabsHubManagedServersTableName:              actlabsHubManagedServersTableName,
+		ActlabsHubReadinessAssignmentsTableName:        actlabsHubReadinessAssignmentsTableName,
+		ActlabsHubChallengesTableName:                  actlabsHubChallengesTableName,
+		ActlabsHubProfilesTableName:                    actlabsHubProfilesTableName,
 		ActlabsHubResourceGroup:                        actlabsHubResourceGroup,
 		ActlabsHubStorageAccount:                       actlabsHubStorageAccount,
 		ActlabsHubSubscriptionID:                       actlabsHubSubscriptionID,
 		ActlabsHubURL:                                  actlabsHubURL,
+		ActlabsHubAutoDestroyPollingIntervalSeconds:    int32(actlabsHubAutoDestroyPollingIntervalSeconds),
+		ActlabsHubAutoDestroyIdleTimeSeconds:           int32(actlabsHubAutoDestroyIdleTimeSeconds),
 		ActlabsServerCaddyCPU:                          actlabsServerCaddyCPUFloat,
 		ActlabsServerCaddyMemory:                       actlabsServerCaddyMemoryFloat,
 		ActlabsServerCPU:                               actlabsServerCPUFloat,

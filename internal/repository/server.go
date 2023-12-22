@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerinstance/armcontainerinstance"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
@@ -54,7 +56,7 @@ func (s *serverRepository) GetAzureContainerGroup(server entity.Server) (entity.
 	}
 
 	server.Endpoint = *res.Properties.IPAddress.Fqdn
-	server.Status = string(*res.Properties.ProvisioningState)
+	server.Status = s.ParseServerStatus(*res.Properties.ProvisioningState)
 
 	return server, nil
 }
@@ -432,7 +434,7 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 	}
 
 	server.Endpoint = *resp.Properties.IPAddress.Fqdn
-	server.Status = *resp.Properties.ProvisioningState
+	server.Status = s.ParseServerStatus(*resp.Properties.ProvisioningState)
 
 	return server, nil
 }
@@ -440,7 +442,7 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 func (s *serverRepository) EnsureServerUp(server entity.Server) error {
 	// Call the server endpoint to check if it is up
 	serverEndpoint := "https://" + server.Endpoint + s.appConfig.ActlabsServerReadinessProbePath
-	slog.Info("Checking if server is up: " + serverEndpoint)
+	slog.Debug("Checking if server is up: " + serverEndpoint)
 
 	resp, err := http.Get(serverEndpoint)
 	if err != nil {
@@ -455,6 +457,42 @@ func (s *serverRepository) EnsureServerUp(server entity.Server) error {
 	}
 
 	return nil
+}
+
+func (s *serverRepository) EnsureServerIdle(server entity.Server) (bool, error) {
+	// Call the server endpoint to check if it is up
+	serverEndpoint := "https://" + server.Endpoint + "/actionstatus"
+	slog.Debug("Checking if server is busy: " + serverEndpoint)
+
+	resp, err := http.Get(serverEndpoint)
+	if err != nil {
+		slog.Error("Failed to make HTTP request:", err)
+		return false, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		slog.Error("not able to check for action status:", resp.StatusCode)
+		return false, errors.New("not able to check for action status")
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		slog.Error("not able to read response body:", err)
+		return false, err
+	}
+
+	managedServerActionStatus := entity.ManagedServerActionStatus{}
+	if err = json.Unmarshal(body, &managedServerActionStatus); err != nil {
+		slog.Error("not able to unmarshal response body:", err)
+		return false, err
+	}
+
+	if managedServerActionStatus.InProgress {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (s *serverRepository) DestroyAzureContainerGroup(server entity.Server) error {
@@ -499,9 +537,9 @@ func (s *serverRepository) CreateUserAssignedManagedIdentity(server entity.Serve
 		return server, err
 	}
 
-	slog.Info("Managed Identity: " + *res.ID)
-	slog.Info("Managed Identity Client ID: " + *res.Properties.ClientID)
-	slog.Info("Managed Identity Principal ID: " + *res.Properties.PrincipalID)
+	slog.Debug("Managed Identity: " + *res.ID)
+	slog.Debug("Managed Identity Client ID: " + *res.Properties.ClientID)
+	slog.Debug("Managed Identity Principal ID: " + *res.Properties.PrincipalID)
 
 	server.ManagedIdentityClientId = *res.Properties.ClientID
 	server.ManagedIdentityPrincipalId = *res.Properties.PrincipalID
@@ -512,7 +550,7 @@ func (s *serverRepository) CreateUserAssignedManagedIdentity(server entity.Serve
 
 // verify that user is the owner of the subscription
 func (s *serverRepository) IsUserOwner(server entity.Server) (bool, error) {
-	slog.Info("Checking if user " + server.UserAlias + " is owner of the subscription " + server.SubscriptionId)
+	slog.Debug("Checking if user " + server.UserAlias + " is owner of the subscription " + server.SubscriptionId)
 
 	if server.UserAlias == "" {
 		slog.Error("Error: userId is empty")
@@ -544,9 +582,12 @@ func (s *serverRepository) IsUserOwner(server entity.Server) (bool, error) {
 		}
 		for _, roleAssignment := range page.Value {
 			slog.Debug("Role Assignment: " + *roleAssignment.Properties.PrincipalID + " " + *roleAssignment.Properties.Scope + " " + *roleAssignment.Properties.RoleDefinitionID)
+
+			ownerRoleDefinitionID := "/subscriptions/" + server.SubscriptionId + "/providers" + entity.OwnerRoleDefinitionId
+
 			if *roleAssignment.Properties.PrincipalID == server.UserPrincipalId &&
 				*roleAssignment.Properties.Scope == "/subscriptions/"+server.SubscriptionId &&
-				*roleAssignment.Properties.RoleDefinitionID == entity.OwnerRoleDefinitionId {
+				*roleAssignment.Properties.RoleDefinitionID == ownerRoleDefinitionID {
 				return true, nil
 			}
 		}
@@ -591,4 +632,68 @@ func (s *serverRepository) GetServerFromDatabase(partitionKey string, rowKey str
 
 	return server, nil
 
+}
+
+func (s *serverRepository) GetAllServersFromDatabase(ctx context.Context) ([]entity.Server, error) {
+	servers := []entity.Server{}
+	//server := entity.Server{}
+	pager := s.auth.ActlabsServersTableClient.NewListEntitiesPager(nil)
+	for pager.More() {
+		response, err := pager.NextPage(ctx)
+		if err != nil {
+			slog.Error("error getting servers from database:", err)
+			return servers, fmt.Errorf("error getting servers from database %w", err)
+		}
+
+		for _, e := range response.Entities {
+			var myEntity aztables.EDMEntity
+			var server entity.Server
+			if err := json.Unmarshal(e, &myEntity); err != nil {
+				slog.Error("error unmarshalling server:", err)
+				return servers, fmt.Errorf("error unmarshalling server %w", err)
+			}
+			propertiesBytes, err := json.Marshal(myEntity.Properties)
+			if err != nil {
+				slog.Error("error marshalling server:", err)
+				return servers, fmt.Errorf("error marshalling server %w", err)
+			}
+			if err := json.Unmarshal(propertiesBytes, &server); err != nil {
+				slog.Error("error unmarshalling server:", err)
+				return servers, fmt.Errorf("error unmarshalling server %w", err)
+			}
+			servers = append(servers, server)
+		}
+	}
+
+	return servers, nil
+}
+
+func (s *serverRepository) ParseServerStatus(status string) entity.ServerStatus {
+	switch status {
+	case "Succeeded", "Running":
+		return entity.ServerStatusRunning
+	case "Creating", "Pending":
+		return entity.ServerStatusStarting
+	case "Stopped":
+		return entity.ServerStatusStopped
+	case "Deploying":
+		return entity.ServerStatusDeploying
+	case "Deployed":
+		return entity.ServerStatusDeployed
+	case "Destroyed":
+		return entity.ServerStatusDestroyed
+	case "Failed":
+		return entity.ServerStatusFailed
+	case "Registered":
+		return entity.ServerStatusRegistered
+	case "Stopping":
+		return entity.ServerStatusStopping
+	case "Unregistered":
+		return entity.ServerStatusUnregistered
+	case "Updating":
+		return entity.ServerStatusUpdating
+	// Add other cases as needed...
+	default:
+		return entity.ServerStatusUnknown
+	}
 }
