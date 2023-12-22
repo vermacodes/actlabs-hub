@@ -103,8 +103,11 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	}
 
 	s.ServerDefaults(&server) // Set defaults.
-	// s.ContainerAppEnvironment(&server) // Create container app environment if it doesn't exist.
-	s.UserAssignedIdentity(&server) // Managed Identity
+
+	// Managed Identity
+	if err := s.UserAssignedIdentity(&server); err != nil {
+		return server, err
+	}
 
 	// Before deploying, update the status in db.
 	server.Status = entity.ServerStatusDeploying
@@ -220,8 +223,7 @@ func (s *serverService) UpdateActivityStatus(userPrincipalName string) error {
 
 func (s *serverService) Validate(server entity.Server) error {
 	if server.UserPrincipalName == "" || server.UserPrincipalId == "" || server.SubscriptionId == "" {
-		slog.Error("Error: userPrincipalName, userPrincipalId, and subscriptionId are required")
-		return errors.New("missing required information")
+		return errors.New("userPrincipalName, userPrincipalId, and subscriptionId are all required")
 	}
 
 	if server.UserAlias == "" {
@@ -280,13 +282,14 @@ func (s *serverService) UserAssignedIdentity(server *entity.Server) error {
 	var err error
 	*server, err = s.serverRepository.GetUserAssignedManagedIdentity(*server)
 	if err != nil {
-		slog.Info("Managed Identity not found, creating...")
-	}
+		slog.Error("Managed Identity not found...",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("status", string(server.Status)),
+			slog.String("error", err.Error()),
+		)
 
-	*server, err = s.serverRepository.CreateUserAssignedManagedIdentity(*server)
-	if err != nil {
-		slog.Error("Error:", err)
-		return err
+		return fmt.Errorf("managed identity not found. please register your subscription")
 	}
 
 	return nil

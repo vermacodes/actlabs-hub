@@ -69,7 +69,7 @@ type ServerRepository interface {
 	GetUserAssignedManagedIdentity(server Server) (Server, error)
 
 	DeployAzureContainerGroup(server Server) (Server, error)
-	CreateUserAssignedManagedIdentity(server Server) (Server, error)
+	// CreateUserAssignedManagedIdentity(server Server) (Server, error)
 
 	EnsureServerUp(server Server) error
 	EnsureServerIdle(server Server) (bool, error)
