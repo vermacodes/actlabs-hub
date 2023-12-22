@@ -12,9 +12,12 @@ import (
 )
 
 type Auth struct {
-	Cred                      azcore.TokenCredential
-	ActlabsServersTableClient *aztables.Client
-	StorageAccountKey         string
+	Cred                         azcore.TokenCredential
+	ActlabsServersTableClient    *aztables.Client
+	ActlabsReadinessTableClient  *aztables.Client
+	ActlabsChallengesTableClient *aztables.Client
+	ActlabsProfilesTableClient   *aztables.Client
+	StorageAccountKey            string
 }
 
 func NewAuth(appConfig *config.Config) (*Auth, error) {
@@ -45,7 +48,7 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 		return nil, fmt.Errorf("not able to get storage account key %w", err)
 	}
 
-	tableClient, err := GetTableClient(
+	actlabsServersTableClient, err := GetTableClient(
 		accountKey,
 		appConfig.ActlabsHubStorageAccount,
 		appConfig.ActlabsHubManagedServersTableName,
@@ -54,10 +57,40 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 		return nil, fmt.Errorf("not able to create table client %w", err)
 	}
 
+	actlabsReadinessTableClient, err := GetTableClient(
+		accountKey,
+		appConfig.ActlabsHubStorageAccount,
+		appConfig.ActlabsHubReadinessAssignmentsTableName,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("not able to create table client %w", err)
+	}
+
+	actlabsChallengesTableClient, err := GetTableClient(
+		accountKey,
+		appConfig.ActlabsHubStorageAccount,
+		appConfig.ActlabsHubChallengesTableName,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("not able to create table client %w", err)
+	}
+
+	actlabsProfilesTableClient, err := GetTableClient(
+		accountKey,
+		appConfig.ActlabsHubStorageAccount,
+		appConfig.ActlabsHubProfilesTableName,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("not able to create table client %w", err)
+	}
+
 	return &Auth{
-		Cred:                      cred,
-		StorageAccountKey:         accountKey,
-		ActlabsServersTableClient: tableClient,
+		Cred:                         cred,
+		StorageAccountKey:            accountKey,
+		ActlabsServersTableClient:    actlabsServersTableClient,
+		ActlabsReadinessTableClient:  actlabsReadinessTableClient,
+		ActlabsChallengesTableClient: actlabsChallengesTableClient,
+		ActlabsProfilesTableClient:   actlabsProfilesTableClient,
 	}, nil
 }
 
