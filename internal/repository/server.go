@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -45,13 +44,21 @@ func (s *serverRepository) GetAzureContainerGroup(server entity.Server) (entity.
 	ctx := context.Background()
 	clientFactory, err := armcontainerinstance.NewContainerGroupsClient(server.SubscriptionId, s.auth.Cred, nil)
 	if err != nil {
-		slog.Error("failed to create client:", err)
+		slog.Debug("failed to create client",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return server, err
 	}
 
 	res, err := clientFactory.Get(ctx, server.ResourceGroup, server.UserAlias+"-aci", nil)
 	if err != nil {
-		slog.Error("failed to finish the request:", err)
+		slog.Debug("failed to finish the request:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return server, err
 	}
 
@@ -65,13 +72,21 @@ func (s *serverRepository) GetUserAssignedManagedIdentity(server entity.Server) 
 	ctx := context.Background()
 	clientFactory, err := armmsi.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
 	if err != nil {
-		slog.Error("failed to create client:", err)
+		slog.Debug("failed to create client:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return server, err
 	}
 
 	res, err := clientFactory.NewUserAssignedIdentitiesClient().Get(ctx, server.ResourceGroup, server.UserAlias+"-msi", nil)
 	if err != nil {
-		slog.Error("failed to finish the request:", err)
+		slog.Debug("failed to finish the request:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return server, err
 	}
 
@@ -98,7 +113,11 @@ func (s *serverRepository) GetClientStorageAccount(server entity.Server) (armsto
 
 	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
 	if err != nil {
-		slog.Error("not able to create client factory to get storage account", err)
+		slog.Debug("not able to create client factory to get storage account",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return armstorage.Account{}, err
 	}
 
@@ -106,18 +125,30 @@ func (s *serverRepository) GetClientStorageAccount(server entity.Server) (armsto
 	for pager.More() {
 		page, err := pager.NextPage(context.Background())
 		if err != nil {
-			slog.Error("not able to get next page for storage account", err)
+			slog.Debug("not able to get next page for storage account",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("error", err.Error()),
+			)
 			return armstorage.Account{}, err
 		}
 		for _, account := range page.Value {
 			// Cache storage account in Redis
 			storageAccountStr, err := json.Marshal(account)
 			if err != nil {
-				slog.Error("not able to marshal storage account", err)
+				slog.Debug("not able to marshal storage account",
+					slog.String("userPrincipalName", server.UserPrincipalName),
+					slog.String("subscriptionId", server.SubscriptionId),
+					slog.String("error", err.Error()),
+				)
 			}
 			err = s.rdb.Set(context.Background(), server.UserAlias+"-storageAccount", storageAccountStr, 0).Err()
 			if err != nil {
-				slog.Error("not able to set storage account in redis", err)
+				slog.Debug("not able to set storage account in redis",
+					slog.String("userPrincipalName", server.UserPrincipalName),
+					slog.String("subscriptionId", server.SubscriptionId),
+					slog.String("error", err.Error()),
+				)
 			}
 
 			return *account, nil // return the first storage account found.
@@ -150,13 +181,17 @@ func (s *serverRepository) GetClientStorageAccountKey(server entity.Server) (str
 	}
 
 	if len(resp.Keys) == 0 {
-		return "", fmt.Errorf("no storage account key found")
+		return "", errors.New("no storage account key found")
 	}
 
 	// Cache storage account key in Redis
 	err = s.rdb.Set(context.Background(), server.UserAlias+"-storageAccountKey", *resp.Keys[0].Value, 0).Err()
 	if err != nil {
-		slog.Error("not able to set storage account key in redis", err)
+		slog.Debug("not able to set storage account key in redis",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 	}
 
 	return *resp.Keys[0].Value, nil
@@ -178,7 +213,11 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 
 	clientFactory, err := armcontainerinstance.NewContainerGroupsClient(server.SubscriptionId, s.auth.Cred, nil)
 	if err != nil {
-		slog.Error("failed to create client:", err)
+		slog.Debug("failed to create client:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return server, err
 	}
 
@@ -423,13 +462,21 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 			},
 		}, nil)
 	if err != nil {
-		slog.Error("failed to finish the request:", err)
+		slog.Debug("failed to finish the request:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return server, err
 	}
 
 	resp, err := poller.PollUntilDone(ctx, nil)
 	if err != nil {
-		slog.Error("failed to pull the result:", err)
+		slog.Debug("failed to pull the result:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return server, err
 	}
 
@@ -446,13 +493,17 @@ func (s *serverRepository) EnsureServerUp(server entity.Server) error {
 
 	resp, err := http.Get(serverEndpoint)
 	if err != nil {
-		slog.Error("Failed to make HTTP request:", err)
+		slog.Debug("Failed to make HTTP request:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		slog.Error("Server is not up. Status code:", resp.StatusCode)
+		slog.Debug("Server is not up. Status code:", resp.StatusCode)
 		return errors.New("server is not up")
 	}
 
@@ -466,26 +517,38 @@ func (s *serverRepository) EnsureServerIdle(server entity.Server) (bool, error) 
 
 	resp, err := http.Get(serverEndpoint)
 	if err != nil {
-		slog.Error("Failed to make HTTP request:", err)
+		slog.Debug("Failed to make HTTP request:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return false, err
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		slog.Error("not able to check for action status:", resp.StatusCode)
+		slog.Debug("not able to check for action status:", resp.StatusCode)
 		return false, errors.New("not able to check for action status")
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		slog.Error("not able to read response body:", err)
+		slog.Debug("not able to read response body:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return false, err
 	}
 
 	managedServerActionStatus := entity.ManagedServerActionStatus{}
 	if err = json.Unmarshal(body, &managedServerActionStatus); err != nil {
-		slog.Error("not able to unmarshal response body:", err)
+		slog.Debug("not able to unmarshal response body:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return false, err
 	}
 
@@ -501,19 +564,31 @@ func (s *serverRepository) DestroyAzureContainerGroup(server entity.Server) erro
 
 	clientFactory, err := armcontainerinstance.NewContainerGroupsClient(server.SubscriptionId, s.auth.Cred, nil)
 	if err != nil {
-		slog.Error("failed to create client:", err)
+		slog.Debug("failed to create client:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
 
 	poller, err := clientFactory.BeginDelete(ctx, server.ResourceGroup, server.UserAlias+"-aci", nil)
 	if err != nil {
-		slog.Error("failed to finish the request:", err)
+		slog.Debug("failed to finish the request:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
 
 	_, err = poller.PollUntilDone(ctx, nil)
 	if err != nil {
-		slog.Error("failed to pull the result:", err)
+		slog.Debug("failed to pull the result:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
 
@@ -525,7 +600,11 @@ func (s *serverRepository) CreateUserAssignedManagedIdentity(server entity.Serve
 	ctx := context.Background()
 	clientFactory, err := armmsi.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
 	if err != nil {
-		slog.Error("failed to create client:", err)
+		slog.Debug("failed to create client:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return server, err
 	}
 
@@ -533,7 +612,11 @@ func (s *serverRepository) CreateUserAssignedManagedIdentity(server entity.Serve
 		Location: to.Ptr(server.Region),
 	}, nil)
 	if err != nil {
-		slog.Error("failed to finish the request:", err)
+		slog.Debug("failed to finish the request:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return server, err
 	}
 
@@ -600,14 +683,22 @@ func (s *serverRepository) UpsertServerInDatabase(server entity.Server) error {
 
 	val, err := json.Marshal(server)
 	if err != nil {
-		slog.Error("error marshalling server:", err)
-		return fmt.Errorf("error marshalling server %w", err)
+		slog.Debug("error marshalling server:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
 	}
 
 	_, err = s.auth.ActlabsServersTableClient.UpsertEntity(context.Background(), val, nil)
 	if err != nil {
-		slog.Error("error upserting server:", err)
-		return fmt.Errorf("error upserting server %w", err)
+		slog.Debug("error upserting server:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
 	}
 
 	slog.Debug("Server upserted in database")
@@ -617,15 +708,21 @@ func (s *serverRepository) UpsertServerInDatabase(server entity.Server) error {
 func (s *serverRepository) GetServerFromDatabase(partitionKey string, rowKey string) (entity.Server, error) {
 	response, err := s.auth.ActlabsServersTableClient.GetEntity(context.Background(), partitionKey, rowKey, nil)
 	if err != nil {
-		slog.Error("error getting server from database:", err)
-		return entity.Server{}, fmt.Errorf("error getting server from database %w", err)
+		slog.Debug("error getting server from database:",
+			slog.String("userPrincipalName", rowKey),
+			slog.String("error", err.Error()),
+		)
+		return entity.Server{}, err
 	}
 
 	server := entity.Server{}
 	err = json.Unmarshal(response.Value, &server)
 	if err != nil {
-		slog.Error("error unmarshalling server:", err)
-		return entity.Server{}, fmt.Errorf("error unmarshalling server %w", err)
+		slog.Debug("error unmarshalling server:",
+			slog.String("userPrincipalName", rowKey),
+			slog.String("error", err.Error()),
+		)
+		return entity.Server{}, err
 	}
 
 	return server, nil
@@ -639,25 +736,25 @@ func (s *serverRepository) GetAllServersFromDatabase(ctx context.Context) ([]ent
 	for pager.More() {
 		response, err := pager.NextPage(ctx)
 		if err != nil {
-			slog.Error("error getting servers from database:", err)
-			return servers, fmt.Errorf("error getting servers from database %w", err)
+			slog.Debug("error getting servers from database:", slog.String("error", err.Error()))
+			return servers, err
 		}
 
 		for _, e := range response.Entities {
 			var myEntity aztables.EDMEntity
 			var server entity.Server
 			if err := json.Unmarshal(e, &myEntity); err != nil {
-				slog.Error("error unmarshalling server:", err)
-				return servers, fmt.Errorf("error unmarshalling server %w", err)
+				slog.Debug("error unmarshalling server:", slog.String("error", err.Error()))
+				return servers, err
 			}
 			propertiesBytes, err := json.Marshal(myEntity.Properties)
 			if err != nil {
-				slog.Error("error marshalling server:", err)
-				return servers, fmt.Errorf("error marshalling server %w", err)
+				slog.Debug("error marshalling server:", slog.String("error", err.Error()))
+				return servers, err
 			}
 			if err := json.Unmarshal(propertiesBytes, &server); err != nil {
-				slog.Error("error unmarshalling server:", err)
-				return servers, fmt.Errorf("error unmarshalling server %w", err)
+				slog.Debug("error unmarshalling server:", slog.String("error", err.Error()))
+				return servers, err
 			}
 			servers = append(servers, server)
 		}
