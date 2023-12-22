@@ -52,13 +52,8 @@ func (s *serverService) RegisterSubscription(subscriptionId string, userPrincipa
 
 func (s *serverService) UpdateServer(server entity.Server) error {
 	// get server from db.
-	serverFromDB, err := s.serverRepository.GetServerFromDatabase("actlabs", server.UserPrincipalName)
+	serverFromDB, err := s.GetServerFromDatabase(server.UserPrincipalName)
 	if err != nil {
-		slog.Error("not able to get server from db",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
 		return fmt.Errorf("not able to get server from database")
 	}
 
@@ -82,9 +77,8 @@ func (s *serverService) UpdateServer(server entity.Server) error {
 
 func (s *serverService) DeployServer(server entity.Server) (entity.Server, error) {
 	// get server from db.
-	serverFromDB, err := s.serverRepository.GetServerFromDatabase("actlabs", server.UserPrincipalName)
+	serverFromDB, err := s.GetServerFromDatabase(server.UserPrincipalName)
 	if err != nil {
-		slog.Error("Error:", err)
 		return server, err
 	}
 
@@ -157,9 +151,8 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 func (s *serverService) DestroyServer(userPrincipalName string) error {
 
 	// get server from db.
-	server, err := s.serverRepository.GetServerFromDatabase("actlabs", userPrincipalName)
+	server, err := s.GetServerFromDatabase(userPrincipalName)
 	if err != nil {
-		slog.Error("Error:", err)
 		return err
 	}
 
@@ -188,25 +181,22 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 
 func (s *serverService) GetServer(userPrincipalName string) (entity.Server, error) {
 	// get server from db.
-	server, err := s.serverRepository.GetServerFromDatabase("actlabs", userPrincipalName)
+	server, err := s.GetServerFromDatabase(userPrincipalName)
 	if err != nil {
-		slog.Error("error getting server status from db:", err)
-
 		if strings.Contains(err.Error(), "404 Not Found") {
 			server.Status = entity.ServerStatusUnregistered
 			return server, nil
 		}
 
-		return server, fmt.Errorf("not able to get server status from database: %w", err)
+		return server, fmt.Errorf("not able to get server status from database")
 	}
 	return server, nil
 }
 
 func (s *serverService) UpdateActivityStatus(userPrincipalName string) error {
-	server, err := s.serverRepository.GetServerFromDatabase("actlabs", userPrincipalName)
+	server, err := s.GetServerFromDatabase(userPrincipalName)
 	if err != nil {
-		slog.Error("Error getting server from database:", err)
-		return fmt.Errorf("error getting server from database: %w", err)
+		return fmt.Errorf("error getting server from database")
 	}
 
 	server.LastUserActivityTime = time.Now().Format(time.RFC3339)
@@ -216,6 +206,19 @@ func (s *serverService) UpdateActivityStatus(userPrincipalName string) error {
 	}
 
 	return nil
+}
+
+func (s *serverService) GetServerFromDatabase(userPrincipalName string) (entity.Server, error) {
+	servers, err := s.serverRepository.GetServerFromDatabase("actlabs", userPrincipalName)
+	if err != nil {
+		slog.Error("error upserting server in db",
+			slog.String("userPrincipalName", userPrincipalName),
+			slog.String("error", err.Error()),
+		)
+		return servers, err
+	}
+
+	return servers, nil
 }
 
 func (s *serverService) UpsertServerInDatabase(server entity.Server) error {
