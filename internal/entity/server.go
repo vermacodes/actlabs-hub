@@ -46,7 +46,7 @@ type Server struct {
 	DeployedAtTime              string       `json:"deployedAtTime"`
 	AutoCreate                  bool         `json:"autoCreate"`
 	AutoDestroy                 bool         `json:"autoDestroy"`
-	InactivityDurationInMinutes int          `json:"inactivityDurationInMinutes"`
+	InactivityDurationInSeconds int          `json:"inactivityDurationInSeconds"`
 }
 
 type ManagedServerActionStatus struct {

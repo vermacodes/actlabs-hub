@@ -60,7 +60,7 @@ func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
 
 		if server.AutoDestroy &&
 			server.Status == entity.ServerStatusRunning &&
-			time.Since(lastActivityTime) > time.Duration(server.InactivityDurationInMinutes)*time.Minute &&
+			time.Since(lastActivityTime) > time.Duration(server.InactivityDurationInSeconds)*time.Second &&
 			s.VerifyServerIdle(server) {
 			if err := s.DestroyServer(server); err != nil {
 				slog.Error("not able to destroy server",
