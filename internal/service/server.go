@@ -63,7 +63,7 @@ func (s *serverService) UpdateServer(server entity.Server) error {
 	// only update some properties
 	serverFromDB.AutoCreate = server.AutoCreate
 	serverFromDB.AutoDestroy = server.AutoDestroy
-	serverFromDB.InactivityDurationInMinutes = server.InactivityDurationInMinutes
+	serverFromDB.InactivityDurationInSeconds = server.InactivityDurationInSeconds
 
 	// Validate object.
 	if err := s.Validate(serverFromDB); err != nil {
@@ -258,8 +258,8 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 		server.ResourceGroup = "repro-project"
 	}
 
-	if server.InactivityDurationInMinutes == 0 {
-		server.InactivityDurationInMinutes = 60
+	if server.InactivityDurationInSeconds == 0 {
+		server.InactivityDurationInSeconds = 3600
 	}
 
 	if !server.AutoCreate {
