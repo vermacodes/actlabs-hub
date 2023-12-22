@@ -43,7 +43,7 @@ func (s *AutoDestroyService) MonitorAndDestroyInactiveServers(ctx context.Contex
 }
 
 func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
-	slog.Info("polling for servers to destroy")
+	slog.Debug("polling for servers to destroy")
 	allServers, err := s.serverRepository.GetAllServersFromDatabase(ctx)
 	if err != nil {
 		slog.Error("not able to get all servers", err)
@@ -56,6 +56,25 @@ func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
 		if err != nil {
 			slog.Error("not able to parse last activity time", err)
 			continue
+		}
+
+		slog.Debug("checking server for auto destroy",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("status", string(server.Status)),
+			slog.String("lastActivityTime", server.LastUserActivityTime),
+			slog.Bool("autoDestroy", server.AutoDestroy),
+			slog.Int("inactivityDurationInSeconds", server.InactivityDurationInSeconds),
+			slog.Duration("timeSinceLastActivity", time.Since(lastActivityTime)),
+			slog.Duration("inactiveDuration", time.Duration(server.InactivityDurationInSeconds)*time.Second),
+		)
+
+		if server.Status == entity.ServerStatusRunning && time.Since(lastActivityTime) > time.Duration(server.InactivityDurationInSeconds)*time.Second {
+			slog.Debug("server is idle",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("status", string(server.Status)),
+			)
 		}
 
 		if server.AutoDestroy &&
@@ -83,7 +102,7 @@ func (s *AutoDestroyService) VerifyServerIdle(server entity.Server) bool {
 		return false
 	}
 
-	slog.Info("server idle status",
+	slog.Debug("server idle status",
 		slog.String("userPrincipalName", server.UserPrincipalName),
 		slog.Bool("isIdle", isIdle),
 	)
@@ -92,7 +111,7 @@ func (s *AutoDestroyService) VerifyServerIdle(server entity.Server) bool {
 }
 
 func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
-	slog.Info("destroying server",
+	slog.Debug("destroying server",
 		slog.String("userPrincipalName", server.UserPrincipalName),
 		slog.String("subscriptionId", server.SubscriptionId),
 		slog.String("status", string(server.Status)),

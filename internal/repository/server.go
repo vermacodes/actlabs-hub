@@ -442,7 +442,7 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 func (s *serverRepository) EnsureServerUp(server entity.Server) error {
 	// Call the server endpoint to check if it is up
 	serverEndpoint := "https://" + server.Endpoint + s.appConfig.ActlabsServerReadinessProbePath
-	slog.Info("Checking if server is up: " + serverEndpoint)
+	slog.Debug("Checking if server is up: " + serverEndpoint)
 
 	resp, err := http.Get(serverEndpoint)
 	if err != nil {
@@ -537,9 +537,9 @@ func (s *serverRepository) CreateUserAssignedManagedIdentity(server entity.Serve
 		return server, err
 	}
 
-	slog.Info("Managed Identity: " + *res.ID)
-	slog.Info("Managed Identity Client ID: " + *res.Properties.ClientID)
-	slog.Info("Managed Identity Principal ID: " + *res.Properties.PrincipalID)
+	slog.Debug("Managed Identity: " + *res.ID)
+	slog.Debug("Managed Identity Client ID: " + *res.Properties.ClientID)
+	slog.Debug("Managed Identity Principal ID: " + *res.Properties.PrincipalID)
 
 	server.ManagedIdentityClientId = *res.Properties.ClientID
 	server.ManagedIdentityPrincipalId = *res.Properties.PrincipalID
@@ -550,7 +550,7 @@ func (s *serverRepository) CreateUserAssignedManagedIdentity(server entity.Serve
 
 // verify that user is the owner of the subscription
 func (s *serverRepository) IsUserOwner(server entity.Server) (bool, error) {
-	slog.Info("Checking if user " + server.UserAlias + " is owner of the subscription " + server.SubscriptionId)
+	slog.Debug("Checking if user " + server.UserAlias + " is owner of the subscription " + server.SubscriptionId)
 
 	if server.UserAlias == "" {
 		slog.Error("Error: userId is empty")
