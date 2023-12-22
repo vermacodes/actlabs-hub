@@ -21,6 +21,7 @@ func NewServerHandler(r *gin.RouterGroup, serverService entity.ServerService) {
 
 	r.GET("/server", handler.GetServer)
 	r.PUT("/server", handler.DeployServer)
+	r.PUT("/server/update", handler.UpdateServer)
 	r.DELETE("/server", handler.DestroyServer)
 
 	r.PUT("/server/activity/:userPrincipalName", handler.UpdateActivityStatus)
@@ -55,6 +56,26 @@ func (h *serverHandler) GetServer(c *gin.Context) {
 
 	server, err := h.serverService.GetServer(userPrincipalName)
 	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, server)
+}
+
+func (h *serverHandler) UpdateServer(c *gin.Context) {
+	server := entity.Server{}
+	if err := c.ShouldBindJSON(&server); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !auth.VerifyUserObjectId(server.UserPrincipalId, c.GetHeader("Authorization")) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid request"})
+		return
+	}
+
+	if err := h.serverService.UpdateServer(server); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

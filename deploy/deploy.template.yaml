@@ -68,6 +68,10 @@ properties:
             value: ${ACTLABS_HUB_USE_MSI}
           - name: PORT
             value: ${ACTLABS_HUB_PORT}
+          - name: ACTLABS_HUB_AUTO_DESTROY_POLLING_INTERVAL_SECONDS
+            value: ${ACTLABS_HUB_AUTO_DESTROY_POLLING_INTERVAL_SECONDS}
+          - name: ACTLABS_HUB_AUTO_DESTROY_WAIT_TIME_SECONDS
+            value: ${ACTLABS_HUB_AUTO_DESTROY_WAIT_TIME_SECONDS}
 
         # Server
           - name: ACTLABS_SERVER_PORT
