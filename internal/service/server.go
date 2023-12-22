@@ -39,13 +39,11 @@ func (s *serverService) RegisterSubscription(subscriptionId string, userPrincipa
 
 	s.ServerDefaults(&server) // Set defaults.
 
-	if err := s.Validate(server); err != nil {
-		slog.Error("Error:", err)
+	if err := s.Validate(server); err != nil { // Validate object. handles logging.
 		return err
 	}
 
-	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
-		slog.Error("Error:", err)
+	if err := s.UpsertServerInDatabase(server); err != nil {
 		return err
 	}
 
@@ -56,8 +54,12 @@ func (s *serverService) UpdateServer(server entity.Server) error {
 	// get server from db.
 	serverFromDB, err := s.serverRepository.GetServerFromDatabase("actlabs", server.UserPrincipalName)
 	if err != nil {
-		slog.Error("Error:", err)
-		return err
+		slog.Error("not able to get server from db",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return fmt.Errorf("not able to get server from database")
 	}
 
 	// only update some properties
@@ -67,13 +69,11 @@ func (s *serverService) UpdateServer(server entity.Server) error {
 
 	// Validate object.
 	if err := s.Validate(serverFromDB); err != nil {
-		slog.Error("Error:", err)
 		return err
 	}
 
 	// Update server in database.
-	if err := s.serverRepository.UpsertServerInDatabase(serverFromDB); err != nil {
-		slog.Error("Error:", err)
+	if err := s.UpsertServerInDatabase(serverFromDB); err != nil {
 		return err
 	}
 
@@ -111,10 +111,10 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 
 	// Before deploying, update the status in db.
 	server.Status = entity.ServerStatusDeploying
+
 	// Update server in database.
-	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
-		slog.Error("not able to update server in database", err)
-		return server, fmt.Errorf("server deployment interrupted because not able to update status in db : %w", err)
+	if err := s.UpsertServerInDatabase(server); err != nil {
+		return server, err
 	}
 
 	server, err = s.serverRepository.DeployAzureContainerGroup(server)
@@ -140,9 +140,8 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 			server.DeployedAtTime = time.Now().Format(time.RFC3339)
 
 			// Update server in database.
-			if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
-				slog.Error("not able to update server in database", err)
-				return server, fmt.Errorf("server has been deployed but failed to update status in database: %w", err)
+			if err := s.UpsertServerInDatabase(server); err != nil {
+				return server, err
 			}
 
 			return server, err
@@ -180,9 +179,8 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 	server.Status = entity.ServerStatusDestroyed
 	server.DestroyedAtTime = time.Now().Format(time.RFC3339)
 
-	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
-		slog.Error("error updating server status after destroy:", err)
-		return fmt.Errorf("server has been destroyed but failed to update status in database: %w", err)
+	if err := s.UpsertServerInDatabase(server); err != nil {
+		return err
 	}
 
 	return nil
@@ -213,9 +211,22 @@ func (s *serverService) UpdateActivityStatus(userPrincipalName string) error {
 
 	server.LastUserActivityTime = time.Now().Format(time.RFC3339)
 
+	if err := s.UpsertServerInDatabase(server); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *serverService) UpsertServerInDatabase(server entity.Server) error {
+	// Update server in database.
 	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
-		slog.Error("Error updating server in database:", err)
-		return fmt.Errorf("error updating server in database: %w", err)
+		slog.Error("error upserting server in db",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
 	}
 
 	return nil
@@ -240,7 +251,10 @@ func (s *serverService) Validate(server entity.Server) error {
 		return fmt.Errorf("failed to verify if user is the owner of subscription")
 	}
 	if !ok {
-		slog.Error("Error: user is not the owner of the subscription")
+		slog.Error("user is not the owner of subscription:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+		)
 		return errors.New("insufficient permissions")
 	}
 
