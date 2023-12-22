@@ -92,7 +92,6 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 
 	// Validate input.
 	if err := s.Validate(server); err != nil {
-		slog.Error("Error:", err)
 		return server, err
 	}
 
@@ -113,7 +112,11 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 
 	server, err = s.serverRepository.DeployAzureContainerGroup(server)
 	if err != nil {
-		slog.Error("Error:", err)
+		slog.Error("deploying server failed",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 		return server, err
 	}
 
@@ -127,7 +130,11 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	// Ensure server is up and running. check every 5 seconds for 3 minutes.
 	for i := 0; i < waitTimeSeconds/5; i++ {
 		if err := s.serverRepository.EnsureServerUp(server); err == nil {
-			slog.Info("Server is up and running")
+			slog.Info("Server is up and running",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("status", string(server.Status)),
+			)
 
 			server.Status = entity.ServerStatusRunning
 			server.LastUserActivityTime = time.Now().Format(time.RFC3339)
@@ -143,9 +150,14 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		time.Sleep(5 * time.Second)
 	}
 
+	slog.Error("server deployed, but not able to verify server is up and running",
+		slog.String("userPrincipalName", server.UserPrincipalName),
+		slog.String("subscriptionId", server.SubscriptionId),
+	)
+
 	server.Status = entity.ServerStatusFailed
 
-	return server, nil
+	return server, fmt.Errorf("server deployed, but not able to verify server is up and running")
 }
 
 func (s *serverService) DestroyServer(userPrincipalName string) error {
@@ -158,14 +170,18 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 
 	// Validate object.
 	if err := s.Validate(server); err != nil {
-		slog.Error("Error:", err)
 		return err
 	}
 
 	s.ServerDefaults(&server)
 
 	if err := s.serverRepository.DestroyAzureContainerGroup(server); err != nil {
-		slog.Error("error destroying server:", err)
+		slog.Error("error destroying server:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("status", string(server.Status)),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
 
