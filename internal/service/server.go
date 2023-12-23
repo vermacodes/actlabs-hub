@@ -50,6 +50,11 @@ func (s *serverService) RegisterSubscription(subscriptionId string, userPrincipa
 }
 
 func (s *serverService) UpdateServer(server entity.Server) error {
+	slog.Debug("updating server",
+		slog.String("userPrincipalName", server.UserPrincipalName),
+		slog.String("subscriptionId", server.SubscriptionId),
+	)
+
 	// get server from db.
 	serverFromDB, err := s.GetServerFromDatabase(server.UserPrincipalName)
 	if err != nil {
@@ -75,6 +80,11 @@ func (s *serverService) UpdateServer(server entity.Server) error {
 }
 
 func (s *serverService) DeployServer(server entity.Server) (entity.Server, error) {
+	slog.Debug("deploying server",
+		slog.String("userPrincipalName", server.UserPrincipalName),
+		slog.String("subscriptionId", server.SubscriptionId),
+	)
+
 	// get server from db.
 	serverFromDB, err := s.GetServerFromDatabase(server.UserPrincipalName)
 	if err != nil {
@@ -168,6 +178,9 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 }
 
 func (s *serverService) DestroyServer(userPrincipalName string) error {
+	slog.Debug("destroying server",
+		slog.String("userPrincipalName", userPrincipalName),
+	)
 
 	// get server from db.
 	server, err := s.GetServerFromDatabase(userPrincipalName)
@@ -203,6 +216,10 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 }
 
 func (s *serverService) GetServer(userPrincipalName string) (entity.Server, error) {
+	slog.Debug("getting server",
+		slog.String("userPrincipalName", userPrincipalName),
+	)
+
 	// get server from db.
 	server, err := s.GetServerFromDatabase(userPrincipalName)
 	if err != nil {
@@ -217,6 +234,10 @@ func (s *serverService) GetServer(userPrincipalName string) (entity.Server, erro
 }
 
 func (s *serverService) UpdateActivityStatus(userPrincipalName string) error {
+	slog.Debug("updating server activity status",
+		slog.String("userPrincipalName", userPrincipalName),
+	)
+
 	server, err := s.GetServerFromDatabase(userPrincipalName)
 	if err != nil {
 		return errors.New("error getting server from database")
