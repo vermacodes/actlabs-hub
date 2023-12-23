@@ -84,7 +84,11 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 
 	// if server is already deployed or deploying, return.
 	if serverFromDB.Status == entity.ServerStatusDeploying || serverFromDB.Status == entity.ServerStatusRunning {
-		slog.Info("Server is already deployed or deploying")
+		slog.Info("server is already deployed or deploying",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("status", string(server.Status)),
+		)
 		return serverFromDB, nil
 	}
 
