@@ -5,7 +5,6 @@ import (
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -54,7 +53,7 @@ func (s *serverService) UpdateServer(server entity.Server) error {
 	// get server from db.
 	serverFromDB, err := s.GetServerFromDatabase(server.UserPrincipalName)
 	if err != nil {
-		return fmt.Errorf("not able to get server from database")
+		return errors.New("not able to get server from database")
 	}
 
 	// only update some properties
@@ -165,7 +164,7 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 
 	server.Status = entity.ServerStatusFailed
 
-	return server, fmt.Errorf("server deployed, but not able to verify server is up and running")
+	return server, errors.New("server deployed, but not able to verify server is up and running")
 }
 
 func (s *serverService) DestroyServer(userPrincipalName string) error {
@@ -212,7 +211,7 @@ func (s *serverService) GetServer(userPrincipalName string) (entity.Server, erro
 			return server, nil
 		}
 
-		return server, fmt.Errorf("not able to get server status from database")
+		return server, errors.New("not able to get server status from database")
 	}
 	return server, nil
 }
@@ -220,7 +219,7 @@ func (s *serverService) GetServer(userPrincipalName string) (entity.Server, erro
 func (s *serverService) UpdateActivityStatus(userPrincipalName string) error {
 	server, err := s.GetServerFromDatabase(userPrincipalName)
 	if err != nil {
-		return fmt.Errorf("error getting server from database")
+		return errors.New("error getting server from database")
 	}
 
 	server.LastUserActivityTime = time.Now().Format(time.RFC3339)
@@ -275,7 +274,7 @@ func (s *serverService) Validate(server entity.Server) error {
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("error", err.Error()),
 		)
-		return fmt.Errorf("failed to verify if user is the owner of subscription")
+		return errors.New("failed to verify if user is the owner of subscription")
 	}
 	if !ok {
 		slog.Error("user is not the owner of subscription:",
@@ -334,7 +333,7 @@ func (s *serverService) UserAssignedIdentity(server *entity.Server) error {
 			slog.String("error", err.Error()),
 		)
 
-		return fmt.Errorf("managed identity not found. please register your subscription")
+		return errors.New("managed identity not found. please register your subscription")
 	}
 
 	return nil
