@@ -127,7 +127,11 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	// convert to int
 	waitTimeSeconds, err := strconv.Atoi(s.appConfig.ActlabsServerUPWaitTimeSeconds)
 	if err != nil {
-		slog.Error("Error:", err)
+		slog.Error("error converting ACTLABS_SERVER_UP_WAIT_TIME_SECONDS to int",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("ACTLABS_SERVER_UP_WAIT_TIME_SECONDS", s.appConfig.ActlabsServerUPWaitTimeSeconds),
+			slog.String("error", err.Error()),
+		)
 		return server, err
 	}
 
