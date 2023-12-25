@@ -172,7 +172,12 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		slog.String("subscriptionId", server.SubscriptionId),
 	)
 
-	server.Status = entity.ServerStatusFailed
+	server.Status = entity.ServerStatusUnknown
+
+	// Update server in database.
+	if err := s.UpsertServerInDatabase(server); err != nil {
+		return server, err
+	}
 
 	return server, errors.New("server deployed, but not able to verify server is up and running")
 }
