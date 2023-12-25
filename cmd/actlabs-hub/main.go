@@ -62,6 +62,11 @@ func main() {
 		slog.Error("Error initializing auth repository", err)
 		panic(err)
 	}
+	deploymentRepository, err := repository.NewDeploymentRepository(auth, rdb)
+	if err != nil {
+		slog.Error("Error initializing deployment repository", err)
+		panic(err)
+	}
 
 	serverService := service.NewServerService(serverRepository, appConfig)
 	labService := service.NewLabService(labRepository)
@@ -69,8 +74,10 @@ func main() {
 	challengeService := service.NewChallengeService(challengeRepository, labService)
 	authService := service.NewAuthService(authRepository)
 	autoDestroyService := service.NewAutoDestroyService(appConfig, serverRepository)
+	deploymentService := service.NewDeploymentService(deploymentRepository, serverService, appConfig)
 
 	go autoDestroyService.MonitorAndDestroyInactiveServers(context.Background())
+	go deploymentService.MonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments(context.Background())
 
 	router := gin.Default()
 	router.SetTrustedProxies(nil)
@@ -89,6 +96,7 @@ func main() {
 	handler.NewAssignmentHandler(router.Group("/"), assignmentService)
 	handler.NewChallengeHandler(router.Group("/"), challengeService)
 	handler.NewAuthHandler(router.Group("/"), authService)
+	handler.NewDeploymentHandler(router.Group("/"), deploymentService)
 
 	adminRouter := router.Group("/")
 	adminRouter.Use(middleware.AdminRequired(authService))
