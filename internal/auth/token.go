@@ -198,3 +198,116 @@ func VerifyUserPrincipalName(userPrincipalName string, token string) bool {
 	userPrincipalNameInToken, _ := GetUserPrincipalFromToken(token)
 	return userPrincipalName == userPrincipalNameInToken
 }
+
+// func VerifyArmToken(tokenString string) (bool, error) {
+// 	tokenJSON, err := GetTokenJSON(tokenString)
+// 	if err != nil {
+// 		return false, err
+// 	}
+
+// 	// check the audience
+// 	aud, ok := tokenJSON["aud"].(string)
+// 	if !ok {
+// 		return false, errors.New("not able to get audience from claims")
+// 	}
+
+// 	if aud != "https://management.core.windows.net/" {
+// 		return false, errors.New("unexpected audience, expected https://management.core.windows.net/ but got " + aud)
+// 	}
+
+// 	// Check the issuer
+// 	iss, ok := tokenJSON["iss"].(string)
+// 	if !ok {
+// 		return false, errors.New("not able to get issuer from claims")
+// 	}
+
+// 	if iss != "https://sts.windows.net/"+os.Getenv("TENANT_ID")+"/" {
+// 		return false, errors.New("unexpected issuer, expected https://sts.windows.net/" + os.Getenv("TENANT_ID") + "/ but got " + iss)
+// 	}
+
+// 	// Check the expiration time
+// 	exp, ok := tokenJSON["exp"].(float64)
+// 	if !ok {
+// 		return false, errors.New("invalid expiration time")
+// 	}
+// 	if time.Now().Unix() > int64(exp) {
+// 		return false, errors.New("token has expired")
+// 	}
+
+// 	return true, nil
+// }
+
+func VerifyArmToken(tokenString string) (bool, error) {
+
+	token, err := ParseToken(tokenString)
+	if err != nil {
+		return false, err
+	}
+
+	// Get the claims from the token
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return false, errors.New("invalid claims")
+	}
+
+	// check the audience
+	aud, ok := claims["aud"].(string)
+	if !ok {
+		return false, errors.New("not able to get audience from claims")
+	}
+	if aud != "https://management.azure.com" {
+		return false, errors.New("unexpected audience, expected https://management.azure.com but got " + aud)
+	}
+
+	// Check the issuer
+	iss, ok := claims["iss"].(string)
+	if !ok {
+		return false, errors.New("not able to get issuer from claims")
+	}
+
+	if iss != "https://sts.windows.net/"+os.Getenv("TENANT_ID")+"/" {
+		return false, errors.New("unexpected issuer, expected https://sts.windows.net/" + os.Getenv("TENANT_ID") + "/ but got " + iss)
+	}
+
+	// Check the expiration time
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		return false, errors.New("invalid expiration time")
+	}
+	if time.Now().Unix() > int64(exp) {
+		return false, errors.New("token has expired")
+	}
+
+	return true, nil
+}
+
+// func GetUserPrincipalNameByMSIPrincipalID(msiPrincipalID string) (string, error) {
+// 	// Get the user principal name from the MSI principal ID
+// 	var userPrincipalName string
+
+// 	pager := a.ActlabsServersTableClient.NewListEntitiesPager(&aztables.ListEntitiesOptions{
+// 		Filter: to.Ptr("managedIdentityPrincipalId eq '" + msiPrincipalID + "'"),
+// 	})
+
+// 	for pager.More() {
+// 		resp, err := pager.NextPage(context.Background())
+// 		if err != nil {
+// 			slog.Error("not able to get next page", slog.String("error", err.Error()))
+// 			return "", err
+// 		}
+
+// 		for _, entity := range resp.Entities {
+// 			var myEntity aztables.EDMEntity
+// 			err := json.Unmarshal(entity, &myEntity)
+// 			if err != nil {
+// 				slog.Error("not able to unmarshal entity", slog.String("error", err.Error()))
+// 				return "", err
+// 			}
+
+// 			userPrincipalName := myEntity.Properties["userPrincipalName"].(string)
+// 			return userPrincipalName, nil
+// 		}
+// 	}
+
+// 	return userPrincipalName, errors.New("not able to find user principal name for msi principal id " + msiPrincipalID)
+// }

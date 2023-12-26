@@ -88,26 +88,31 @@ func main() {
 	config.AllowHeaders = []string{"Authorization", "Content-Type"}
 
 	router.Use(cors.New(config))
-	router.Use(middleware.Auth())
 
-	handler.NewHealthzHandler(router.Group("/"))
-	handler.NewServerHandler(router.Group("/"), serverService)
-	handler.NewLabHandler(router.Group("/"), labService, appConfig)
-	handler.NewAssignmentHandler(router.Group("/"), assignmentService)
-	handler.NewChallengeHandler(router.Group("/"), challengeService)
-	handler.NewAuthHandler(router.Group("/"), authService)
-	handler.NewDeploymentHandler(router.Group("/"), deploymentService)
+	authRouter := router.Group("/")
+	authRouter.Use(middleware.Auth())
 
-	adminRouter := router.Group("/")
+	handler.NewHealthzHandler(authRouter.Group("/"))
+	handler.NewServerHandler(authRouter.Group("/"), serverService)
+	handler.NewLabHandler(authRouter.Group("/"), labService, appConfig)
+	handler.NewAssignmentHandler(authRouter.Group("/"), assignmentService)
+	handler.NewChallengeHandler(authRouter.Group("/"), challengeService)
+	handler.NewAuthHandler(authRouter.Group("/"), authService)
+
+	armAuthRouter := router.Group("/")
+	armAuthRouter.Use(middleware.ARMTokenAuth())
+	handler.NewDeploymentHandler(armAuthRouter.Group("/"), deploymentService)
+
+	adminRouter := authRouter.Group("/")
 	adminRouter.Use(middleware.AdminRequired(authService))
 	handler.NewAdminAuthHandler(adminRouter, authService)
 
-	mentorRouter := router.Group("/")
+	mentorRouter := authRouter.Group("/")
 	mentorRouter.Use(middleware.MentorRequired(authService))
 	handler.NewLabHandlerMentorRequired(mentorRouter, labService)
 	handler.NewAssignmentHandlerMentorRequired(mentorRouter, assignmentService)
 
-	contributorRouter := router.Group("/")
+	contributorRouter := authRouter.Group("/")
 	contributorRouter.Use(middleware.ContributorRequired(authService))
 	handler.NewLabHandlerContributorRequired(contributorRouter, labService)
 
