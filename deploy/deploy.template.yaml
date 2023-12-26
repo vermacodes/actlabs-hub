@@ -62,6 +62,8 @@ properties:
             value: ${ACTLABS_HUB_CHALLENGES_TABLE_NAME}
           - name: ACTLABS_HUB_PROFILES_TABLE_NAME
             value: ${ACTLABS_HUB_PROFILES_TABLE_NAME}
+          - name: ACTLABS_HUB_DEPLOYMENTS_TABLE_NAME
+            value: ${ACTLABS_HUB_DEPLOYMENTS_TABLE_NAME}
           - name: ACTLABS_HUB_CLIENT_ID
             value: ${ACTLABS_HUB_CLIENT_ID}
           - name: ACTLABS_HUB_USE_MSI
