@@ -37,6 +37,26 @@ func Auth() gin.HandlerFunc {
 	}
 }
 
+func ARMTokenAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		slog.Debug("ARMTokenAuth Middleware")
+
+		accessToken := c.GetHeader("Authorization")
+		if accessToken == "" {
+			slog.Error("no auth token provided")
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		err := verifyArmAccessToken(c, accessToken)
+		if err != nil {
+			return
+		}
+
+		c.Next()
+	}
+}
+
 func AdminRequired(authService entity.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		slog.Debug("Middleware: AdminRequired")
@@ -132,6 +152,23 @@ func verifyAccessToken(c *gin.Context, accessToken string) error {
 	}
 
 	ok, err := auth.VerifyToken(accessToken)
+	if err != nil || !ok {
+		slog.Error("token verification failed", slog.String("error", err.Error()))
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return err
+	}
+
+	return nil
+}
+
+func verifyArmAccessToken(c *gin.Context, accessToken string) error {
+	splitToken := strings.Split(accessToken, "Bearer ")
+	if len(splitToken) < 2 {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return errors.New("found something in the Authorization header, but it's not a bearer token")
+	}
+
+	ok, err := auth.VerifyArmToken(accessToken)
 	if err != nil || !ok {
 		slog.Error("token verification failed", slog.String("error", err.Error()))
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
