@@ -15,12 +15,14 @@ type Config struct {
 	ActlabsHubReadinessAssignmentsTableName        string
 	ActlabsHubChallengesTableName                  string
 	ActlabsHubProfilesTableName                    string
+	ActlabsHubDeploymentsTableName                 string
 	ActlabsHubResourceGroup                        string
 	ActlabsHubStorageAccount                       string
 	ActlabsHubSubscriptionID                       string
 	ActlabsHubURL                                  string
 	ActlabsHubAutoDestroyPollingIntervalSeconds    int32
 	ActlabsHubAutoDestroyIdleTimeSeconds           int32
+	ActlabsHubDeploymentsPollingIntervalSeconds    int32
 	ActlabsServerCaddyCPU                          float64
 	ActlabsServerCaddyMemory                       float64
 	ActlabsServerCPU                               float64
@@ -203,12 +205,22 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_HUB_PROFILES_TABLE_NAME not set")
 	}
 
+	actlabsHubDeploymentsTableName := getEnv("ACTLABS_HUB_DEPLOYMENTS_TABLE_NAME")
+	if actlabsHubDeploymentsTableName == "" {
+		return nil, fmt.Errorf("ACTLABS_HUB_DEPLOYMENTS_TABLE_NAME not set")
+	}
+
 	actlabsHubAutoDestroyPollingIntervalSeconds, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_HUB_AUTO_DESTROY_POLLING_INTERVAL_SECONDS", "600"), 10, 32)
 	if err != nil {
 		return nil, err
 	}
 
 	actlabsHubAutoDestroyIdleTimeSeconds, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_HUB_AUTO_DESTROY_IDLE_TIME_SECONDS", "3600"), 10, 32)
+	if err != nil {
+		return nil, err
+	}
+
+	actlabsHubDeploymentsPollingIntervalSeconds, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_HUB_DEPLOYMENTS_POLLING_INTERVAL_SECONDS", "300"), 10, 32)
 	if err != nil {
 		return nil, err
 	}
@@ -221,12 +233,14 @@ func NewConfig() (*Config, error) {
 		ActlabsHubReadinessAssignmentsTableName:        actlabsHubReadinessAssignmentsTableName,
 		ActlabsHubChallengesTableName:                  actlabsHubChallengesTableName,
 		ActlabsHubProfilesTableName:                    actlabsHubProfilesTableName,
+		ActlabsHubDeploymentsTableName:                 actlabsHubDeploymentsTableName,
 		ActlabsHubResourceGroup:                        actlabsHubResourceGroup,
 		ActlabsHubStorageAccount:                       actlabsHubStorageAccount,
 		ActlabsHubSubscriptionID:                       actlabsHubSubscriptionID,
 		ActlabsHubURL:                                  actlabsHubURL,
 		ActlabsHubAutoDestroyPollingIntervalSeconds:    int32(actlabsHubAutoDestroyPollingIntervalSeconds),
 		ActlabsHubAutoDestroyIdleTimeSeconds:           int32(actlabsHubAutoDestroyIdleTimeSeconds),
+		ActlabsHubDeploymentsPollingIntervalSeconds:    int32(actlabsHubDeploymentsPollingIntervalSeconds),
 		ActlabsServerCaddyCPU:                          actlabsServerCaddyCPUFloat,
 		ActlabsServerCaddyMemory:                       actlabsServerCaddyMemoryFloat,
 		ActlabsServerCPU:                               actlabsServerCPUFloat,
