@@ -228,12 +228,10 @@ func (l *labService) GetProtectedLabVersions(typeOfLab string, labId string) ([]
 }
 
 func (l *labService) GetLabVersions(typeOfLab string, labId string) ([]entity.LabType, error) {
-	labs := []entity.LabType{}
-
 	labs, err := l.labRepository.GetLabWithVersions(context.TODO(), typeOfLab, labId)
 	if err != nil {
 		slog.Error("Not able to get list of blobs", err)
-		return labs, err
+		return []entity.LabType{}, err
 	}
 
 	return labs, nil
