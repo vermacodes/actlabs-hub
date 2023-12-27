@@ -23,6 +23,8 @@ func NewAssignmentService(assignmentRepository entity.AssignmentRepository, labS
 }
 
 func (a *assignmentService) GetAllAssignments() ([]entity.Assignment, error) {
+	slog.Info("getting all assignments")
+
 	assignments, err := a.assignmentRepository.GetAllAssignments()
 	if err != nil {
 		slog.Error("not able to get assignments",
@@ -34,6 +36,10 @@ func (a *assignmentService) GetAllAssignments() ([]entity.Assignment, error) {
 }
 
 func (a *assignmentService) GetAssignmentsByLabId(labId string) ([]entity.Assignment, error) {
+	slog.Info("getting assignments for lab",
+		slog.String("labId", labId),
+	)
+
 	assignments, err := a.assignmentRepository.GetAssignmentsByLabId(labId)
 	if err != nil {
 		slog.Error("not able to get assignments for lab",
@@ -46,6 +52,10 @@ func (a *assignmentService) GetAssignmentsByLabId(labId string) ([]entity.Assign
 }
 
 func (a *assignmentService) GetAssignmentsByUserId(userId string) ([]entity.Assignment, error) {
+	slog.Info("getting assignments for user",
+		slog.String("userId", userId),
+	)
+
 	assignments, err := a.assignmentRepository.GetAssignmentsByUserId(userId)
 	if err != nil {
 		slog.Error("not able to get assignments for user ",
@@ -58,6 +68,7 @@ func (a *assignmentService) GetAssignmentsByUserId(userId string) ([]entity.Assi
 }
 
 func (a *assignmentService) GetAllLabsRedacted() ([]entity.LabType, error) {
+	slog.Info("getting all labs redacted")
 	readinessLabRedacted := []entity.LabType{}
 
 	labs, err := a.labService.GetProtectedLabs("readinesslab")
@@ -80,6 +91,10 @@ func (a *assignmentService) GetAllLabsRedacted() ([]entity.LabType, error) {
 }
 
 func (a *assignmentService) GetAssignedLabsRedactedByUserId(userId string) ([]entity.LabType, error) {
+	slog.Info("getting all labs redacted by user",
+		slog.String("userId", userId),
+	)
+
 	assignedLabs := []entity.LabType{}
 
 	assignments, err := a.GetAssignmentsByUserId(userId)
@@ -119,6 +134,7 @@ func (a *assignmentService) GetAssignedLabsRedactedByUserId(userId string) ([]en
 }
 
 func (a *assignmentService) CreateAssignments(userIds []string, labIds []string, createdBy string) error {
+
 	for _, userId := range userIds {
 
 		if !strings.Contains(userId, "@microsoft.com") {
@@ -143,6 +159,10 @@ func (a *assignmentService) CreateAssignments(userIds []string, labIds []string,
 		}
 
 		for _, labId := range labIds {
+			slog.Info("creating assignment",
+				slog.String("userId", userId),
+				slog.String("labId", labId),
+			)
 
 			assignment := entity.Assignment{
 				PartitionKey: userId,
@@ -169,6 +189,9 @@ func (a *assignmentService) CreateAssignments(userIds []string, labIds []string,
 }
 
 func (a *assignmentService) DeleteAssignments(assignmentIds []string) error {
+	slog.Info("deleting assignments",
+		slog.String("assignmentIds", strings.Join(assignmentIds, ",")),
+	)
 	for _, assignmentId := range assignmentIds {
 		if err := a.assignmentRepository.DeleteAssignment(assignmentId); err != nil {
 			slog.Error("not able to delete assignment",
