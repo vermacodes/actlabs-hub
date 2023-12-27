@@ -32,6 +32,8 @@ func NewChallengeRepository(
 }
 
 func (c *challengeRepository) GetAllChallenges() ([]entity.Challenge, error) {
+	slog.Debug("getting all challenges")
+
 	challenge := entity.Challenge{}
 	challenges := []entity.Challenge{}
 
@@ -39,14 +41,18 @@ func (c *challengeRepository) GetAllChallenges() ([]entity.Challenge, error) {
 	for pager.More() {
 		response, err := pager.NextPage(context.Background())
 		if err != nil {
-			slog.Error("Error getting entities: ", err)
+			slog.Debug("error getting entities",
+				slog.String("error", err.Error()),
+			)
 			return challenges, err
 		}
 
 		for _, element := range response.Entities {
 			//var myEntity aztables.EDMEntity
 			if err := json.Unmarshal(element, &challenge); err != nil {
-				slog.Error("Error unmarshal entity: ", err)
+				slog.Debug("error unmarshal entity",
+					slog.String("error", err.Error()),
+				)
 				return challenges, err
 			}
 			challenges = append(challenges, challenge)
@@ -57,6 +63,10 @@ func (c *challengeRepository) GetAllChallenges() ([]entity.Challenge, error) {
 }
 
 func (c *challengeRepository) GetChallengesByLabId(labId string) ([]entity.Challenge, error) {
+	slog.Debug("getting challenges by lab id",
+		slog.String("labId", labId),
+	)
+
 	challenge := entity.Challenge{}
 	challenges := []entity.Challenge{}
 
@@ -64,14 +74,20 @@ func (c *challengeRepository) GetChallengesByLabId(labId string) ([]entity.Chall
 	for pager.More() {
 		response, err := pager.NextPage(context.Background())
 		if err != nil {
-			slog.Error("Error getting entities: ", err)
+			slog.Debug("error getting entities",
+				slog.String("labId", labId),
+				slog.String("error", err.Error()),
+			)
 			return challenges, err
 		}
 
 		for _, element := range response.Entities {
 			//var myEntity aztables.EDMEntity
 			if err := json.Unmarshal(element, &challenge); err != nil {
-				slog.Error("Error unmarshal entity: ", err)
+				slog.Debug("error unmarshal entity",
+					slog.String("labId", labId),
+					slog.String("error", err.Error()),
+				)
 				return challenges, err
 			}
 			challenges = append(challenges, challenge)
@@ -82,6 +98,10 @@ func (c *challengeRepository) GetChallengesByLabId(labId string) ([]entity.Chall
 }
 
 func (c *challengeRepository) GetChallengesByUserId(userId string) ([]entity.Challenge, error) {
+	slog.Debug("getting challenges by user id",
+		slog.String("userId", userId),
+	)
+
 	challenge := entity.Challenge{}
 	challenges := []entity.Challenge{}
 
@@ -89,14 +109,18 @@ func (c *challengeRepository) GetChallengesByUserId(userId string) ([]entity.Cha
 	for pager.More() {
 		response, err := pager.NextPage(context.Background())
 		if err != nil {
-			slog.Error("Error getting entities: ", err)
+			slog.Debug("error getting entities: ",
+				slog.String("userId", userId),
+			)
 			return challenges, err
 		}
 
 		for _, element := range response.Entities {
 			//var myEntity aztables.EDMEntity
 			if err := json.Unmarshal(element, &challenge); err != nil {
-				slog.Error("Error unmarshal entity: ", err)
+				slog.Debug("error unmarshal entity: ",
+					slog.String("userId", userId),
+				)
 				return challenges, err
 			}
 
@@ -110,22 +134,30 @@ func (c *challengeRepository) GetChallengesByUserId(userId string) ([]entity.Cha
 }
 
 func (c *challengeRepository) DeleteChallenge(challengeId string) error {
-
-	slog.Debug("Deleting challenge: " + challengeId)
+	slog.Debug("deleting challenge",
+		slog.String("challengeId", challengeId),
+	)
 
 	userId := strings.SplitN(challengeId, "+", 2)[1]
 
 	_, err := c.auth.ActlabsChallengesTableClient.DeleteEntity(context.Background(), userId, challengeId, nil)
 	if err != nil {
-		slog.Error("Error deleting challenge: ", err)
+		slog.Debug("error deleting challenge",
+			slog.String("challengeId", challengeId),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
-	slog.Debug("Deleted challenge: " + challengeId)
 
 	return nil
 }
 
 func (c *challengeRepository) UpsertChallenge(challenge entity.Challenge) error {
+	slog.Debug("upserting challenge",
+		slog.String("challengeId", challenge.ChallengeId),
+		slog.String("userId", challenge.UserId),
+		slog.String("labId", challenge.LabId),
+	)
 
 	if challenge.ChallengeId == "" {
 		challenge.ChallengeId = uuid.NewString()
@@ -136,17 +168,25 @@ func (c *challengeRepository) UpsertChallenge(challenge entity.Challenge) error 
 
 	val, err := json.Marshal(challenge)
 	if err != nil {
-		slog.Error("Error marshalling challenge: ", err)
+		slog.Debug("error marshalling challenge",
+			slog.String("challengeId", challenge.ChallengeId),
+			slog.String("userId", challenge.UserId),
+			slog.String("labId", challenge.LabId),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
 
 	_, err = c.auth.ActlabsChallengesTableClient.UpsertEntity(context.Background(), val, nil)
 	if err != nil {
-		slog.Error("Error updating/creating challenge: ", err)
+		slog.Debug("error updating/creating challenge",
+			slog.String("challengeId", challenge.ChallengeId),
+			slog.String("userId", challenge.UserId),
+			slog.String("labId", challenge.LabId),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
-
-	slog.Debug("Challenge updated/created successfully")
 
 	return nil
 }
