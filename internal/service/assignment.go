@@ -25,8 +25,10 @@ func NewAssignmentService(assignmentRepository entity.AssignmentRepository, labS
 func (a *assignmentService) GetAllAssignments() ([]entity.Assignment, error) {
 	assignments, err := a.assignmentRepository.GetAllAssignments()
 	if err != nil {
-		slog.Error("not able to get assignments", err)
-		return assignments, err
+		slog.Error("not able to get assignments",
+			slog.String("error", err.Error()),
+		)
+		return assignments, errors.New("not able to get assignments")
 	}
 	return assignments, nil
 }
@@ -34,8 +36,11 @@ func (a *assignmentService) GetAllAssignments() ([]entity.Assignment, error) {
 func (a *assignmentService) GetAssignmentsByLabId(labId string) ([]entity.Assignment, error) {
 	assignments, err := a.assignmentRepository.GetAssignmentsByLabId(labId)
 	if err != nil {
-		slog.Error("not able to get assignments for lab "+labId, err)
-		return assignments, err
+		slog.Error("not able to get assignments for lab",
+			slog.String("labId", labId),
+			slog.String("error", err.Error()),
+		)
+		return assignments, errors.New("not able to get assignments for lab")
 	}
 	return assignments, nil
 }
@@ -43,8 +48,11 @@ func (a *assignmentService) GetAssignmentsByLabId(labId string) ([]entity.Assign
 func (a *assignmentService) GetAssignmentsByUserId(userId string) ([]entity.Assignment, error) {
 	assignments, err := a.assignmentRepository.GetAssignmentsByUserId(userId)
 	if err != nil {
-		slog.Error("not able to get assignments for user "+userId, err)
-		return assignments, err
+		slog.Error("not able to get assignments for user ",
+			slog.String("userId", userId),
+			slog.String("error", err.Error()),
+		)
+		return assignments, errors.New("not able to get assignments for user")
 	}
 	return assignments, nil
 }
@@ -54,12 +62,13 @@ func (a *assignmentService) GetAllLabsRedacted() ([]entity.LabType, error) {
 
 	labs, err := a.labService.GetProtectedLabs("readinesslab")
 	if err != nil {
-		slog.Error("not able to get readiness labs", err)
+		slog.Error("not able to get readiness labs",
+			slog.String("error", err.Error()),
+		)
 		return readinessLabRedacted, err
 	}
 
 	for _, lab := range labs {
-		slog.Debug("Lab ID : " + lab.Name)
 		lab.ExtendScript = "redacted"
 		lab.Description = "<p>" + lab.Name + "</p>"
 		lab.Type = "assignment"
@@ -75,22 +84,25 @@ func (a *assignmentService) GetAssignedLabsRedactedByUserId(userId string) ([]en
 
 	assignments, err := a.GetAssignmentsByUserId(userId)
 	if err != nil {
-		slog.Error("not able to get assignments for user"+userId, err)
+		slog.Error("not able to get assignments for user",
+			slog.String("userId", userId),
+			slog.String("error", err.Error()),
+		)
 		return assignedLabs, err
 	}
 
 	labs, err := a.labService.GetProtectedLabs("readinesslab")
 	if err != nil {
-		slog.Error("not able to get readiness labs", err)
+		slog.Error("not able to get readiness labs",
+			slog.String("userId", userId),
+			slog.String("error", err.Error()),
+		)
 		return assignedLabs, err
 	}
 
 	for _, assignment := range assignments {
-		slog.Debug("Lab ID : " + assignment.LabId)
 		for _, lab := range labs {
-			slog.Debug("Checking Lab Name : " + lab.Name)
 			if assignment.LabId == lab.Id {
-				slog.Debug("Assignment ID : " + assignment.AssignmentId + " is for lab " + lab.Name)
 				if assignment.UserId == userId {
 					lab.ExtendScript = "redacted"
 					lab.Description = lab.Message // Replace description with message fro redacted labs
@@ -115,12 +127,18 @@ func (a *assignmentService) CreateAssignments(userIds []string, labIds []string,
 
 		valid, err := a.assignmentRepository.ValidateUser(userId)
 		if err != nil {
-			slog.Error("not able to validate user id"+userId, err)
+			slog.Error("not able to validate user id",
+				slog.String("userId", userId),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 		if !valid {
 			err := errors.New("user id is not valid")
-			slog.Error("user id is not valid"+userId, err)
+			slog.Error("user id is not valid",
+				slog.String("userId", userId),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 
@@ -138,11 +156,13 @@ func (a *assignmentService) CreateAssignments(userIds []string, labIds []string,
 			}
 
 			if err := a.assignmentRepository.UpsertAssignment(assignment); err != nil {
-				slog.Error("not able to create assignment", err)
+				slog.Error("not able to create assignment",
+					slog.String("userId", userId),
+					slog.String("labId", labId),
+					slog.String("error", err.Error()),
+				)
 				return err
 			}
-
-			slog.Debug("Assigned lab " + labId + " to user " + userId)
 		}
 	}
 	return nil
@@ -151,7 +171,10 @@ func (a *assignmentService) CreateAssignments(userIds []string, labIds []string,
 func (a *assignmentService) DeleteAssignments(assignmentIds []string) error {
 	for _, assignmentId := range assignmentIds {
 		if err := a.assignmentRepository.DeleteAssignment(assignmentId); err != nil {
-			slog.Error("not able to delete assignment with id "+assignmentId, err)
+			slog.Error("not able to delete assignment",
+				slog.String("assignmentId", assignmentId),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 	}
