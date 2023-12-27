@@ -58,21 +58,21 @@ func (s *AuthService) CreateProfile(profile entity.Profile) error {
 }
 
 func (s *AuthService) GetProfile(userPrincipal string) (entity.Profile, error) {
-	slog.Debug("Getting profile of user: " + userPrincipal)
 	profile, err := s.authRepository.GetProfile(userPrincipal)
 	if err != nil {
-		slog.Error("Error getting profile: ", err)
+		slog.Error("error getting profile",
+			slog.String("userPrincipal", userPrincipal),
+			slog.String("error", err.Error()),
+		)
 	}
 
 	return profile, err
 }
 
+// return profiles without roles
 func (s *AuthService) GetAllProfilesRedacted() ([]entity.Profile, error) {
-	slog.Info("Getting all profiles")
-
-	profiles, err := s.authRepository.GetAllProfiles()
+	profiles, err := s.GetAllProfiles()
 	if err != nil {
-		slog.Error("Error getting profiles: ", err)
 		return []entity.Profile{}, err
 	}
 
@@ -89,21 +89,20 @@ func (s *AuthService) GetAllProfilesRedacted() ([]entity.Profile, error) {
 }
 
 func (s *AuthService) GetAllProfiles() ([]entity.Profile, error) {
-	slog.Info("Getting all profiles")
 	profiles, err := s.authRepository.GetAllProfiles()
 	if err != nil {
-		slog.Error("Error getting profiles: ", err)
+		slog.Error("error getting profiles: ",
+			slog.String("error", err.Error()),
+		)
 	}
 	return profiles, err
 }
 
 func (s *AuthService) DeleteRole(userPrincipal string, role string) error {
-	slog.Info("Deleting role: " + role + " for user: " + userPrincipal)
 
 	// Get the profile
-	profile, err := s.authRepository.GetProfile(userPrincipal)
+	profile, err := s.GetProfile(userPrincipal)
 	if err != nil {
-		slog.Error("Error getting profile: ", err)
 		return err
 	}
 
@@ -115,28 +114,43 @@ func (s *AuthService) DeleteRole(userPrincipal string, role string) error {
 
 	// remove the the role and upsert the profile.
 	profile.Roles = remove(profile.Roles, role)
-	return s.authRepository.UpsertProfile(profile)
+	if err := s.authRepository.UpsertProfile(profile); err != nil {
+		slog.Error("error deleting role",
+			slog.String("userPrincipal", userPrincipal),
+			slog.String("role", role),
+		)
+
+		return err
+	}
+
+	return nil
 }
 
 func (s *AuthService) AddRole(userPrincipal string, role string) error {
-	slog.Info("Adding role: " + role + " for user: " + userPrincipal)
 
 	// Get the profile
 	profile, err := s.GetProfile(userPrincipal)
 	if err != nil {
-		slog.Error("Error getting profile: ", err)
 		return err
 	}
 
 	// if the role already exists, then return.
 	if helper.Contains(profile.Roles, role) {
-		slog.Info("Role already exists: " + role)
+		slog.Debug("Role already exists: " + role)
 		return nil
 	}
 
 	profile.Roles = append(profile.Roles, role)
+	if err := s.authRepository.UpsertProfile(profile); err != nil {
+		slog.Error("error deleting role",
+			slog.String("userPrincipal", userPrincipal),
+			slog.String("role", role),
+		)
 
-	return s.authRepository.UpsertProfile(profile)
+		return err
+	}
+
+	return nil
 }
 
 // Helper Function to remove an element from a slice
