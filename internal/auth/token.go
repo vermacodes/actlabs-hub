@@ -255,8 +255,8 @@ func VerifyArmToken(tokenString string) (bool, error) {
 	if !ok {
 		return false, errors.New("not able to get audience from claims")
 	}
-	if aud != "https://management.azure.com" {
-		return false, errors.New("unexpected audience, expected https://management.azure.com but got " + aud)
+	if aud != "https://management.azure.com" && aud != "https://management.core.windows.net/" {
+		return false, errors.New("unexpected audience, expected https://management.azure.com or https://management.core.windows.net/ but got " + aud)
 	}
 
 	// Check the issuer
