@@ -19,34 +19,42 @@ func NewAuthService(authRepository entity.AuthRepository) entity.AuthService {
 }
 
 func (s *AuthService) CreateProfile(profile entity.Profile) error {
-	slog.Debug("Creating profile for user: " + profile.DisplayName)
 
-	// Check if the user already exists
-	slog.Debug("Checking if complete profile already exists for user : " + profile.DisplayName)
 	existingProfile, err := s.authRepository.GetProfile(profile.UserPrincipal)
 	if err != nil {
-		slog.Error("Error getting existing profile: ", err)
+		slog.Error("Error getting existing profile",
+			slog.String("userPrincipal", profile.UserPrincipal),
+			slog.String("error", err.Error()),
+		)
 	}
 
 	//Make sure that profile is complete
 	if profile.DisplayName == "" || profile.UserPrincipal == "" {
-		slog.Error("Error creating profile: profile is incomplete", nil)
+		slog.Error("incomplete profile",
+			slog.String("userPrincipal", profile.UserPrincipal),
+			slog.String("displayName", profile.DisplayName),
+			slog.String("error", "profile is incomplete"),
+		)
 		return errors.New("profile is incomplete")
 	}
 
 	// if the user already exists, then update the profile with existing roles
 	if existingProfile.UserPrincipal != "" {
-		slog.Debug("Profile already exists for user : " + profile.DisplayName)
 		profile.Roles = existingProfile.Roles
 	} else {
 		// if the user does not exist, then add the user role
-		slog.Debug("Profile does not exist for user : " + profile.DisplayName)
 		profile.Roles = []string{"user"} // IMPORTANT: remove all roles and add only user role
 	}
 
-	// Create the profile
-	slog.Debug("Creating/Updating profile for user : " + profile.DisplayName)
-	return s.authRepository.UpsertProfile(profile)
+	if err := s.authRepository.UpsertProfile(profile); err != nil {
+		slog.Error("error creating profile",
+			slog.String("userPrincipal", profile.UserPrincipal),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	return nil
 }
 
 func (s *AuthService) GetProfile(userPrincipal string) (entity.Profile, error) {
