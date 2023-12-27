@@ -43,7 +43,7 @@ func (d *DeploymentService) GetAllDeployments(ctx context.Context) ([]entity.Dep
 }
 
 func (d *DeploymentService) GetUserDeployments(ctx context.Context, usePrincipalName string) ([]entity.Deployment, error) {
-	slog.Debug("getting user deployments",
+	slog.Info("getting user deployments",
 		slog.String("userPrincipalName", usePrincipalName),
 	)
 
@@ -61,7 +61,7 @@ func (d *DeploymentService) GetUserDeployments(ctx context.Context, usePrincipal
 }
 
 func (d *DeploymentService) GetDeployment(ctx context.Context, usePrincipalName string, workspace string, subscriptionId string) (entity.Deployment, error) {
-	slog.Debug("getting deployment",
+	slog.Info("getting deployment",
 		slog.String("userPrincipalName", usePrincipalName),
 		slog.String("workspace", workspace),
 		slog.String("subscriptionId", subscriptionId),
@@ -83,7 +83,7 @@ func (d *DeploymentService) GetDeployment(ctx context.Context, usePrincipalName 
 }
 
 func (d *DeploymentService) UpsertDeployment(ctx context.Context, deployment entity.Deployment) error {
-	slog.Debug("upserting deployment",
+	slog.Info("upserting deployment",
 		slog.String("userPrincipalName", deployment.DeploymentUserId),
 		slog.String("deploymentWorkspace", deployment.DeploymentWorkspace),
 		slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
@@ -107,7 +107,7 @@ func (d *DeploymentService) UpsertDeployment(ctx context.Context, deployment ent
 }
 
 func (d *DeploymentService) DeleteDeployment(ctx context.Context, userPrincipalName string, subscriptionId string, workspace string) error {
-	slog.Debug("deleting deployment",
+	slog.Info("deleting deployment",
 		slog.String("userPrincipalName", userPrincipalName),
 		slog.String("workspace", workspace),
 		slog.String("subscriptionId", subscriptionId),
@@ -158,7 +158,7 @@ func (d *DeploymentService) MonitorAndDeployAutoDestroyedServersToDestroyPending
 }
 
 func (d *DeploymentService) PollDeploymentsToBeAutoDestroyed(ctx context.Context) error {
-	slog.Debug("polling for deployments to deploy")
+	slog.Info("polling for deployments to deploy")
 	allDeployments, err := d.deploymentRepository.GetAllDeployments(ctx)
 	if err != nil {
 		slog.Error("not able to get all deployments", err)
@@ -243,7 +243,7 @@ func (d *DeploymentService) RedeployServer(ctx context.Context, deployment entit
 }
 
 func (d *DeploymentService) GetUserPrincipalNameByMSIPrincipalID(ctx context.Context, msiPrincipalID string) (string, error) {
-	slog.Debug("getting user principal name by msi principal id",
+	slog.Info("getting user principal name by msi principal id",
 		slog.String("msiPrincipalID", msiPrincipalID),
 	)
 

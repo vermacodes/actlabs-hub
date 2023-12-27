@@ -43,7 +43,7 @@ func (s *AutoDestroyService) MonitorAndDestroyInactiveServers(ctx context.Contex
 }
 
 func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
-	slog.Debug("polling for servers to destroy")
+	slog.Info("polling for servers to destroy")
 	allServers, err := s.serverRepository.GetAllServersFromDatabase(ctx)
 	if err != nil {
 		slog.Error("not able to get all servers", err)
