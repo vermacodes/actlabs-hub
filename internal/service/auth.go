@@ -19,6 +19,9 @@ func NewAuthService(authRepository entity.AuthRepository) entity.AuthService {
 }
 
 func (s *AuthService) CreateProfile(profile entity.Profile) error {
+	slog.Info("creating profile",
+		slog.String("userPrincipal", profile.UserPrincipal),
+	)
 
 	existingProfile, err := s.authRepository.GetProfile(profile.UserPrincipal)
 	if err != nil {
@@ -58,6 +61,10 @@ func (s *AuthService) CreateProfile(profile entity.Profile) error {
 }
 
 func (s *AuthService) GetProfile(userPrincipal string) (entity.Profile, error) {
+	slog.Info("getting profile",
+		slog.String("userPrincipal", userPrincipal),
+	)
+
 	profile, err := s.authRepository.GetProfile(userPrincipal)
 	if err != nil {
 		slog.Error("error getting profile",
@@ -89,6 +96,7 @@ func (s *AuthService) GetAllProfilesRedacted() ([]entity.Profile, error) {
 }
 
 func (s *AuthService) GetAllProfiles() ([]entity.Profile, error) {
+	slog.Info("getting all profiles")
 	profiles, err := s.authRepository.GetAllProfiles()
 	if err != nil {
 		slog.Error("error getting profiles: ",
@@ -99,6 +107,10 @@ func (s *AuthService) GetAllProfiles() ([]entity.Profile, error) {
 }
 
 func (s *AuthService) DeleteRole(userPrincipal string, role string) error {
+	slog.Info("deleting role",
+		slog.String("userPrincipal", userPrincipal),
+		slog.String("role", role),
+	)
 
 	// Get the profile
 	profile, err := s.GetProfile(userPrincipal)
@@ -127,6 +139,11 @@ func (s *AuthService) DeleteRole(userPrincipal string, role string) error {
 }
 
 func (s *AuthService) AddRole(userPrincipal string, role string) error {
+
+	slog.Info("adding role",
+		slog.String("userPrincipal", userPrincipal),
+		slog.String("role", role),
+	)
 
 	// Get the profile
 	profile, err := s.GetProfile(userPrincipal)
