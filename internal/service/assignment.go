@@ -70,7 +70,7 @@ func (a *assignmentService) GetAllLabsRedacted() ([]entity.LabType, error) {
 
 	for _, lab := range labs {
 		lab.ExtendScript = "redacted"
-		lab.Description = "<p>" + lab.Name + "</p>"
+		lab.Description = "<p>" + lab.Name + "</p>" // keep in p tags for UI to render correctly
 		lab.Type = "assignment"
 		lab.Tags = []string{"assignment"}
 		readinessLabRedacted = append(readinessLabRedacted, lab)
