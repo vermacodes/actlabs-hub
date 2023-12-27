@@ -62,6 +62,9 @@ type DeploymentService interface {
 	DeleteDeployment(ctx context.Context, userPrincipalName string, subscriptionId string, workspace string) error
 
 	MonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments(ctx context.Context)
+
+	// may be this function doesn't belong here. but right now no other service needs this so keeping it here
+	GetUserPrincipalNameByMSIPrincipalID(ctx context.Context, msiPrincipalID string) (string, error)
 }
 
 type DeploymentRepository interface {
@@ -71,4 +74,7 @@ type DeploymentRepository interface {
 	UpsertDeployment(ctx context.Context, deployment Deployment) error
 	DeploymentOperationEntry(ctx context.Context, deployment Deployment) error
 	DeleteDeployment(ctx context.Context, userPrincipalName string, subscriptionId string, workspace string) error
+
+	// may be this function doesn't belong here. but right now no other service needs this so keeping it here
+	GetUserPrincipalNameByMSIPrincipalID(ctx context.Context, msiPrincipalID string) (string, error)
 }

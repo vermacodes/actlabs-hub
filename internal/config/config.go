@@ -16,6 +16,7 @@ type Config struct {
 	ActlabsHubChallengesTableName                  string
 	ActlabsHubProfilesTableName                    string
 	ActlabsHubDeploymentsTableName                 string
+	ActlabsHubDeploymentOperationsTableName        string
 	ActlabsHubResourceGroup                        string
 	ActlabsHubStorageAccount                       string
 	ActlabsHubSubscriptionID                       string
@@ -210,6 +211,11 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_HUB_DEPLOYMENTS_TABLE_NAME not set")
 	}
 
+	actlabsHubDeploymentOperationsTableName := getEnv("ACTLABS_HUB_DEPLOYMENT_OPERATIONS_TABLE_NAME")
+	if actlabsHubDeploymentOperationsTableName == "" {
+		return nil, fmt.Errorf("ACTLABS_HUB_DEPLOYMENT_OPERATIONS_TABLE_NAME not set")
+	}
+
 	actlabsHubAutoDestroyPollingIntervalSeconds, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_HUB_AUTO_DESTROY_POLLING_INTERVAL_SECONDS", "600"), 10, 32)
 	if err != nil {
 		return nil, err
@@ -234,6 +240,7 @@ func NewConfig() (*Config, error) {
 		ActlabsHubChallengesTableName:                  actlabsHubChallengesTableName,
 		ActlabsHubProfilesTableName:                    actlabsHubProfilesTableName,
 		ActlabsHubDeploymentsTableName:                 actlabsHubDeploymentsTableName,
+		ActlabsHubDeploymentOperationsTableName:        actlabsHubDeploymentOperationsTableName,
 		ActlabsHubResourceGroup:                        actlabsHubResourceGroup,
 		ActlabsHubStorageAccount:                       actlabsHubStorageAccount,
 		ActlabsHubSubscriptionID:                       actlabsHubSubscriptionID,
