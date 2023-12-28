@@ -150,7 +150,9 @@ func (d *DeploymentService) MonitorAndDeployAutoDestroyedServersToDestroyPending
 			case <-ticker.C:
 				// Every minute, check for servers to destroy
 				if err := d.PollDeploymentsToBeAutoDestroyed(ctx); err != nil {
-					slog.Error("not able to deploy auto destroyed servers to destroy pending deployments", err)
+					slog.Error("not able to deploy auto destroyed servers to destroy pending deployments",
+						slog.String("error", err.Error()),
+					)
 				}
 			}
 		}
@@ -161,7 +163,9 @@ func (d *DeploymentService) PollDeploymentsToBeAutoDestroyed(ctx context.Context
 	slog.Info("polling for deployments to be destroyed")
 	allDeployments, err := d.deploymentRepository.GetAllDeployments(ctx)
 	if err != nil {
-		slog.Error("not able to get all deployments", err)
+		slog.Error("not able to get all deployments",
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
 

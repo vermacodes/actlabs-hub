@@ -212,7 +212,9 @@ func (l *labService) DeletePrivateLab(typeOfLab string, labId string, userId str
 func (l *labService) DeletePublicLab(typeOfLab string, labId string, userId string) error {
 	ok, err := l.IsDeleteAllowed(typeOfLab, labId, userId)
 	if err != nil {
-		slog.Error("Not able to verify if delete should be allowed or not", err)
+		slog.Error("Not able to verify if delete should be allowed or not",
+			slog.String("error", err.Error()),
+		)
 	}
 
 	if !ok {
@@ -229,7 +231,9 @@ func (l *labService) DeleteProtectedLab(typeOfLab string, labId string) error {
 
 func (l *labService) DeleteLab(typeOfLab string, labId string) error {
 	if err := l.labRepository.DeleteLab(context.TODO(), typeOfLab, labId); err != nil {
-		slog.Error("not able to delete lab", err)
+		slog.Error("not able to delete lab",
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
 	return nil
@@ -238,7 +242,9 @@ func (l *labService) DeleteLab(typeOfLab string, labId string) error {
 func (l *labService) GetPrivateLabVersions(typeOfLab string, labId string, userId string) ([]entity.LabType, error) {
 	existingLab, err := l.labRepository.GetLab(context.TODO(), typeOfLab, labId)
 	if err != nil {
-		slog.Error("Not able to get the current version of lab.", err)
+		slog.Error("Not able to get the current version of lab.",
+			slog.String("error", err.Error()),
+		)
 		return []entity.LabType{}, err
 	}
 	if !helper.Contains(existingLab.Owners, userId) && !helper.Contains(existingLab.Editors, userId) && !helper.Contains(existingLab.Viewers, userId) {
@@ -259,7 +265,9 @@ func (l *labService) GetProtectedLabVersions(typeOfLab string, labId string) ([]
 func (l *labService) GetLabVersions(typeOfLab string, labId string) ([]entity.LabType, error) {
 	labs, err := l.labRepository.GetLabWithVersions(context.TODO(), typeOfLab, labId)
 	if err != nil {
-		slog.Error("Not able to get list of blobs", err)
+		slog.Error("Not able to get list of blobs",
+			slog.String("error", err.Error()),
+		)
 		return []entity.LabType{}, err
 	}
 

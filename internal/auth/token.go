@@ -131,14 +131,18 @@ func GetTokenJSON(token string) (map[string]interface{}, error) {
 	tokenParts := strings.Split(token, ".")
 	if len(tokenParts) < 2 {
 		err := errors.New("invalid token format")
-		slog.Error("invalid token format", err)
+		slog.Error("invalid token format",
+			slog.String("error", err.Error()),
+		)
 		return map[string]interface{}{}, err
 	}
 
 	// Decode the token
 	decodedToken, err := base64.URLEncoding.DecodeString(tokenParts[1] + strings.Repeat("=", (4-len(tokenParts[1])%4)%4))
 	if err != nil {
-		slog.Error("not able to decode token -> ", err)
+		slog.Error("not able to decode token -> ",
+			slog.String("error", err.Error()),
+		)
 		return map[string]interface{}{}, err
 	}
 
@@ -146,7 +150,9 @@ func GetTokenJSON(token string) (map[string]interface{}, error) {
 	var tokenJSON map[string]interface{}
 	err = json.Unmarshal(decodedToken, &tokenJSON)
 	if err != nil {
-		slog.Error("not able to unmarshal token -> ", err)
+		slog.Error("not able to unmarshal token -> ",
+			slog.String("error", err.Error()),
+		)
 		return map[string]interface{}{}, err
 	}
 
@@ -164,7 +170,9 @@ func GetUserPrincipalFromToken(token string) (string, error) {
 	userPrincipal, ok := tokenJSON["upn"].(string)
 	if !ok {
 		err := errors.New("user principal name not found in token")
-		slog.Error("user principal name not found in token", err)
+		slog.Error("user principal name not found in token",
+			slog.String("error", err.Error()),
+		)
 		return "", err
 	}
 
@@ -182,7 +190,9 @@ func GetUserObjectIdFromToken(token string) (string, error) {
 	userObjectId, ok := tokenJSON["oid"].(string)
 	if !ok {
 		err := errors.New("user object id not found in token")
-		slog.Error("user object id not found in token", err)
+		slog.Error("user object id not found in token",
+			slog.String("error", err.Error()),
+		)
 		return "", err
 	}
 
@@ -198,44 +208,6 @@ func VerifyUserPrincipalName(userPrincipalName string, token string) bool {
 	userPrincipalNameInToken, _ := GetUserPrincipalFromToken(token)
 	return userPrincipalName == userPrincipalNameInToken
 }
-
-// func VerifyArmToken(tokenString string) (bool, error) {
-// 	tokenJSON, err := GetTokenJSON(tokenString)
-// 	if err != nil {
-// 		return false, err
-// 	}
-
-// 	// check the audience
-// 	aud, ok := tokenJSON["aud"].(string)
-// 	if !ok {
-// 		return false, errors.New("not able to get audience from claims")
-// 	}
-
-// 	if aud != "https://management.core.windows.net/" {
-// 		return false, errors.New("unexpected audience, expected https://management.core.windows.net/ but got " + aud)
-// 	}
-
-// 	// Check the issuer
-// 	iss, ok := tokenJSON["iss"].(string)
-// 	if !ok {
-// 		return false, errors.New("not able to get issuer from claims")
-// 	}
-
-// 	if iss != "https://sts.windows.net/"+os.Getenv("TENANT_ID")+"/" {
-// 		return false, errors.New("unexpected issuer, expected https://sts.windows.net/" + os.Getenv("TENANT_ID") + "/ but got " + iss)
-// 	}
-
-// 	// Check the expiration time
-// 	exp, ok := tokenJSON["exp"].(float64)
-// 	if !ok {
-// 		return false, errors.New("invalid expiration time")
-// 	}
-// 	if time.Now().Unix() > int64(exp) {
-// 		return false, errors.New("token has expired")
-// 	}
-
-// 	return true, nil
-// }
 
 func VerifyArmToken(tokenString string) (bool, error) {
 
@@ -280,34 +252,3 @@ func VerifyArmToken(tokenString string) (bool, error) {
 
 	return true, nil
 }
-
-// func GetUserPrincipalNameByMSIPrincipalID(msiPrincipalID string) (string, error) {
-// 	// Get the user principal name from the MSI principal ID
-// 	var userPrincipalName string
-
-// 	pager := a.ActlabsServersTableClient.NewListEntitiesPager(&aztables.ListEntitiesOptions{
-// 		Filter: to.Ptr("managedIdentityPrincipalId eq '" + msiPrincipalID + "'"),
-// 	})
-
-// 	for pager.More() {
-// 		resp, err := pager.NextPage(context.Background())
-// 		if err != nil {
-// 			slog.Error("not able to get next page", slog.String("error", err.Error()))
-// 			return "", err
-// 		}
-
-// 		for _, entity := range resp.Entities {
-// 			var myEntity aztables.EDMEntity
-// 			err := json.Unmarshal(entity, &myEntity)
-// 			if err != nil {
-// 				slog.Error("not able to unmarshal entity", slog.String("error", err.Error()))
-// 				return "", err
-// 			}
-
-// 			userPrincipalName := myEntity.Properties["userPrincipalName"].(string)
-// 			return userPrincipalName, nil
-// 		}
-// 	}
-
-// 	return userPrincipalName, errors.New("not able to find user principal name for msi principal id " + msiPrincipalID)
-// }
