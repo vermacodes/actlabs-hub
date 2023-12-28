@@ -119,11 +119,12 @@ func (s *AutoDestroyService) VerifyServerIdle(server entity.Server) bool {
 }
 
 func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
-	slog.Debug("destroying server",
+	slog.Info("destroying server",
 		slog.String("userPrincipalName", server.UserPrincipalName),
 		slog.String("subscriptionId", server.SubscriptionId),
 		slog.String("status", string(server.Status)),
 		slog.String("lastActivityTime", server.LastUserActivityTime),
+		slog.Duration("allowedInactiveDuration", time.Duration(server.InactivityDurationInSeconds)*time.Second),
 		slog.Bool("autoDestroy", server.AutoDestroy),
 	)
 
@@ -137,15 +138,6 @@ func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
 	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
 		return err
 	}
-
-	slog.Info("server destroyed",
-		slog.String("userPrincipalName", server.UserPrincipalName),
-		slog.String("subscriptionId", server.SubscriptionId),
-		slog.String("status", string(server.Status)),
-		slog.String("lastActivityTime", server.LastUserActivityTime),
-		slog.Duration("allowedInactiveDuration", time.Duration(server.InactivityDurationInSeconds)*time.Second),
-		slog.Bool("autoDestroy", server.AutoDestroy),
-	)
 
 	return nil
 }
