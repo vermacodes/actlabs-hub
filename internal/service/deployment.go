@@ -158,7 +158,7 @@ func (d *DeploymentService) MonitorAndDeployAutoDestroyedServersToDestroyPending
 }
 
 func (d *DeploymentService) PollDeploymentsToBeAutoDestroyed(ctx context.Context) error {
-	slog.Info("polling for deployments to deploy")
+	slog.Info("polling for deployments to be destroyed")
 	allDeployments, err := d.deploymentRepository.GetAllDeployments(ctx)
 	if err != nil {
 		slog.Error("not able to get all deployments", err)
@@ -203,9 +203,11 @@ func (d *DeploymentService) RedeployServer(ctx context.Context, deployment entit
 
 	if server.Status == entity.ServerStatusAutoDestroyed &&
 		server.SubscriptionId == deployment.DeploymentSubscriptionId {
-		slog.Debug("deploying auto destroyed server",
+		slog.Info("redeploying auto destroyed server to destroy the deployment",
 			slog.String("userPrincipalName", deployment.DeploymentUserId),
 			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
+			slog.String("deploymentWorkspace", deployment.DeploymentWorkspace),
+			slog.String("labName", deployment.DeploymentLab.Name),
 		)
 
 		// deploy server again.

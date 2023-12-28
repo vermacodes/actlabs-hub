@@ -50,7 +50,7 @@ func (s *serverService) RegisterSubscription(subscriptionId string, userPrincipa
 }
 
 func (s *serverService) UpdateServer(server entity.Server) error {
-	slog.Debug("updating server",
+	slog.Info("updating server",
 		slog.String("userPrincipalName", server.UserPrincipalName),
 		slog.String("subscriptionId", server.SubscriptionId),
 	)
@@ -80,7 +80,7 @@ func (s *serverService) UpdateServer(server entity.Server) error {
 }
 
 func (s *serverService) DeployServer(server entity.Server) (entity.Server, error) {
-	slog.Debug("deploying server",
+	slog.Info("deploying server",
 		slog.String("userPrincipalName", server.UserPrincipalName),
 		slog.String("subscriptionId", server.SubscriptionId),
 	)
@@ -183,7 +183,7 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 }
 
 func (s *serverService) DestroyServer(userPrincipalName string) error {
-	slog.Debug("destroying server",
+	slog.Info("destroying server",
 		slog.String("userPrincipalName", userPrincipalName),
 	)
 
@@ -221,7 +221,7 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 }
 
 func (s *serverService) GetServer(userPrincipalName string) (entity.Server, error) {
-	slog.Debug("getting server",
+	slog.Info("getting server",
 		slog.String("userPrincipalName", userPrincipalName),
 	)
 
@@ -239,7 +239,7 @@ func (s *serverService) GetServer(userPrincipalName string) (entity.Server, erro
 }
 
 func (s *serverService) UpdateActivityStatus(userPrincipalName string) error {
-	slog.Debug("updating server activity status",
+	slog.Info("updating server activity status",
 		slog.String("userPrincipalName", userPrincipalName),
 	)
 

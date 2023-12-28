@@ -77,7 +77,7 @@ func (d *deploymentHandler) DeleteDeployment(c *gin.Context) {
 	}
 
 	if err := d.deploymentService.DeleteDeployment(c.Request.Context(), userPrincipal, workspace, subscriptionId); err != nil {
-		slog.Error("error deleting deployment ", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
 
 	c.Status(http.StatusNoContent)
