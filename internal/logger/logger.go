@@ -16,7 +16,9 @@ func SetupLogger() {
 
 	logLevelInt, err := strconv.Atoi(logLevel)
 	if err != nil {
-		slog.Error("Error converting ACTLABS_HUB_LOG_LEVEL to int will default to 0", err)
+		slog.Error("Error converting ACTLABS_HUB_LOG_LEVEL to int will default to 0",
+			slog.String("error", err.Error()),
+		)
 		logLevelInt = 0
 	}
 

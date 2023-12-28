@@ -21,50 +21,68 @@ func main() {
 	logger.SetupLogger()
 	appConfig, err := config.NewConfig()
 	if err != nil {
-		slog.Error("Error initializing config", err)
+		slog.Error("Error initializing config",
+			slog.String("error", err.Error()),
+		)
 		panic(err)
 	}
 
 	rdb, err := redis.NewRedisClient()
 	if err != nil {
-		slog.Error("Error initializing redis", err)
+		slog.Error("Error initializing redis",
+			slog.String("error", err.Error()),
+		)
 		panic(err)
 	}
 
 	auth, err := auth.NewAuth(appConfig)
 	if err != nil {
-		slog.Error("Error initializing auth", err)
+		slog.Error("Error initializing auth",
+			slog.String("error", err.Error()),
+		)
 		panic(err)
 	}
 
 	serverRepository, err := repository.NewServerRepository(appConfig, auth, rdb)
 	if err != nil {
-		slog.Error("Error initializing server repository", err)
+		slog.Error("Error initializing server repository",
+			slog.String("error", err.Error()),
+		)
 		panic(err)
 	}
 	labRepository, err := repository.NewLabRepository(auth, appConfig, rdb)
 	if err != nil {
-		slog.Error("Error initializing lab repository", err)
+		slog.Error("Error initializing lab repository",
+			slog.String("error", err.Error()),
+		)
 		panic(err)
 	}
 	assignmentRepository, err := repository.NewAssignmentRepository(auth, appConfig, rdb)
 	if err != nil {
-		slog.Error("Error initializing assignment repository", err)
+		slog.Error("Error initializing assignment repository",
+			slog.String("error", err.Error()),
+		)
 		panic(err)
 	}
 	challengeRepository, err := repository.NewChallengeRepository(auth, appConfig, rdb)
 	if err != nil {
-		slog.Error("Error initializing challenge repository", err)
+		slog.Error("Error initializing challenge repository",
+			slog.String("error", err.Error()),
+		)
 		panic(err)
 	}
 	authRepository, err := repository.NewAuthRepository(auth, appConfig, rdb)
 	if err != nil {
-		slog.Error("Error initializing auth repository", err)
+		slog.Error("Error initializing auth repository",
+			slog.String("error", err.Error()),
+		)
 		panic(err)
 	}
 	deploymentRepository, err := repository.NewDeploymentRepository(auth, rdb)
 	if err != nil {
-		slog.Error("Error initializing deployment repository", err)
+		slog.Error("Error initializing deployment repository",
+			slog.String("error", err.Error()),
+		)
 		panic(err)
 	}
 

@@ -35,7 +35,9 @@ func (s *AutoDestroyService) MonitorAndDestroyInactiveServers(ctx context.Contex
 			case <-ticker.C:
 				// Every minute, check for servers to destroy
 				if err := s.DestroyIdleServers(ctx); err != nil {
-					slog.Error("not able to destroy idle servers", err)
+					slog.Error("not able to destroy idle servers",
+						slog.String("error", err.Error()),
+					)
 				}
 			}
 		}
@@ -46,7 +48,9 @@ func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
 	slog.Info("polling for servers to destroy")
 	allServers, err := s.serverRepository.GetAllServersFromDatabase(ctx)
 	if err != nil {
-		slog.Error("not able to get all servers", err)
+		slog.Error("not able to get all servers",
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
 
@@ -54,7 +58,9 @@ func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
 
 		lastActivityTime, err := time.Parse(time.RFC3339, server.LastUserActivityTime)
 		if err != nil {
-			slog.Error("not able to parse last activity time", err)
+			slog.Error("not able to parse last activity time",
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 
@@ -98,7 +104,9 @@ func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
 func (s *AutoDestroyService) VerifyServerIdle(server entity.Server) bool {
 	isIdle, err := s.serverRepository.EnsureServerIdle(server)
 	if err != nil {
-		slog.Error("not able to verify server idle", err)
+		slog.Error("not able to verify server idle",
+			slog.String("error", err.Error()),
+		)
 		return false
 	}
 
