@@ -9,6 +9,7 @@ import (
 	"actlabs-hub/internal/entity"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/exp/slog"
 )
 
 type labHandler struct {
@@ -66,6 +67,12 @@ func (l *labHandler) GetLab(c *gin.Context) {
 
 	protectedLabSecret := c.Request.Header.Get("ProtectedLabSecret")
 	if protectedLabSecret != l.appConfig.ProtectedLabSecret {
+		slog.Error("invalid protected lab secret",
+			slog.String("labId", labId),
+			slog.String("typeOfLab", typeOfLab),
+			slog.String("protectedLabSecret", protectedLabSecret),
+		)
+
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Protected lab secret is invalid."})
 		return
 	}
