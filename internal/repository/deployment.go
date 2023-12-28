@@ -185,20 +185,35 @@ func (d *deploymentRepository) GetDeployment(ctx context.Context, userId string,
 
 	response, err := d.auth.ActlabsDeploymentsTableClient.GetEntity(ctx, userId, userId+"-"+subscriptionId+"-"+workspace, nil)
 	if err != nil {
-		slog.Error("error getting deployment ", err)
+		slog.Debug("error getting deployment ",
+			slog.String("userId", userId),
+			slog.String("subscriptionId", subscriptionId),
+			slog.String("workspace", workspace),
+			slog.String("error", err.Error()),
+		)
 		return entity.Deployment{}, err
 	}
 
 	var myEntity aztables.EDMEntity
 	err = json.Unmarshal(response.Value, &myEntity)
 	if err != nil {
-		slog.Error("error unmarshal deployment entity ", err)
+		slog.Debug("error unmarshal deployment entity ",
+			slog.String("userId", userId),
+			slog.String("subscriptionId", subscriptionId),
+			slog.String("workspace", workspace),
+			slog.String("error", err.Error()),
+		)
 		return entity.Deployment{}, err
 	}
 
 	deploymentString = myEntity.Properties["Deployment"].(string)
 	if err := json.Unmarshal([]byte(deploymentString), &deployment); err != nil {
-		slog.Error("error unmarshal deployment ", err)
+		slog.Debug("error unmarshal deployment ",
+			slog.String("userId", userId),
+			slog.String("subscriptionId", subscriptionId),
+			slog.String("workspace", workspace),
+			slog.String("error", err.Error()),
+		)
 		return entity.Deployment{}, err
 	}
 
@@ -412,7 +427,7 @@ func (d *deploymentRepository) GetUserPrincipalNameByMSIPrincipalID(ctx context.
 	for pager.More() {
 		resp, err := pager.NextPage(ctx)
 		if err != nil {
-			slog.Error("not able to get next page", slog.String("error", err.Error()))
+			slog.Debug("not able to get next page", slog.String("error", err.Error()))
 			return "", err
 		}
 
@@ -420,7 +435,7 @@ func (d *deploymentRepository) GetUserPrincipalNameByMSIPrincipalID(ctx context.
 			var myEntity aztables.EDMEntity
 			err := json.Unmarshal(entity, &myEntity)
 			if err != nil {
-				slog.Error("not able to unmarshal entity", slog.String("error", err.Error()))
+				slog.Debug("not able to unmarshal entity", slog.String("error", err.Error()))
 				return "", err
 			}
 

@@ -168,7 +168,7 @@ func (a *assignmentRepository) UpsertAssignment(assignment entity.Assignment) er
 
 	val, err := json.Marshal(assignment)
 	if err != nil {
-		slog.Error("error marshalling assignment record",
+		slog.Debug("error marshalling assignment record",
 			slog.String("assignmentId", assignment.AssignmentId),
 			slog.String("userId", assignment.UserId),
 			slog.String("labId", assignment.LabId),
@@ -180,7 +180,7 @@ func (a *assignmentRepository) UpsertAssignment(assignment entity.Assignment) er
 	_, err = a.auth.ActlabsReadinessTableClient.UpsertEntity(context.TODO(), val, nil)
 
 	if err != nil {
-		slog.Error("error creating assignment record: ",
+		slog.Debug("error creating assignment record: ",
 			slog.String("assignmentId", assignment.AssignmentId),
 			slog.String("userId", assignment.UserId),
 			slog.String("labId", assignment.LabId),
