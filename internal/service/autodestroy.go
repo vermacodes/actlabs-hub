@@ -88,6 +88,17 @@ func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
 			server.Status == entity.ServerStatusRunning &&
 			time.Since(lastActivityTime) > time.Duration(server.InactivityDurationInSeconds)*time.Second &&
 			s.VerifyServerIdle(server) {
+
+			slog.Info("destroying server",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("status", string(server.Status)),
+				slog.Bool("autoDestroy", server.AutoDestroy),
+				slog.String("lastActivityTime", server.LastUserActivityTime),
+				slog.Duration("timeSinceLastActivity", time.Since(lastActivityTime)),
+				slog.Duration("inactiveDuration", time.Duration(server.InactivityDurationInSeconds)*time.Second),
+			)
+
 			if err := s.DestroyServer(server); err != nil {
 				return err
 			}
@@ -115,15 +126,6 @@ func (s *AutoDestroyService) VerifyServerIdle(server entity.Server) bool {
 }
 
 func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
-	slog.Info("destroying server",
-		slog.String("userPrincipalName", server.UserPrincipalName),
-		slog.String("subscriptionId", server.SubscriptionId),
-		slog.String("status", string(server.Status)),
-		slog.String("lastActivityTime", server.LastUserActivityTime),
-		slog.Duration("allowedInactiveDuration", time.Duration(server.InactivityDurationInSeconds)*time.Second),
-		slog.Bool("autoDestroy", server.AutoDestroy),
-	)
-
 	if err := s.serverRepository.DestroyAzureContainerGroup(server); err != nil {
 
 		slog.Error("not able to destroy server",
