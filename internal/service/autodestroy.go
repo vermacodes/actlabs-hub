@@ -5,6 +5,7 @@ import (
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
 	"context"
+	"fmt"
 	"time"
 
 	"golang.org/x/exp/slog"
@@ -88,12 +89,7 @@ func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
 			time.Since(lastActivityTime) > time.Duration(server.InactivityDurationInSeconds)*time.Second &&
 			s.VerifyServerIdle(server) {
 			if err := s.DestroyServer(server); err != nil {
-				slog.Error("not able to destroy server",
-					slog.String("userPrincipalName", server.UserPrincipalName),
-					slog.String("subscriptionId", server.SubscriptionId),
-					slog.String("status", string(server.Status)),
-					slog.String("error", err.Error()),
-				)
+				return err
 			}
 		}
 	}
@@ -129,6 +125,14 @@ func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
 	)
 
 	if err := s.serverRepository.DestroyAzureContainerGroup(server); err != nil {
+
+		slog.Error("not able to destroy server",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("status", string(server.Status)),
+			slog.String("error", err.Error()),
+		)
+
 		return err
 	}
 
@@ -136,7 +140,15 @@ func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
 	server.Status = entity.ServerStatusAutoDestroyed
 	server.DestroyedAtTime = time.Now().Format(time.RFC3339)
 	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
-		return err
+
+		slog.Error("not able to destroy server",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("status", string(server.Status)),
+			slog.String("error", err.Error()),
+		)
+
+		return fmt.Errorf("server was destroyed but not able to update status in database")
 	}
 
 	return nil
