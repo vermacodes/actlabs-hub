@@ -170,7 +170,7 @@ func GetUserPrincipalFromToken(token string) (string, error) {
 	userPrincipal, ok := tokenJSON["upn"].(string)
 	if !ok {
 		err := errors.New("user principal name not found in token")
-		slog.Error("user principal name not found in token",
+		slog.Debug("user principal name not found in token",
 			slog.String("error", err.Error()),
 		)
 		return "", err
