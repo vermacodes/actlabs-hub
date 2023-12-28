@@ -143,6 +143,7 @@ func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
 		slog.String("subscriptionId", server.SubscriptionId),
 		slog.String("status", string(server.Status)),
 		slog.String("lastActivityTime", server.LastUserActivityTime),
+		slog.Duration("allowedInactiveDuration", time.Duration(server.InactivityDurationInSeconds)*time.Second),
 		slog.Bool("autoDestroy", server.AutoDestroy),
 	)
 
