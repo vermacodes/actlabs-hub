@@ -147,6 +147,7 @@ func ContributorRequired(authService entity.AuthService) gin.HandlerFunc {
 func verifyAccessToken(c *gin.Context, accessToken string) error {
 	splitToken := strings.Split(accessToken, "Bearer ")
 	if len(splitToken) < 2 {
+		slog.Error("found something in the Authorization header, but it's not a bearer token")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return errors.New("found something in the Authorization header, but it's not a bearer token")
 	}
