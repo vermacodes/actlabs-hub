@@ -207,13 +207,6 @@ func (d *DeploymentService) RedeployServer(ctx context.Context, deployment entit
 
 	if server.Status == entity.ServerStatusAutoDestroyed &&
 		server.SubscriptionId == deployment.DeploymentSubscriptionId {
-		slog.Info("redeploying auto destroyed server to destroy the deployment",
-			slog.String("userPrincipalName", deployment.DeploymentUserId),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-			slog.String("deploymentWorkspace", deployment.DeploymentWorkspace),
-			slog.String("labName", deployment.DeploymentLab.Name),
-		)
-
 		// deploy server again.
 		server, err := d.serverService.DeployServer(server)
 		if err != nil {
