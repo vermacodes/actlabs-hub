@@ -147,7 +147,7 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	// Ensure server is up and running. check every 5 seconds for 3 minutes.
 	for i := 0; i < waitTimeSeconds/5; i++ {
 		if err := s.serverRepository.EnsureServerUp(server); err == nil {
-			slog.Info("Server is up and running",
+			slog.Info("server is up and running",
 				slog.String("userPrincipalName", server.UserPrincipalName),
 				slog.String("subscriptionId", server.SubscriptionId),
 				slog.String("status", string(server.Status)),
