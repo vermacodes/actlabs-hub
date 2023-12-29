@@ -23,45 +23,65 @@ func NewAssignmentService(assignmentRepository entity.AssignmentRepository, labS
 }
 
 func (a *assignmentService) GetAllAssignments() ([]entity.Assignment, error) {
+	slog.Info("getting all assignments")
+
 	assignments, err := a.assignmentRepository.GetAllAssignments()
 	if err != nil {
-		slog.Error("not able to get assignments", err)
-		return assignments, err
+		slog.Error("not able to get assignments",
+			slog.String("error", err.Error()),
+		)
+		return assignments, errors.New("not able to get assignments")
 	}
 	return assignments, nil
 }
 
 func (a *assignmentService) GetAssignmentsByLabId(labId string) ([]entity.Assignment, error) {
+	slog.Info("getting assignments for lab",
+		slog.String("labId", labId),
+	)
+
 	assignments, err := a.assignmentRepository.GetAssignmentsByLabId(labId)
 	if err != nil {
-		slog.Error("not able to get assignments for lab "+labId, err)
-		return assignments, err
+		slog.Error("not able to get assignments for lab",
+			slog.String("labId", labId),
+			slog.String("error", err.Error()),
+		)
+		return assignments, errors.New("not able to get assignments for lab")
 	}
 	return assignments, nil
 }
 
 func (a *assignmentService) GetAssignmentsByUserId(userId string) ([]entity.Assignment, error) {
+	slog.Info("getting assignments for user",
+		slog.String("userId", userId),
+	)
+
 	assignments, err := a.assignmentRepository.GetAssignmentsByUserId(userId)
 	if err != nil {
-		slog.Error("not able to get assignments for user "+userId, err)
-		return assignments, err
+		slog.Error("not able to get assignments for user ",
+			slog.String("userId", userId),
+			slog.String("error", err.Error()),
+		)
+		return assignments, errors.New("not able to get assignments for user")
 	}
 	return assignments, nil
 }
 
 func (a *assignmentService) GetAllLabsRedacted() ([]entity.LabType, error) {
+	slog.Info("getting all labs redacted")
 	readinessLabRedacted := []entity.LabType{}
 
 	labs, err := a.labService.GetProtectedLabs("readinesslab")
 	if err != nil {
-		slog.Error("not able to get readiness labs", err)
+		slog.Error("not able to get readiness labs",
+			slog.String("error", err.Error()),
+		)
 		return readinessLabRedacted, err
 	}
 
 	for _, lab := range labs {
-		slog.Debug("Lab ID : " + lab.Name)
 		lab.ExtendScript = "redacted"
-		lab.Description = "<p>" + lab.Name + "</p>"
+		lab.Description = "<p>" + lab.Name + "</p>" // keep in p tags for UI to render correctly
 		lab.Type = "assignment"
 		lab.Tags = []string{"assignment"}
 		readinessLabRedacted = append(readinessLabRedacted, lab)
@@ -71,26 +91,33 @@ func (a *assignmentService) GetAllLabsRedacted() ([]entity.LabType, error) {
 }
 
 func (a *assignmentService) GetAssignedLabsRedactedByUserId(userId string) ([]entity.LabType, error) {
+	slog.Info("getting all labs redacted by user",
+		slog.String("userId", userId),
+	)
+
 	assignedLabs := []entity.LabType{}
 
 	assignments, err := a.GetAssignmentsByUserId(userId)
 	if err != nil {
-		slog.Error("not able to get assignments for user"+userId, err)
+		slog.Error("not able to get assignments for user",
+			slog.String("userId", userId),
+			slog.String("error", err.Error()),
+		)
 		return assignedLabs, err
 	}
 
 	labs, err := a.labService.GetProtectedLabs("readinesslab")
 	if err != nil {
-		slog.Error("not able to get readiness labs", err)
+		slog.Error("not able to get readiness labs",
+			slog.String("userId", userId),
+			slog.String("error", err.Error()),
+		)
 		return assignedLabs, err
 	}
 
 	for _, assignment := range assignments {
-		slog.Debug("Lab ID : " + assignment.LabId)
 		for _, lab := range labs {
-			slog.Debug("Checking Lab Name : " + lab.Name)
 			if assignment.LabId == lab.Id {
-				slog.Debug("Assignment ID : " + assignment.AssignmentId + " is for lab " + lab.Name)
 				if assignment.UserId == userId {
 					lab.ExtendScript = "redacted"
 					lab.Description = lab.Message // Replace description with message fro redacted labs
@@ -107,6 +134,7 @@ func (a *assignmentService) GetAssignedLabsRedactedByUserId(userId string) ([]en
 }
 
 func (a *assignmentService) CreateAssignments(userIds []string, labIds []string, createdBy string) error {
+
 	for _, userId := range userIds {
 
 		if !strings.Contains(userId, "@microsoft.com") {
@@ -115,16 +143,26 @@ func (a *assignmentService) CreateAssignments(userIds []string, labIds []string,
 
 		valid, err := a.assignmentRepository.ValidateUser(userId)
 		if err != nil {
-			slog.Error("not able to validate user id"+userId, err)
+			slog.Error("not able to validate user id",
+				slog.String("userId", userId),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 		if !valid {
 			err := errors.New("user id is not valid")
-			slog.Error("user id is not valid"+userId, err)
+			slog.Error("user id is not valid",
+				slog.String("userId", userId),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 
 		for _, labId := range labIds {
+			slog.Info("creating assignment",
+				slog.String("userId", userId),
+				slog.String("labId", labId),
+			)
 
 			assignment := entity.Assignment{
 				PartitionKey: userId,
@@ -138,20 +176,28 @@ func (a *assignmentService) CreateAssignments(userIds []string, labIds []string,
 			}
 
 			if err := a.assignmentRepository.UpsertAssignment(assignment); err != nil {
-				slog.Error("not able to create assignment", err)
+				slog.Error("not able to create assignment",
+					slog.String("userId", userId),
+					slog.String("labId", labId),
+					slog.String("error", err.Error()),
+				)
 				return err
 			}
-
-			slog.Debug("Assigned lab " + labId + " to user " + userId)
 		}
 	}
 	return nil
 }
 
 func (a *assignmentService) DeleteAssignments(assignmentIds []string) error {
+	slog.Info("deleting assignments",
+		slog.String("assignmentIds", strings.Join(assignmentIds, ",")),
+	)
 	for _, assignmentId := range assignmentIds {
 		if err := a.assignmentRepository.DeleteAssignment(assignmentId); err != nil {
-			slog.Error("not able to delete assignment with id "+assignmentId, err)
+			slog.Error("not able to delete assignment",
+				slog.String("assignmentId", assignmentId),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 	}

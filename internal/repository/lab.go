@@ -97,12 +97,12 @@ func (l *labRepository) ListBlobs(
 	// save the blobs in redis
 	blobsBytes, err := json.Marshal(blobs)
 	if err != nil {
-		slog.Error("not able to marshal blobs", slog.String("error", err.Error()))
+		slog.Debug("not able to marshal blobs", slog.String("error", err.Error()))
 		return blobs, nil
 	}
 	blobsStr = string(blobsBytes)
 	if err := l.rdb.Set(ctx, "blobs-"+labType, blobsStr, 0).Err(); err != nil {
-		slog.Error("not able to set blobs in redis", slog.String("error", err.Error()))
+		slog.Debug("not able to set blobs in redis", slog.String("error", err.Error()))
 		return blobs, nil
 	}
 
@@ -185,12 +185,12 @@ func (l *labRepository) GetLabWithVersions(ctx context.Context, typeOfLab string
 	// add labs to redis
 	labsBytes, err := json.Marshal(labs)
 	if err != nil {
-		slog.Error("not able to marshal labs", slog.String("error", err.Error()))
+		slog.Debug("not able to marshal labs", slog.String("error", err.Error()))
 		return labs, nil
 	}
 
 	if err := l.rdb.Set(ctx, redisKey("labWithVersions", typeOfLab, appendDotJson(labId)), string(labsBytes), 0).Err(); err != nil {
-		slog.Error("not able to set lab with versions in redis",
+		slog.Debug("not able to set lab with versions in redis",
 			slog.String("error", err.Error()),
 			slog.String("labId", labId),
 		)
@@ -236,7 +236,7 @@ func (l *labRepository) GetLab(
 
 	// save the lab in redis
 	if err := l.rdb.Set(ctx, redisKey("lab", typeOfLab, appendDotJson(labId)), string(actualBlobData), 0).Err(); err != nil {
-		slog.Error("not able to set lab in redis", slog.String("error", err.Error()))
+		slog.Debug("not able to set lab in redis", slog.String("error", err.Error()))
 	}
 
 	if err := json.Unmarshal(actualBlobData, &lab); err != nil {

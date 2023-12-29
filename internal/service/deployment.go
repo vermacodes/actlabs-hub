@@ -43,7 +43,7 @@ func (d *DeploymentService) GetAllDeployments(ctx context.Context) ([]entity.Dep
 }
 
 func (d *DeploymentService) GetUserDeployments(ctx context.Context, usePrincipalName string) ([]entity.Deployment, error) {
-	slog.Debug("getting user deployments",
+	slog.Info("getting user deployments",
 		slog.String("userPrincipalName", usePrincipalName),
 	)
 
@@ -61,7 +61,7 @@ func (d *DeploymentService) GetUserDeployments(ctx context.Context, usePrincipal
 }
 
 func (d *DeploymentService) GetDeployment(ctx context.Context, usePrincipalName string, workspace string, subscriptionId string) (entity.Deployment, error) {
-	slog.Debug("getting deployment",
+	slog.Info("getting deployment",
 		slog.String("userPrincipalName", usePrincipalName),
 		slog.String("workspace", workspace),
 		slog.String("subscriptionId", subscriptionId),
@@ -83,7 +83,7 @@ func (d *DeploymentService) GetDeployment(ctx context.Context, usePrincipalName 
 }
 
 func (d *DeploymentService) UpsertDeployment(ctx context.Context, deployment entity.Deployment) error {
-	slog.Debug("upserting deployment",
+	slog.Info("upserting deployment",
 		slog.String("userPrincipalName", deployment.DeploymentUserId),
 		slog.String("deploymentWorkspace", deployment.DeploymentWorkspace),
 		slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
@@ -98,11 +98,16 @@ func (d *DeploymentService) UpsertDeployment(ctx context.Context, deployment ent
 
 		return err
 	}
+
+	// Add deployment operation entry
+	// sending a different context here cause http context will end early while this operation is still running.
+	go d.deploymentRepository.DeploymentOperationEntry(context.Background(), deployment)
+
 	return nil
 }
 
 func (d *DeploymentService) DeleteDeployment(ctx context.Context, userPrincipalName string, subscriptionId string, workspace string) error {
-	slog.Debug("deleting deployment",
+	slog.Info("deleting deployment",
 		slog.String("userPrincipalName", userPrincipalName),
 		slog.String("workspace", workspace),
 		slog.String("subscriptionId", subscriptionId),
@@ -145,7 +150,9 @@ func (d *DeploymentService) MonitorAndDeployAutoDestroyedServersToDestroyPending
 			case <-ticker.C:
 				// Every minute, check for servers to destroy
 				if err := d.PollDeploymentsToBeAutoDestroyed(ctx); err != nil {
-					slog.Error("not able to deploy auto destroyed servers to destroy pending deployments", err)
+					slog.Error("not able to deploy auto destroyed servers to destroy pending deployments",
+						slog.String("error", err.Error()),
+					)
 				}
 			}
 		}
@@ -153,10 +160,12 @@ func (d *DeploymentService) MonitorAndDeployAutoDestroyedServersToDestroyPending
 }
 
 func (d *DeploymentService) PollDeploymentsToBeAutoDestroyed(ctx context.Context) error {
-	slog.Debug("polling for deployments to deploy")
+	slog.Info("polling for deployments to be destroyed")
 	allDeployments, err := d.deploymentRepository.GetAllDeployments(ctx)
 	if err != nil {
-		slog.Error("not able to get all deployments", err)
+		slog.Error("not able to get all deployments",
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
 
@@ -198,11 +207,6 @@ func (d *DeploymentService) RedeployServer(ctx context.Context, deployment entit
 
 	if server.Status == entity.ServerStatusAutoDestroyed &&
 		server.SubscriptionId == deployment.DeploymentSubscriptionId {
-		slog.Debug("deploying auto destroyed server",
-			slog.String("userPrincipalName", deployment.DeploymentUserId),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-		)
-
 		// deploy server again.
 		server, err := d.serverService.DeployServer(server)
 		if err != nil {
@@ -235,4 +239,22 @@ func (d *DeploymentService) RedeployServer(ctx context.Context, deployment entit
 			)
 		}
 	}
+}
+
+func (d *DeploymentService) GetUserPrincipalNameByMSIPrincipalID(ctx context.Context, msiPrincipalID string) (string, error) {
+	slog.Info("getting user principal name by msi principal id",
+		slog.String("msiPrincipalID", msiPrincipalID),
+	)
+
+	userPrincipalName, err := d.deploymentRepository.GetUserPrincipalNameByMSIPrincipalID(ctx, msiPrincipalID)
+	if err != nil {
+		slog.Error("not able to get user principal name by msi principal id",
+			slog.String("msiPrincipalID", msiPrincipalID),
+			slog.String("error", err.Error()),
+		)
+
+		return "", err
+	}
+
+	return userPrincipalName, nil
 }

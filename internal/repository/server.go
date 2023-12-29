@@ -341,10 +341,6 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 									Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
 								},
 								{
-									Name:  to.Ptr("PROTECTED_LAB_SECRET"),
-									Value: to.Ptr(s.appConfig.ProtectedLabSecret),
-								},
-								{
 									Name:  to.Ptr("ACTLABS_HUB_URL"),
 									Value: to.Ptr(s.appConfig.ActlabsHubURL),
 								},

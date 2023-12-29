@@ -32,6 +32,7 @@ func NewAssignmentRepository(
 }
 
 func (a *assignmentRepository) GetAllAssignments() ([]entity.Assignment, error) {
+	slog.Debug("getting all assignments")
 	assignment := entity.Assignment{}
 	assignments := []entity.Assignment{}
 
@@ -39,14 +40,18 @@ func (a *assignmentRepository) GetAllAssignments() ([]entity.Assignment, error) 
 	for pager.More() {
 		response, err := pager.NextPage(context.Background())
 		if err != nil {
-			slog.Error("Error getting entities: ", err)
+			slog.Debug("error getting assignments entities",
+				slog.String("error", err.Error()),
+			)
 			return assignments, err
 		}
 
 		for _, element := range response.Entities {
 			//var myEntity aztables.EDMEntity
 			if err := json.Unmarshal(element, &assignment); err != nil {
-				slog.Error("Error unmarshal entity: ", err)
+				slog.Debug("error unmarshal entity",
+					slog.String("error", err.Error()),
+				)
 				return assignments, err
 			}
 			assignments = append(assignments, assignment)
@@ -57,6 +62,9 @@ func (a *assignmentRepository) GetAllAssignments() ([]entity.Assignment, error) 
 }
 
 func (a *assignmentRepository) GetAssignmentsByLabId(labId string) ([]entity.Assignment, error) {
+	slog.Debug("getting assignments by lab id",
+		slog.String("labId", labId),
+	)
 	assignment := entity.Assignment{}
 	assignments := []entity.Assignment{}
 
@@ -64,14 +72,20 @@ func (a *assignmentRepository) GetAssignmentsByLabId(labId string) ([]entity.Ass
 	for pager.More() {
 		response, err := pager.NextPage(context.Background())
 		if err != nil {
-			slog.Error("Error getting entities: ", err)
+			slog.Debug("error getting entities",
+				slog.String("labId", labId),
+				slog.String("error", err.Error()),
+			)
 			return assignments, err
 		}
 
 		for _, element := range response.Entities {
 			//var myEntity aztables.EDMEntity
 			if err := json.Unmarshal(element, &assignment); err != nil {
-				slog.Error("Error unmarshal entity: ", err)
+				slog.Debug("error unmarshal entity",
+					slog.String("labId", labId),
+					slog.String("error", err.Error()),
+				)
 				return assignments, err
 			}
 
@@ -85,6 +99,10 @@ func (a *assignmentRepository) GetAssignmentsByLabId(labId string) ([]entity.Ass
 }
 
 func (a *assignmentRepository) GetAssignmentsByUserId(userId string) ([]entity.Assignment, error) {
+	slog.Debug("getting assignments by user id",
+		slog.String("userId", userId),
+	)
+
 	assignment := entity.Assignment{}
 	assignments := []entity.Assignment{}
 
@@ -92,14 +110,20 @@ func (a *assignmentRepository) GetAssignmentsByUserId(userId string) ([]entity.A
 	for pager.More() {
 		response, err := pager.NextPage(context.Background())
 		if err != nil {
-			slog.Error("Error getting entities: ", err)
+			slog.Debug("error getting entities",
+				slog.String("userId", userId),
+				slog.String("error", err.Error()),
+			)
 			return assignments, err
 		}
 
 		for _, element := range response.Entities {
 			//var myEntity aztables.EDMEntity
 			if err := json.Unmarshal(element, &assignment); err != nil {
-				slog.Error("Error unmarshal entity: ", err)
+				slog.Debug("error unmarshal entity",
+					slog.String("userId", userId),
+					slog.String("error", err.Error()),
+				)
 				return assignments, err
 			}
 
@@ -114,39 +138,56 @@ func (a *assignmentRepository) GetAssignmentsByUserId(userId string) ([]entity.A
 
 func (a *assignmentRepository) DeleteAssignment(assignmentId string) error {
 
-	slog.Debug("Deleting assignment: ", assignmentId)
+	slog.Debug("deleting assignment",
+		slog.String("assignmentId", assignmentId),
+	)
 
 	userId := assignmentId[:strings.Index(assignmentId, "+")]
 
 	_, err := a.auth.ActlabsReadinessTableClient.DeleteEntity(context.Background(), userId, assignmentId, nil)
 	if err != nil {
-		slog.Error("Error deleting assignment record: ", err)
+		slog.Debug("error deleting assignment record: ",
+			slog.String("assignmentId", assignmentId),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
-	slog.Debug("Assignment record deleted successfully")
+
 	return nil
 }
 
 func (a *assignmentRepository) UpsertAssignment(assignment entity.Assignment) error {
+	slog.Debug("upserting assignment",
+		slog.String("assignmentId", assignment.AssignmentId),
+		slog.String("userId", assignment.UserId),
+		slog.String("labId", assignment.LabId),
+	)
+
 	assignment.PartitionKey = assignment.UserId
 	assignment.RowKey = assignment.AssignmentId
 
 	val, err := json.Marshal(assignment)
 	if err != nil {
-		slog.Error("Error marshalling assignment record: ", err)
+		slog.Debug("error marshalling assignment record",
+			slog.String("assignmentId", assignment.AssignmentId),
+			slog.String("userId", assignment.UserId),
+			slog.String("labId", assignment.LabId),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
-
-	slog.Debug("Assignment record: ", string(val))
 
 	_, err = a.auth.ActlabsReadinessTableClient.UpsertEntity(context.TODO(), val, nil)
 
 	if err != nil {
-		slog.Error("Error creating assignment record: ", err)
+		slog.Debug("error creating assignment record: ",
+			slog.String("assignmentId", assignment.AssignmentId),
+			slog.String("userId", assignment.UserId),
+			slog.String("labId", assignment.LabId),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
-
-	slog.Debug("Assignment record created successfully")
 
 	return nil
 }

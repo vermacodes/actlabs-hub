@@ -13,7 +13,6 @@ const (
 	ServerStatusDeployed      ServerStatus = "Deployed"
 	ServerStatusDeploying     ServerStatus = "Deploying"
 	ServerStatusDestroyed     ServerStatus = "Destroyed"
-	ServerSTatusDestroying    ServerStatus = "Destroying"
 	ServerStatusFailed        ServerStatus = "Failed"
 	ServerStatusRegistered    ServerStatus = "Registered"
 	ServerStatusRunning       ServerStatus = "Running"
