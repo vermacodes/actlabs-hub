@@ -211,8 +211,6 @@ function deploy() {
     export PORT="80"
     export ROOT_DIR="/app"
     export USE_MSI="false"
-    export AUTH_TOKEN_AUD="00399ddd-434c-4b8a-84be-d096cff4f494"
-    export AUTH_TOKEN_ISS="https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0"
     export ARM_SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
     export ARM_TENANT_ID=$(az account show --query "tenantId" -o tsv)
     export ARM_USER_PRINCIPAL_NAME=$(az account show --query "user.name" -o tsv)
