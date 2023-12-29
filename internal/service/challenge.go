@@ -23,12 +23,16 @@ func NewChallengeService(challengeRepository entity.ChallengeRepository, labServ
 }
 
 func (a *challengeService) GetAllLabsRedacted() ([]entity.LabType, error) {
+	slog.Info("getting all challenge labs redacted")
+
 	challengeLabRedacted := []entity.LabType{}
 
 	labs, err := a.labService.GetAllPrivateLabs("challengelab")
 	if err != nil {
-		slog.Error("not able to get challenge labs", err)
-		return challengeLabRedacted, err
+		slog.Error("not able to get challenge labs",
+			slog.String("error", err.Error()),
+		)
+		return challengeLabRedacted, errors.New("not able to get challenge labs")
 	}
 
 	for _, lab := range labs {
@@ -39,31 +43,29 @@ func (a *challengeService) GetAllLabsRedacted() ([]entity.LabType, error) {
 		lab.Tags = []string{"challenge"}
 		challengeLabRedacted = append(challengeLabRedacted, lab)
 	}
-
 	return challengeLabRedacted, nil
 }
 
 func (c *challengeService) GetChallengesLabsRedactedByUserId(userId string) ([]entity.LabType, error) {
+	slog.Info("getting all challenge labs redacted by user",
+		slog.String("userId", userId),
+	)
+
 	challengeLabs := []entity.LabType{}
 
 	challenges, err := c.GetChallengesByUserId(userId)
 	if err != nil {
-		slog.Error("not able to get challenges for user "+userId, err)
 		return challengeLabs, err
 	}
 
 	redactedLabs, err := c.GetAllLabsRedacted()
 	if err != nil {
-		slog.Error("not able to get redacted labs", err)
 		return challengeLabs, err
 	}
 
 	for _, challenge := range challenges {
-		slog.Debug("Challenge ID : " + challenge.ChallengeId)
 		for _, lab := range redactedLabs {
-			slog.Debug("Checking lab Name : " + lab.Name)
 			if challenge.LabId == lab.Id && challenge.UserId == userId {
-				slog.Debug("Challenge Id " + challenge.ChallengeId + " matches with lab Name " + lab.Name + " for user " + userId)
 				challengeLabs = append(challengeLabs, lab)
 				break
 			}
@@ -74,25 +76,50 @@ func (c *challengeService) GetChallengesLabsRedactedByUserId(userId string) ([]e
 }
 
 func (c *challengeService) GetAllChallenges() ([]entity.Challenge, error) {
+	slog.Info("getting all challenges")
+
 	challenges, err := c.challengeRepository.GetAllChallenges()
 	if err != nil {
-		return challenges, err
+		slog.Error("not able to get all challenges",
+			slog.String("error", err.Error()),
+		)
+		return challenges, errors.New("not able to get challenges")
 	}
+
 	return challenges, nil
 }
 
 func (c *challengeService) GetChallengesByLabId(labId string) ([]entity.Challenge, error) {
+	slog.Info("getting challenges by lab id",
+		slog.String("labId", labId),
+	)
+
 	challenges, err := c.challengeRepository.GetChallengesByLabId(labId)
 	if err != nil {
-		return challenges, err
+		slog.Error("not able to get challenges by lab id",
+			slog.String("labId", labId),
+			slog.String("error", err.Error()),
+		)
+
+		return challenges, fmt.Errorf("not able to get challenges for lab id %s", labId)
 	}
+
 	return challenges, nil
 }
 
 func (c *challengeService) GetChallengesByUserId(userId string) ([]entity.Challenge, error) {
+	slog.Info("getting challenges by user id",
+		slog.String("userId", userId),
+	)
+
 	challenges, err := c.challengeRepository.GetChallengesByUserId(userId)
 	if err != nil {
-		return challenges, err
+		slog.Error("not able to get challenges by user id",
+			slog.String("userId", userId),
+			slog.String("error", err.Error()),
+		)
+
+		return challenges, fmt.Errorf("not able to get challenges for user id %s", userId)
 	}
 	return challenges, nil
 }
@@ -103,16 +130,23 @@ func (c *challengeService) UpsertChallenges(challenges []entity.Challenge) error
 	// OR
 	// Has createdBy completed the challenge? Yes? Have they challenged this to two people already? Yes? Return error.
 
-	var _err error
-
 	for _, challenge := range challenges {
+		slog.Info("upserting challenge",
+			slog.String("userId", challenge.UserId),
+			slog.String("labId", challenge.LabId),
+		)
+
 		if err := c.challengeRepository.UpsertChallenge(challenge); err != nil {
-			slog.Error(fmt.Sprintf("Not able to challenge %s for lab %s", challenge.UserId, challenge.LabId), err)
-			_err = err
+			slog.Error("not able to upsert challenge",
+				slog.String("userId", challenge.UserId),
+				slog.String("labId", challenge.LabId),
+				slog.String("error", err.Error()),
+			)
+			return fmt.Errorf("not able to upsert challenge for user id %s and lab id %s. may be all challenges not added", challenge.UserId, challenge.LabId)
 		}
 	}
 
-	return _err
+	return nil
 }
 
 func (c *challengeService) CreateChallenges(userIds []string, labIds []string, createdBy string) error {
@@ -125,17 +159,28 @@ func (c *challengeService) CreateChallenges(userIds []string, labIds []string, c
 
 		valid, err := c.challengeRepository.ValidateUser(userId)
 		if err != nil {
-			slog.Error("not able to validate user id"+userId, err)
+			slog.Error("not able to validate user id",
+				slog.String("userId", userId),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 
 		if !valid {
 			err := errors.New("user id is not valid")
-			slog.Error("user id is not valid"+userId, err)
+			slog.Error("user id is not valid",
+				slog.String("userId", userId),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 
 		for _, labId := range labIds {
+
+			slog.Info("creating challenge",
+				slog.String("userId", userId),
+				slog.String("labId", labId),
+			)
 
 			challenge := entity.Challenge{
 				PartitionKey: userId,
@@ -149,11 +194,12 @@ func (c *challengeService) CreateChallenges(userIds []string, labIds []string, c
 			}
 
 			if err := c.challengeRepository.UpsertChallenge(challenge); err != nil {
-				slog.Error("not able to create challenge", err)
-				return err
+				slog.Error("not able to create challenge",
+					slog.String("userId", userId),
+					slog.String("labId", labId),
+				)
+				return fmt.Errorf("not able to create challenge for user id %s and lab id %s", userId, labId)
 			}
-
-			slog.Debug(userId + " challenged to solve lab " + labId)
 		}
 	}
 
@@ -161,10 +207,17 @@ func (c *challengeService) CreateChallenges(userIds []string, labIds []string, c
 }
 
 func (c *challengeService) DeleteChallenges(challengeIds []string) error {
+	slog.Info("deleting challenges",
+		slog.String("challengeIds", strings.Join(challengeIds, ",")),
+	)
+
 	for _, challengeId := range challengeIds {
 		if err := c.challengeRepository.DeleteChallenge(challengeId); err != nil {
-			slog.Error("not able to delete challenge with id "+challengeId, err)
-			continue
+			slog.Error("not able to delete challenge",
+				slog.String("challengeId", challengeId),
+			)
+
+			return fmt.Errorf("not able to delete challenge for challenge id %s. stopped processing remaining challenges", challengeId)
 		}
 	}
 

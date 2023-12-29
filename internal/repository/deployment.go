@@ -3,11 +3,13 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/exp/slog"
@@ -183,20 +185,35 @@ func (d *deploymentRepository) GetDeployment(ctx context.Context, userId string,
 
 	response, err := d.auth.ActlabsDeploymentsTableClient.GetEntity(ctx, userId, userId+"-"+subscriptionId+"-"+workspace, nil)
 	if err != nil {
-		slog.Error("error getting deployment ", err)
+		slog.Debug("error getting deployment ",
+			slog.String("userId", userId),
+			slog.String("subscriptionId", subscriptionId),
+			slog.String("workspace", workspace),
+			slog.String("error", err.Error()),
+		)
 		return entity.Deployment{}, err
 	}
 
 	var myEntity aztables.EDMEntity
 	err = json.Unmarshal(response.Value, &myEntity)
 	if err != nil {
-		slog.Error("error unmarshal deployment entity ", err)
+		slog.Debug("error unmarshal deployment entity ",
+			slog.String("userId", userId),
+			slog.String("subscriptionId", subscriptionId),
+			slog.String("workspace", workspace),
+			slog.String("error", err.Error()),
+		)
 		return entity.Deployment{}, err
 	}
 
 	deploymentString = myEntity.Properties["Deployment"].(string)
 	if err := json.Unmarshal([]byte(deploymentString), &deployment); err != nil {
-		slog.Error("error unmarshal deployment ", err)
+		slog.Debug("error unmarshal deployment ",
+			slog.String("userId", userId),
+			slog.String("subscriptionId", subscriptionId),
+			slog.String("workspace", workspace),
+			slog.String("error", err.Error()),
+		)
 		return entity.Deployment{}, err
 	}
 
@@ -257,7 +274,7 @@ func (d *deploymentRepository) UpsertDeployment(ctx context.Context, deployment 
 		return err
 	}
 
-	_, err = d.auth.ActlabsDeploymentsTableClient.UpsertEntity(context.TODO(), marshalled, nil)
+	_, err = d.auth.ActlabsDeploymentsTableClient.UpsertEntity(ctx, marshalled, nil)
 	if err != nil {
 		slog.Debug("error adding deployment record ",
 			slog.String("userId", deployment.DeploymentUserId),
@@ -341,7 +358,7 @@ func (d *deploymentRepository) DeploymentOperationEntry(ctx context.Context, dep
 		return err
 	}
 
-	_, err = d.auth.ActlabsDeploymentsTableClient.UpsertEntity(context.TODO(), marshalled, nil)
+	_, err = d.auth.ActlabSDeploymentOperationsTableClient.UpsertEntity(ctx, marshalled, nil)
 	if err != nil {
 		slog.Debug("error adding deployment entry record ",
 			slog.String("userId", deployment.DeploymentUserId),
@@ -379,5 +396,62 @@ func (d *deploymentRepository) DeleteDeployment(ctx context.Context, userId stri
 		return err
 	}
 
+	// delete deployments for user from redis
+	if err := d.rdb.Del(ctx, userId+"-deployments").Err(); err != nil {
+		slog.Debug("error occurred deleting the deployments record from redis.",
+			slog.String("userId", userId),
+			slog.String("subscriptionId", subscriptionId),
+			slog.String("workspace", workspace),
+			slog.String("error", err.Error()),
+		)
+
+		return err
+	}
+
 	return nil
+}
+
+func (d *deploymentRepository) GetUserPrincipalNameByMSIPrincipalID(ctx context.Context, msiPrincipalID string) (string, error) {
+	// check the cache first
+	userPrincipalName, err := d.rdb.Get(ctx, msiPrincipalID+"-owner").Result()
+	if err == nil && userPrincipalName != "" {
+		return userPrincipalName, nil
+	}
+
+	slog.Debug("not able to find user principal name for msi principal id in redis, continue to get from table storage")
+
+	pager := d.auth.ActlabsServersTableClient.NewListEntitiesPager(&aztables.ListEntitiesOptions{
+		Filter: to.Ptr("managedIdentityPrincipalId eq '" + msiPrincipalID + "'"),
+	})
+
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		if err != nil {
+			slog.Debug("not able to get next page", slog.String("error", err.Error()))
+			return "", err
+		}
+
+		for _, entity := range resp.Entities {
+			var myEntity aztables.EDMEntity
+			err := json.Unmarshal(entity, &myEntity)
+			if err != nil {
+				slog.Debug("not able to unmarshal entity", slog.String("error", err.Error()))
+				return "", err
+			}
+
+			userPrincipalName := myEntity.Properties["userPrincipalName"].(string)
+			return userPrincipalName, nil
+		}
+	}
+
+	// save user principal name to redis
+	if err := d.rdb.Set(ctx, msiPrincipalID+"-owner", userPrincipalName, 0).Err(); err != nil {
+		slog.Debug("error occurred saving the user principal name record to redis.",
+			slog.String("msiPrincipalID", msiPrincipalID),
+			slog.String("userPrincipalName", userPrincipalName),
+			slog.String("error", err.Error()),
+		)
+	}
+
+	return userPrincipalName, errors.New("not able to find user principal name for msi principal id " + msiPrincipalID)
 }

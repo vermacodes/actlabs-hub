@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+	"errors"
 	"net/http"
 
 	"actlabs-hub/internal/auth"
@@ -25,9 +27,10 @@ func NewDeploymentHandler(r *gin.RouterGroup, service entity.DeploymentService) 
 }
 
 func (d *deploymentHandler) GetUserDeployments(c *gin.Context) {
-	userPrincipal, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
+	userPrincipal, err := GetUserPrincipalFromToken(c.Request.Context(), d.deploymentService, c.GetHeader("Authorization"))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid access token"})
+		return
 	}
 
 	deployments, err := d.deploymentService.GetUserDeployments(c.Request.Context(), userPrincipal)
@@ -46,9 +49,10 @@ func (d *deploymentHandler) UpsertDeployment(c *gin.Context) {
 		return
 	}
 
-	userPrincipal, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
+	userPrincipal, err := GetUserPrincipalFromToken(c.Request.Context(), d.deploymentService, c.GetHeader("Authorization"))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid access token"})
+		return
 	}
 
 	deployment.DeploymentId = userPrincipal + "-" + deployment.DeploymentWorkspace + "-" + deployment.DeploymentSubscriptionId
@@ -66,14 +70,40 @@ func (d *deploymentHandler) DeleteDeployment(c *gin.Context) {
 	subscriptionId := c.Param("subscriptionId")
 	workspace := c.Param("workspace")
 
-	userPrincipal, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
+	userPrincipal, err := GetUserPrincipalFromToken(c.Request.Context(), d.deploymentService, c.GetHeader("Authorization"))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid access token"})
+		return
 	}
 
 	if err := d.deploymentService.DeleteDeployment(c.Request.Context(), userPrincipal, workspace, subscriptionId); err != nil {
-		slog.Error("error deleting deployment ", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+func GetUserPrincipalFromToken(ctx context.Context, d entity.DeploymentService, token string) (string, error) {
+	userPrincipal, err := auth.GetUserPrincipalFromToken(token)
+	if err != nil && userPrincipal == "" {
+		slog.Debug("no user principal found in token checking if it is an MSI token")
+
+		oid, err := auth.GetUserObjectIdFromToken(token)
+		if err != nil {
+			return "", errors.New("invalid access token")
+		}
+
+		userPrincipal, err := d.GetUserPrincipalNameByMSIPrincipalID(ctx, oid)
+		if err != nil {
+			return "", errors.New("invalid access token")
+		}
+
+		if userPrincipal == "" {
+			return "", errors.New("invalid access token")
+		}
+
+		return userPrincipal, nil
+	}
+
+	return userPrincipal, nil
 }

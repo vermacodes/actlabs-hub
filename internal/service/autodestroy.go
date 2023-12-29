@@ -5,6 +5,7 @@ import (
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
 	"context"
+	"fmt"
 	"time"
 
 	"golang.org/x/exp/slog"
@@ -35,7 +36,9 @@ func (s *AutoDestroyService) MonitorAndDestroyInactiveServers(ctx context.Contex
 			case <-ticker.C:
 				// Every minute, check for servers to destroy
 				if err := s.DestroyIdleServers(ctx); err != nil {
-					slog.Error("not able to destroy idle servers", err)
+					slog.Error("not able to destroy idle servers",
+						slog.String("error", err.Error()),
+					)
 				}
 			}
 		}
@@ -43,10 +46,12 @@ func (s *AutoDestroyService) MonitorAndDestroyInactiveServers(ctx context.Contex
 }
 
 func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
-	slog.Debug("polling for servers to destroy")
+	slog.Info("polling for servers to destroy")
 	allServers, err := s.serverRepository.GetAllServersFromDatabase(ctx)
 	if err != nil {
-		slog.Error("not able to get all servers", err)
+		slog.Error("not able to get all servers",
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
 
@@ -54,7 +59,9 @@ func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
 
 		lastActivityTime, err := time.Parse(time.RFC3339, server.LastUserActivityTime)
 		if err != nil {
-			slog.Error("not able to parse last activity time", err)
+			slog.Error("not able to parse last activity time",
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 
@@ -78,16 +85,24 @@ func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
 		}
 
 		if server.AutoDestroy &&
-			server.Status == entity.ServerStatusRunning &&
+			server.Status != entity.ServerStatusAutoDestroyed &&
+			server.Status != entity.ServerStatusDestroyed &&
+			server.Status != entity.ServerStatusUnregistered &&
 			time.Since(lastActivityTime) > time.Duration(server.InactivityDurationInSeconds)*time.Second &&
 			s.VerifyServerIdle(server) {
+
+			slog.Info("destroying server",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("status", string(server.Status)),
+				slog.Bool("autoDestroy", server.AutoDestroy),
+				slog.String("lastActivityTime", server.LastUserActivityTime),
+				slog.Duration("timeSinceLastActivity", time.Since(lastActivityTime)),
+				slog.Duration("inactiveDuration", time.Duration(server.InactivityDurationInSeconds)*time.Second),
+			)
+
 			if err := s.DestroyServer(server); err != nil {
-				slog.Error("not able to destroy server",
-					slog.String("userPrincipalName", server.UserPrincipalName),
-					slog.String("subscriptionId", server.SubscriptionId),
-					slog.String("status", string(server.Status)),
-					slog.String("error", err.Error()),
-				)
+				return err
 			}
 		}
 	}
@@ -98,7 +113,9 @@ func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
 func (s *AutoDestroyService) VerifyServerIdle(server entity.Server) bool {
 	isIdle, err := s.serverRepository.EnsureServerIdle(server)
 	if err != nil {
-		slog.Error("not able to verify server idle", err)
+		slog.Error("not able to verify server idle",
+			slog.String("error", err.Error()),
+		)
 		return false
 	}
 
@@ -111,15 +128,15 @@ func (s *AutoDestroyService) VerifyServerIdle(server entity.Server) bool {
 }
 
 func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
-	slog.Debug("destroying server",
-		slog.String("userPrincipalName", server.UserPrincipalName),
-		slog.String("subscriptionId", server.SubscriptionId),
-		slog.String("status", string(server.Status)),
-		slog.String("lastActivityTime", server.LastUserActivityTime),
-		slog.Bool("autoDestroy", server.AutoDestroy),
-	)
-
 	if err := s.serverRepository.DestroyAzureContainerGroup(server); err != nil {
+
+		slog.Error("not able to destroy server",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("status", string(server.Status)),
+			slog.String("error", err.Error()),
+		)
+
 		return err
 	}
 
@@ -127,16 +144,16 @@ func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
 	server.Status = entity.ServerStatusAutoDestroyed
 	server.DestroyedAtTime = time.Now().Format(time.RFC3339)
 	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
-		return err
-	}
 
-	slog.Info("server destroyed",
-		slog.String("userPrincipalName", server.UserPrincipalName),
-		slog.String("subscriptionId", server.SubscriptionId),
-		slog.String("status", string(server.Status)),
-		slog.String("lastActivityTime", server.LastUserActivityTime),
-		slog.Bool("autoDestroy", server.AutoDestroy),
-	)
+		slog.Error("not able to destroy server",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("status", string(server.Status)),
+			slog.String("error", err.Error()),
+		)
+
+		return fmt.Errorf("server was destroyed but not able to update status in database")
+	}
 
 	return nil
 }
