@@ -306,7 +306,7 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 					{
 						Name: to.Ptr("actlabs"),
 						Properties: &armcontainerinstance.ContainerProperties{
-							Image: to.Ptr("ashishvermapu/repro:alpha"),
+							Image: to.Ptr("ashishvermapu/repro:latest"),
 							Ports: []*armcontainerinstance.ContainerPort{
 								{
 									Port:     to.Ptr[int32](s.appConfig.ActlabsServerPort),
