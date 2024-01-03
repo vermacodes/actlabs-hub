@@ -356,6 +356,7 @@ func (l *labService) ValidateAddingEditorsOrViewers(lab entity.LabType) (bool, e
 				slog.String("labName", lab.Name),
 				slog.String("labId", lab.Id),
 				slog.String("typeOfLab", lab.Type),
+				slog.String("updatedBy", lab.UpdatedBy),
 				slog.String("owners", strings.Join(lab.Owners, ", ")),
 				slog.String("editors", strings.Join(lab.Editors, ", ")),
 				slog.String("viewers", strings.Join(lab.Viewers, ", ")),
