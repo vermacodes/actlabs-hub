@@ -54,6 +54,7 @@ type ManagedServerActionStatus struct {
 
 type ServerService interface {
 	RegisterSubscription(subscriptionId string, userPrincipalName string, userPrincipalId string) error
+	Unregister(ctx context.Context, userPrincipalName string) error
 
 	UpdateServer(server Server) error // just updates in db. used to set flags like autoDestroy, autoCreate, etc.
 	DeployServer(server Server) (Server, error)
@@ -66,6 +67,8 @@ type ServerService interface {
 type ServerRepository interface {
 	GetAzureContainerGroup(server Server) (Server, error)
 	GetUserAssignedManagedIdentity(server Server) (Server, error)
+
+	GetResourceGroupRegion(context context.Context, server Server) (string, error)
 
 	DeployAzureContainerGroup(server Server) (Server, error)
 	// CreateUserAssignedManagedIdentity(server Server) (Server, error)
@@ -80,4 +83,7 @@ type ServerRepository interface {
 	UpsertServerInDatabase(server Server) error
 	GetServerFromDatabase(partitionKey string, rowKey string) (Server, error)
 	GetAllServersFromDatabase(ctx context.Context) ([]Server, error)
+
+	DeleteResourceGroup(ctx context.Context, server Server) error
+	DeleteServerFromDatabase(ctx context.Context, server Server) error
 }

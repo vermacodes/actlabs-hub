@@ -15,9 +15,16 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Check if 'beta' argument is passed
+if [ "$1" == "beta" ]; then
+    APP_NAME="actlabs-hub-capp-beta"
+else
+    APP_NAME="actlabs-hub-capp"
+fi
+
 # Deploy the Container App
 az containerapp create \
-    --name actlabs-hub-capp \
+    --name actlabs-hub-capp-beta \
     --resource-group actlabs-app \
     --subscription ACT-CSS-Readiness \
     --environment actlabs-hub-env-eastus \

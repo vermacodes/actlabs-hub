@@ -18,6 +18,7 @@ func NewServerHandler(r *gin.RouterGroup, serverService entity.ServerService) {
 	}
 
 	r.PUT("/server/register/:subscriptionId", handler.RegisterSubscription)
+	r.PUT("/server/unregister", handler.Unregister)
 
 	r.GET("/server", handler.GetServer)
 	r.PUT("/server", handler.DeployServer)
@@ -40,6 +41,20 @@ func (h *serverHandler) RegisterSubscription(c *gin.Context) {
 	}
 
 	if err := h.serverService.RegisterSubscription(subscriptionId, userPrincipalName, userPrincipalId); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"status": "success"})
+}
+
+func (h *serverHandler) Unregister(c *gin.Context) {
+	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
+	}
+
+	if err := h.serverService.Unregister(c.Request.Context(), userPrincipalName); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
