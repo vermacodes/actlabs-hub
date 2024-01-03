@@ -164,6 +164,9 @@ function create_storage_account() {
         else
             log "storage account ${STORAGE_ACCOUNT_NAME} created"
         fi
+
+        # Wait for a minute to let storage account sync
+        sleep_with_progress 60 "Waiting for storage account to sync with azure"
     fi
 
     # get storage account key
@@ -200,6 +203,28 @@ function create_storage_account() {
             exit 1
         else
             log "Blob container labs created in storage account ${STORAGE_ACCOUNT_NAME}"
+        fi
+    fi
+
+    return 0
+}
+
+# Function to check if current user has 'Storage Blob Data Contributor' on the resource group repro-project
+# If not, assign the role to the user
+function assign_storage_blob_data_contributor_role() {
+    # Check if the user has 'Storage Blob Data Contributor' role on the resource group
+    USER_ROLE=$(az role assignment list --assignee "${UPN}" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" --query "[?roleDefinitionName=='Storage Blob Data Contributor'].roleDefinitionName" -o tsv)
+
+    if [[ -n "${USER_ROLE}" ]]; then
+        log "user ${UPN} already has 'Storage Blob Data Contributor' role on resource group ${RESOURCE_GROUP}"
+    else
+        log "assigning 'Storage Blob Data Contributor' role to user ${UPN} on resource group ${RESOURCE_GROUP}"
+        az role assignment create --assignee "${UPN}" --role "Storage Blob Data Contributor" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+        if [ $? -ne 0 ]; then
+            err "failed to assign 'Storage Blob Data Contributor' role to user ${UPN} on resource group ${RESOURCE_GROUP}"
+            exit 1
+        else
+            log "assigned 'Storage Blob Data Contributor' role to user ${UPN} on resource group ${RESOURCE_GROUP}"
         fi
     fi
 
@@ -298,6 +323,7 @@ get_subscription_id
 ensure_user_is_owner
 create_resource_group
 create_storage_account
+assign_storage_blob_data_contributor_role
 deploy
 sleep_with_progress 10 "Waiting for the application to start"
 verify
