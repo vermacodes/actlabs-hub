@@ -331,6 +331,29 @@ function assign_user_access_administrator_role() {
     return 0
 }
 
+# Function to check if managed identity is 'Storage Blob Data Contributor' on the resource group repro-project
+# If not, assign the managed identity the 'Storage Blob Data Contributor' role on the resource group repro-project
+function assign_storage_blob_data_contributor_role() {
+    # Check if the managed identity is 'Storage Blob Data Contributor' on the resource group repro-project
+    MI_ROLE=$(az role assignment list --assignee "${MANAGED_IDENTITY_CLIENT_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" --query "[?roleDefinitionName=='Storage Blob Data Contributor'].roleDefinitionName" -o tsv)
+
+    if [[ -n "${MI_ROLE}" ]]; then
+        log "managed identity ${USER_ALIAS}-msi is already 'Storage Blob Data Contributor' on the resource group"
+    else
+        log "assigning managed identity ${USER_ALIAS}-msi 'Storage Blob Data Contributor' role on the resource group"
+        # Assign the managed identity the 'Storage Blob Data Contributor' role on the resource group
+        az role assignment create --assignee "${MANAGED_IDENTITY_CLIENT_ID}" --role "Storage Blob Data Contributor" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+        if [ $? -ne 0 ]; then
+            err "failed to assign managed identity ${USER_ALIAS}-msi 'Storage Blob Data Contributor' role on the resource group"
+            exit 1
+        else
+            log "managed identity ${USER_ALIAS}-msi assigned 'Storage Blob Data Contributor' role on the resource group"
+        fi
+    fi
+
+    return 0
+}
+
 # Function to assign actlabs as a contributor on the resource group
 function assign_actlabs_contributor_role() {
     # Check if actlabs is a contributor on the resource group
@@ -391,6 +414,7 @@ create_storage_account
 create_managed_identity
 assign_contributor_role
 assign_user_access_administrator_role
+assign_storage_blob_data_contributor_role
 assign_actlabs_contributor_role
 assign_actlabs_reader_role
 print_next_steps
