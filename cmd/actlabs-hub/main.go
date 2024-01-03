@@ -112,7 +112,6 @@ func main() {
 
 	handler.NewHealthzHandler(authRouter.Group("/"))
 	handler.NewServerHandler(authRouter.Group("/"), serverService)
-	handler.NewLabHandler(authRouter.Group("/"), labService, appConfig)
 	handler.NewAssignmentHandler(authRouter.Group("/"), assignmentService)
 	handler.NewChallengeHandler(authRouter.Group("/"), challengeService)
 	handler.NewAuthHandler(authRouter.Group("/"), authService)
@@ -127,11 +126,17 @@ func main() {
 
 	mentorRouter := authRouter.Group("/")
 	mentorRouter.Use(middleware.MentorRequired(authService))
-	handler.NewLabHandlerMentorRequired(mentorRouter, labService)
 	handler.NewAssignmentHandlerMentorRequired(mentorRouter, assignmentService)
 
-	contributorRouter := authRouter.Group("/")
-	contributorRouter.Use(middleware.ContributorRequired(authService))
+	mentorRouter.Use(middleware.UpdateCredits())
+	handler.NewLabHandlerMentorRequired(mentorRouter, labService)
+
+	labRouter := authRouter.Group("/")
+	labRouter.Use(middleware.UpdateCredits())
+	handler.NewLabHandler(labRouter, labService, appConfig)
+
+	contributorRouter := labRouter.Group("/")
+	contributorRouter.Use(middleware.ContributorRequired(authService)).Use(middleware.UpdateCredits())
 	handler.NewLabHandlerContributorRequired(contributorRouter, labService)
 
 	port := os.Getenv("PORT")
