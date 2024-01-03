@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerinstance/armcontainerinstance"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/exp/slog"
@@ -247,6 +248,10 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 									Name:  to.Ptr("ACTLABS_SERVER_PORT"),
 									Value: to.Ptr(strconv.Itoa(int(s.appConfig.ActlabsServerPort))),
 								},
+								{
+									Name:  to.Ptr("ACTLABS_SERVER_REGION"),
+									Value: to.Ptr(server.Region),
+								},
 							},
 							VolumeMounts: []*armcontainerinstance.VolumeMount{
 								{
@@ -257,7 +262,7 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 							Command: []*string{
 								to.Ptr("/bin/sh"),
 								to.Ptr("-c"),
-								to.Ptr("echo -e \"${USER_ALIAS}-actlabs-aci.eastus.azurecontainer.io {\n\treverse_proxy http://localhost:${ACTLABS_SERVER_PORT}\n}\" > /etc/caddy/Caddyfile"),
+								to.Ptr("echo -e \"${USER_ALIAS}-actlabs-aci.${ACTLABS_SERVER_REGION}.azurecontainer.io {\n\treverse_proxy http://localhost:${ACTLABS_SERVER_PORT}\n}\" > /etc/caddy/Caddyfile"),
 							},
 						},
 					},
@@ -757,6 +762,81 @@ func (s *serverRepository) GetAllServersFromDatabase(ctx context.Context) ([]ent
 	}
 
 	return servers, nil
+}
+
+func (s *serverRepository) GetResourceGroupRegion(ctx context.Context, server entity.Server) (string, error) {
+	clientFactory, err := armresources.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+	if err != nil {
+		slog.Debug("failed to create client factory to get resource group region",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+
+		return "", err
+	}
+
+	res, err := clientFactory.NewResourceGroupsClient().Get(ctx, server.ResourceGroup, nil)
+	if err != nil {
+		slog.Debug("failed to finish the request to get resource group region",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("resourceGroup", server.ResourceGroup),
+			slog.String("error", err.Error()),
+		)
+		return "", err
+	}
+
+	return *res.Location, nil
+}
+
+func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entity.Server) error {
+	clientFactory, err := armresources.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+	if err != nil {
+		slog.Debug("failed to create client factory to delete resource group",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	poller, err := clientFactory.NewResourceGroupsClient().BeginDelete(ctx, server.ResourceGroup, nil)
+	if err != nil {
+		slog.Debug("failed to finish the request to delete resource group",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("resourceGroup", server.ResourceGroup),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	_, err = poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		slog.Debug("failed to pull the result to delete resource group",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("resourceGroup", server.ResourceGroup),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	return nil
+}
+
+func (s *serverRepository) DeleteServerFromDatabase(ctx context.Context, server entity.Server) error {
+	_, err := s.auth.ActlabsServersTableClient.DeleteEntity(ctx, server.PartitionKey, server.RowKey, nil)
+	if err != nil {
+		slog.Debug("error deleting server from database:",
+			slog.String("userPrincipalName", server.RowKey),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	return nil
 }
 
 func (s *serverRepository) ParseServerStatus(status string) entity.ServerStatus {

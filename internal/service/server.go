@@ -4,6 +4,7 @@ import (
 	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -39,12 +40,59 @@ func (s *serverService) RegisterSubscription(subscriptionId string, userPrincipa
 
 	s.ServerDefaults(&server) // Set defaults.
 
+	// get resource group region.
+	region, err := s.serverRepository.GetResourceGroupRegion(context.TODO(), server)
+	if err != nil {
+		slog.Error("error getting resource group region",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return fmt.Errorf("error getting resource group region. is it deployed?")
+	}
+	server.Region = region
+
 	if err := s.Validate(server); err != nil { // Validate object. handles logging.
 		return err
 	}
 
 	if err := s.UpsertServerInDatabase(server); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (s *serverService) Unregister(ctx context.Context, userPrincipalName string) error {
+	slog.Info("un-registering server",
+		slog.String("userPrincipalName", userPrincipalName),
+	)
+
+	// get server from db.
+	server, err := s.GetServerFromDatabase(userPrincipalName)
+	if err != nil {
+		return err
+	}
+
+	if err := s.serverRepository.DeleteResourceGroup(ctx, server); err != nil {
+		slog.Error("error deleting resource group",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+
+		return fmt.Errorf("error deleting resource group")
+	}
+
+	// delete server from db.
+	if err := s.serverRepository.DeleteServerFromDatabase(ctx, server); err != nil {
+		slog.Error("error deleting server from db",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+
+		return fmt.Errorf("resources were destroyed, but got error deleting server from db")
 	}
 
 	return nil
@@ -232,9 +280,15 @@ func (s *serverService) GetServer(userPrincipalName string) (entity.Server, erro
 	)
 
 	// get server from db.
-	server, err := s.GetServerFromDatabase(userPrincipalName)
+	server, err := s.serverRepository.GetServerFromDatabase("actlabs", userPrincipalName)
 	if err != nil {
+		slog.Error("error getting server from db",
+			slog.String("userPrincipalName", userPrincipalName),
+			slog.String("error", err.Error()),
+		)
+
 		if strings.Contains(err.Error(), "404 Not Found") {
+			s.ServerDefaults(&server)
 			server.Status = entity.ServerStatusUnregistered
 			return server, nil
 		}
@@ -264,16 +318,16 @@ func (s *serverService) UpdateActivityStatus(userPrincipalName string) error {
 }
 
 func (s *serverService) GetServerFromDatabase(userPrincipalName string) (entity.Server, error) {
-	servers, err := s.serverRepository.GetServerFromDatabase("actlabs", userPrincipalName)
+	server, err := s.serverRepository.GetServerFromDatabase("actlabs", userPrincipalName)
 	if err != nil {
-		slog.Error("error getting server in db",
+		slog.Error("error getting server from db",
 			slog.String("userPrincipalName", userPrincipalName),
 			slog.String("error", err.Error()),
 		)
-		return servers, fmt.Errorf("not able to find server for %s in database, is it registered?", userPrincipalName)
+		return server, fmt.Errorf("not able to find server for %s in database, is it registered?", userPrincipalName)
 	}
 
-	return servers, nil
+	return server, nil
 }
 
 func (s *serverService) UpsertServerInDatabase(server entity.Server) error {
@@ -326,10 +380,6 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 
 	if server.LogLevel == "" {
 		server.LogLevel = "0"
-	}
-
-	if server.Region == "" {
-		server.Region = "East US"
 	}
 
 	if server.ResourceGroup == "" {
