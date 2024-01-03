@@ -218,6 +218,7 @@ function deploy() {
     export AZURE_SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
     export AUTH_TOKEN_ISS="https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0"
     export AUTH_TOKEN_AUD="00399ddd-434c-4b8a-84be-d096cff4f494"
+    export ACTLABS_HUB_URL="https://actlabs-hub-capp.redisland-ff4b63ab.eastus.azurecontainerapps.io/"
 
     # Start docker container and set environment variables
     log "starting docker container"
@@ -233,6 +234,7 @@ function deploy() {
         -e AZURE_SUBSCRIPTION_ID \
         -e AUTH_TOKEN_AUD \
         -e AUTH_TOKEN_ISS \
+        -e ACTLABS_HUB_URL \
         --name actlabs -p 8880:80 -v ${HOME}/.azure:/root/.azure ashishvermapu/repro:${TAG}
     if [ $? -ne 0 ]; then
         err "Failed to start docker container"
