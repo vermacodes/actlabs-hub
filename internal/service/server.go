@@ -5,6 +5,7 @@ import (
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -88,6 +89,8 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	// get server from db.
 	serverFromDB, err := s.GetServerFromDatabase(server.UserPrincipalName)
 	if err != nil {
+		// if not able to get server from db, that means server is not registered.
+		// return error.
 		return server, err
 	}
 
@@ -101,7 +104,10 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		return serverFromDB, nil
 	}
 
-	server.SubscriptionId = serverFromDB.SubscriptionId
+	// here onwards, just use the server which is already in DB and take action.
+	// this will ensure that we are not overriding any properties which are not
+	// passed in the request.
+	server = serverFromDB
 
 	// Validate input.
 	if err := s.Validate(server); err != nil {
@@ -260,11 +266,11 @@ func (s *serverService) UpdateActivityStatus(userPrincipalName string) error {
 func (s *serverService) GetServerFromDatabase(userPrincipalName string) (entity.Server, error) {
 	servers, err := s.serverRepository.GetServerFromDatabase("actlabs", userPrincipalName)
 	if err != nil {
-		slog.Error("error upserting server in db",
+		slog.Error("error getting server in db",
 			slog.String("userPrincipalName", userPrincipalName),
 			slog.String("error", err.Error()),
 		)
-		return servers, err
+		return servers, fmt.Errorf("not able to find server for %s in database, is it registered?", userPrincipalName)
 	}
 
 	return servers, nil
