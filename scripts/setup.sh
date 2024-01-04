@@ -152,7 +152,7 @@ function create_storage_account() {
         STORAGE_ACCOUNT_NAME="$SA_EXISTS"
     else
         # Generate a random name for the storage account
-        RANDOM_NAME=$(openssl rand -hex 4)
+        RANDOM_NAME=$(openssl rand -hex 2)
         STORAGE_ACCOUNT_NAME="${USER_ALIAS_FOR_SA}sa${RANDOM_NAME}"
 
         log "creating storage account with name ${STORAGE_ACCOUNT_NAME} in resource group ${RESOURCE_GROUP}"
