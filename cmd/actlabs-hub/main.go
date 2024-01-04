@@ -119,6 +119,7 @@ func main() {
 	armAuthRouter := router.Group("/")
 	armAuthRouter.Use(middleware.ARMTokenAuth())
 	handler.NewDeploymentHandler(armAuthRouter.Group("/"), deploymentService)
+	handler.NewServerHandlerArmToken(armAuthRouter.Group("/"), serverService)
 
 	adminRouter := authRouter.Group("/")
 	adminRouter.Use(middleware.AdminRequired(authService))

@@ -28,6 +28,14 @@ func NewServerHandler(r *gin.RouterGroup, serverService entity.ServerService) {
 	r.PUT("/server/activity/:userPrincipalName", handler.UpdateActivityStatus)
 }
 
+func NewServerHandlerArmToken(r *gin.RouterGroup, serverService entity.ServerService) {
+	handler := &serverHandler{
+		serverService: serverService,
+	}
+
+	r.PUT("/arm/server/register/:subscriptionId", handler.RegisterSubscription)
+}
+
 func (h *serverHandler) RegisterSubscription(c *gin.Context) {
 	subscriptionId := c.Param("subscriptionId")
 	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
