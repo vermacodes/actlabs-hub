@@ -405,7 +405,7 @@ function register_subscription() {
     ACCESS_TOKEN=$(az account get-access-token --query accessToken -o tsv)
     log "registering subscription with the lab"
     OUTPUT=$(curl -X PUT \
-        http://localhost:8883/arm/server/register/${SUBSCRIPTION_ID} \
+        https://actlabs-hub-capp.redisland-ff4b63ab.eastus.azurecontainerapps.io/arm/server/register/${SUBSCRIPTION_ID} \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${ACCESS_TOKEN}")
     if [ $? -ne 0 ]; then
