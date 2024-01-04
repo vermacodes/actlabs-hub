@@ -398,11 +398,25 @@ function assign_actlabs_reader_role() {
     return 0
 }
 
-# Function to print the instructions to the user
-function print_next_steps() {
-    ok "Deployment complete!"
-    ok "Next steps: Go back to UI and register your subscription with the lab"
-    ok "Your subscription id is: ${SUBSCRIPTION_ID}"
+# Function to call register api to register the subscription with the lab
+function register_subscription() {
+    # get access token from cli
+    log "getting access token from cli"
+    ACCESS_TOKEN=$(az account get-access-token --query accessToken -o tsv)
+    log "registering subscription with the lab"
+    OUTPUT=$(curl -X PUT \
+        http://localhost:8883/arm/server/register/${SUBSCRIPTION_ID} \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${ACCESS_TOKEN}")
+    if [ $? -ne 0 ]; then
+        err "deployment completed, but, failed to automatically register subscription with the lab"
+        ok "Next steps: Go back to UI and register your subscription with the lab"
+        ok "Your subscription id is: ${SUBSCRIPTION_ID}"
+        exit 0
+    else
+        log "Output: $OUTPUT"
+        ok "subscription ${SUBSCRIPTION_ID} registered for user ${UPN}"
+    fi
 }
 
 # Call the functions
@@ -417,4 +431,4 @@ assign_user_access_administrator_role
 assign_storage_blob_data_contributor_role
 assign_actlabs_contributor_role
 assign_actlabs_reader_role
-print_next_steps
+register_subscription
