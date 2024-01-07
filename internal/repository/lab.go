@@ -150,7 +150,7 @@ func (l *labRepository) GetLabWithVersions(ctx context.Context, typeOfLab string
 		}
 		for _, blob := range resp.Segment.BlobItems {
 			if *blob.Name == appendDotJson(labId) {
-				blobClientWIthVersionId, err := blobClient.WithVersionID(*blob.VersionID)
+				blobClientWithVersionId, err := blobClient.WithVersionID(*blob.VersionID)
 				if err != nil {
 					slog.Debug("not able to get blob client with version id",
 						slog.String("labId", labId),
@@ -160,7 +160,7 @@ func (l *labRepository) GetLabWithVersions(ctx context.Context, typeOfLab string
 					return labs, err
 				}
 
-				downloadResponse, err := blobClientWIthVersionId.DownloadStream(ctx, nil)
+				downloadResponse, err := blobClientWithVersionId.DownloadStream(ctx, nil)
 				if err != nil {
 					slog.Debug("not able to download blob with version id",
 						slog.String("labId", labId),
