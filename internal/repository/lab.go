@@ -111,7 +111,6 @@ func (l *labRepository) ListBlobs(
 
 func (l *labRepository) GetLabWithVersions(ctx context.Context, typeOfLab string, labId string) ([]entity.LabType, error) {
 	labs := []entity.LabType{}
-	lab := entity.LabType{}
 
 	// check if the lab exists in redis
 	labStr, err := l.rdb.Get(ctx, redisKey("labWithVersions", typeOfLab, appendDotJson(labId))).Result()
@@ -151,19 +150,46 @@ func (l *labRepository) GetLabWithVersions(ctx context.Context, typeOfLab string
 		}
 		for _, blob := range resp.Segment.BlobItems {
 			if *blob.Name == appendDotJson(labId) {
-				blobClient.WithVersionID(*blob.VersionID)
-
-				downloadResponse, err := blobClient.DownloadStream(ctx, nil)
+				blobClientWIthVersionId, err := blobClient.WithVersionID(*blob.VersionID)
 				if err != nil {
+					slog.Debug("not able to get blob client with version id",
+						slog.String("labId", labId),
+						slog.String("versionId", *blob.VersionID),
+						slog.String("error", err.Error()),
+					)
+					return labs, err
+				}
+
+				downloadResponse, err := blobClientWIthVersionId.DownloadStream(ctx, nil)
+				if err != nil {
+					slog.Debug("not able to download blob with version id",
+						slog.String("labId", labId),
+						slog.String("versionId", *blob.VersionID),
+						slog.String("error", err.Error()),
+					)
 					return labs, err
 				}
 
 				actualBlobData, err := io.ReadAll(downloadResponse.Body)
 				if err != nil {
+					slog.Debug("not able to read blob data",
+						slog.String("labId", labId),
+						slog.String("versionId", *blob.VersionID),
+						slog.String("error", err.Error()),
+					)
 					return labs, err
 				}
 
+				slog.Debug("blob data : " + string(actualBlobData))
+
+				var lab entity.LabType
+
 				if err := json.Unmarshal(actualBlobData, &lab); err != nil {
+					slog.Debug("not able to unmarshal lab",
+						slog.String("labId", labId),
+						slog.String("versionId", *blob.VersionID),
+						slog.String("error", err.Error()),
+					)
 					return labs, err
 				}
 
