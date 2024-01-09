@@ -109,7 +109,7 @@ type LabService interface {
 	GetAllPrivateLabs(typeOfLab string) ([]LabType, error) // Don't expose via API directly.
 	GetPrivateLabs(typeOfLab string, userId string) ([]LabType, error)
 	GetPrivateLabVersions(typeOfLab string, labId string, userId string) ([]LabType, error)
-	UpsertPrivateLab(LabType) error
+	UpsertPrivateLab(LabType) (LabType, error)
 	DeletePrivateLab(typeOfLab string, labId string, userId string) error
 
 	// Public Labs
@@ -117,7 +117,7 @@ type LabService interface {
 	// Types: publiclab
 	GetPublicLabs(typeOfLab string) ([]LabType, error)
 	GetPublicLabVersions(typeOfLab string, labId string) ([]LabType, error)
-	UpsertPublicLab(LabType) error
+	UpsertPublicLab(LabType) (LabType, error)
 	DeletePublicLab(typeOfLab string, labId string, userId string) error
 
 	// Protected Labs
@@ -126,13 +126,13 @@ type LabService interface {
 	GetProtectedLabs(typeOfLab string) ([]LabType, error)
 	GetProtectedLab(typeOfLab string, labId string) (LabType, error)
 	GetProtectedLabVersions(typeOfLab string, labId string) ([]LabType, error)
-	UpsertProtectedLab(LabType) error
+	UpsertProtectedLab(LabType) (LabType, error)
 	DeleteProtectedLab(typeOfLab string, labId string) error
 
 	// Shared functions
 	GetLabs(typeOfLab string) ([]LabType, error)
 	GetLabVersions(typeOfLab string, labId string) ([]LabType, error)
-	UpsertLab(LabType) error
+	UpsertLab(LabType) (LabType, error)
 	DeleteLab(typeOfLab string, labId string) error
 }
 

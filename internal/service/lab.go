@@ -115,44 +115,44 @@ func (l *labService) GetLabs(typeOfLab string) ([]entity.LabType, error) {
 	return labs, nil
 }
 
-func (l *labService) UpsertPrivateLab(lab entity.LabType) error {
+func (l *labService) UpsertPrivateLab(lab entity.LabType) (entity.LabType, error) {
 	ok, err := l.IsUpsertAllowed(lab)
 	if err != nil {
-		return err
+		return lab, err
 	}
 
 	if !ok {
-		return fmt.Errorf("user is not either owner or editor which is required to edit the private lab")
+		return lab, fmt.Errorf("user is not either owner or editor which is required to edit the private lab")
 	}
 
 	return l.UpsertLab(lab)
 }
 
-func (l *labService) UpsertPublicLab(lab entity.LabType) error {
+func (l *labService) UpsertPublicLab(lab entity.LabType) (entity.LabType, error) {
 	ok, err := l.IsUpsertAllowed(lab)
 	if err != nil {
-		return err
+		return lab, err
 	}
 
 	if !ok {
-		return fmt.Errorf("user is not either owner or editor which is required to edit the public lab")
+		return lab, fmt.Errorf("user is not either owner or editor which is required to edit the public lab")
 	}
 	return l.UpsertLab(lab)
 }
 
-func (l *labService) UpsertProtectedLab(lab entity.LabType) error {
+func (l *labService) UpsertProtectedLab(lab entity.LabType) (entity.LabType, error) {
 	return l.UpsertLab(lab)
 }
 
-func (l *labService) UpsertLab(lab entity.LabType) error {
+func (l *labService) UpsertLab(lab entity.LabType) (entity.LabType, error) {
 
 	ok, err := l.ValidateAddingEditorsOrViewers(lab)
 	if err != nil {
-		return &json.MarshalerError{}
+		return lab, &json.MarshalerError{}
 	}
 
 	if !ok {
-		return errors.New("user is not an owner and there are changes in owners, editors, or viewers")
+		return lab, errors.New("user is not an owner and there are changes in owners, editors, or viewers")
 	}
 
 	l.NewLabThings(&lab)
@@ -168,7 +168,7 @@ func (l *labService) UpsertLab(lab entity.LabType) error {
 			slog.String("editors", strings.Join(lab.Editors, ", ")),
 			slog.String("error", err.Error()),
 		)
-		return fmt.Errorf("not able to convert object to string")
+		return lab, fmt.Errorf("not able to convert object to string")
 	}
 
 	if err := l.labRepository.UpsertLab(context.TODO(), lab.Id, string(val), lab.Type); err != nil {
@@ -180,10 +180,10 @@ func (l *labService) UpsertLab(lab entity.LabType) error {
 			slog.String("editors", strings.Join(lab.Editors, ", ")),
 			slog.String("error", err.Error()),
 		)
-		return fmt.Errorf("not able to save lab")
+		return lab, fmt.Errorf("not able to save lab")
 	}
 
-	return nil
+	return lab, nil
 }
 
 func (l *labService) DeletePrivateLab(typeOfLab string, labId string, userId string) error {

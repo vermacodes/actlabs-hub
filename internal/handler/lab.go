@@ -138,11 +138,11 @@ func (l *labHandler) UpsertLab(c *gin.Context) {
 
 	switch {
 	case validateLabType(lab.Type, entity.PrivateLab):
-		err = l.labService.UpsertPrivateLab(lab)
+		lab, err = l.labService.UpsertPrivateLab(lab)
 	case validateLabType(lab.Type, entity.PublicLab):
-		err = l.labService.UpsertPublicLab(lab)
+		lab, err = l.labService.UpsertPublicLab(lab)
 	case validateLabType(lab.Type, entity.ProtectedLabs):
-		err = l.labService.UpsertProtectedLab(lab)
+		lab, err = l.labService.UpsertProtectedLab(lab)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lab type: " + lab.Type})
 		return
@@ -153,7 +153,7 @@ func (l *labHandler) UpsertLab(c *gin.Context) {
 		return
 	}
 
-	c.Status(http.StatusOK)
+	c.JSON(http.StatusOK, lab)
 }
 
 func (l *labHandler) DeleteLab(c *gin.Context) {
