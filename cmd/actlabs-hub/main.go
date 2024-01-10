@@ -124,6 +124,7 @@ func main() {
 	adminRouter := authRouter.Group("/")
 	adminRouter.Use(middleware.AdminRequired(authService))
 	handler.NewAdminAuthHandler(adminRouter, authService)
+	handler.NewAdminServerHandler(adminRouter, serverService)
 
 	mentorRouter := authRouter.Group("/")
 	mentorRouter.Use(middleware.MentorRequired(authService))

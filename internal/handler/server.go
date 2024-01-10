@@ -28,6 +28,14 @@ func NewServerHandler(r *gin.RouterGroup, serverService entity.ServerService) {
 	r.PUT("/server/activity/:userPrincipalName", handler.UpdateActivityStatus)
 }
 
+func NewAdminServerHandler(r *gin.RouterGroup, serverService entity.ServerService) {
+	handler := &serverHandler{
+		serverService: serverService,
+	}
+
+	r.GET("/servers", handler.GetAllServers)
+}
+
 func NewServerHandlerArmToken(r *gin.RouterGroup, serverService entity.ServerService) {
 	handler := &serverHandler{
 		serverService: serverService,
@@ -84,6 +92,16 @@ func (h *serverHandler) GetServer(c *gin.Context) {
 	}
 
 	c.JSON(200, server)
+}
+
+func (h *serverHandler) GetAllServers(c *gin.Context) {
+	servers, err := h.serverService.GetAllServers(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, servers)
 }
 
 func (h *serverHandler) UpdateServer(c *gin.Context) {
