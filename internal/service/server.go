@@ -330,6 +330,19 @@ func (s *serverService) GetServerFromDatabase(userPrincipalName string) (entity.
 	return server, nil
 }
 
+func (s *serverService) GetAllServers(ctx context.Context) ([]entity.Server, error) {
+	slog.Info("getting all servers")
+	servers, err := s.serverRepository.GetAllServersFromDatabase(ctx)
+	if err != nil {
+		slog.Error("error getting all servers from db",
+			slog.String("error", err.Error()),
+		)
+		return servers, fmt.Errorf("not able to find servers in database")
+	}
+
+	return servers, nil
+}
+
 func (s *serverService) UpsertServerInDatabase(server entity.Server) error {
 	// Update server in database.
 	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {

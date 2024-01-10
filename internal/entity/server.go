@@ -61,6 +61,8 @@ type ServerService interface {
 	DestroyServer(userPrincipalName string) error
 	GetServer(userPrincipalName string) (Server, error)
 
+	GetAllServers(ctx context.Context) ([]Server, error)
+
 	UpdateActivityStatus(userPrincipalName string) error
 }
 
