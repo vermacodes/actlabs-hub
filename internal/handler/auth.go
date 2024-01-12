@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/exp/slog"
 )
 
 type AuthHandler struct {
@@ -90,22 +91,39 @@ func (h *AuthHandler) CreateProfile(c *gin.Context) {
 
 	profile := entity.Profile{}
 
-	if err := c.ShouldBindJSON(&profile); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
 	// Get the auth token from the request header
 	authToken := c.GetHeader("Authorization")
 
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
 
-	userPrincipal, _ := auth.GetUserPrincipalFromToken(authToken)
+	userPrincipal, err := auth.GetUserPrincipalFromToken(authToken)
+	if err != nil {
+		slog.Error("Error getting user principal from token",
+			slog.String("error", err.Error()),
+		)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "not able to identify user"})
+		return
+	}
+
 	role := "user"
+
+	if err := c.ShouldBindJSON(&profile); err != nil {
+		slog.Error("not able to bind json",
+			slog.String("userPrincipal", userPrincipal),
+			slog.String("error", err.Error()),
+		)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	// Ensure that the calling user is adding their own profile.
 	if userPrincipal != profile.UserPrincipal {
+		slog.Error("userPrincipal in the request body does not match the calling user",
+			slog.String("userPrincipal", userPrincipal),
+			slog.String("profile.UserPrincipal", profile.UserPrincipal),
+		)
+
 		c.JSON(http.StatusBadRequest, gin.H{"error": "userPrincipal in the request body does not match the calling user"})
 		return
 	}
@@ -115,7 +133,7 @@ func (h *AuthHandler) CreateProfile(c *gin.Context) {
 		profile.Roles = append(profile.Roles, role)
 	}
 
-	err := h.authService.CreateProfile(profile)
+	err = h.authService.CreateProfile(profile)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
