@@ -19,7 +19,7 @@ type Assignment struct {
 	CreatedBy    string           `json:"createdBy"`
 	DeletedBy    string           `json:"deletedBy"`
 	CreatedAt    string           `json:"createdAt"`
-	AcceptedAt   string           `json:"acceptedAt"`
+	StartedAt    string           `json:"startedAt"`
 	CompletedAt  string           `json:"completedAt"`
 	DeletedAt    string           `json:"deletedAt"`
 	Status       AssignmentStatus `json:"status"`

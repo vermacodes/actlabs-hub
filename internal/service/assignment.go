@@ -200,11 +200,11 @@ func (a *assignmentService) UpdateAssignment(userId string, labId string, status
 		return err
 	}
 
-	if status == "accepted" {
-		assignment.AcceptedAt = helper.GetTodaysDateTimeString()
-	} else if status == "completed" {
+	if status == "InProgress" {
+		assignment.StartedAt = helper.GetTodaysDateTimeString()
+	} else if status == "Completed" {
 		assignment.CompletedAt = helper.GetTodaysDateTimeString()
-	} else if status == "deleted" {
+	} else if status == "Deleted" {
 		assignment.DeletedAt = helper.GetTodaysDateTimeString()
 	} else {
 		slog.Error("invalid status",
