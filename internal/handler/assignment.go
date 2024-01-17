@@ -248,7 +248,7 @@ func (a *assignmentHandler) DeleteMyAssignments(c *gin.Context) {
 		}
 	}
 
-	if err := a.assignmentService.DeleteAssignments(assignments); err != nil {
+	if err := a.assignmentService.DeleteAssignments(assignments, userPrincipal); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -263,7 +263,15 @@ func (a *assignmentHandler) DeleteAssignments(c *gin.Context) {
 		return
 	}
 
-	if err := a.assignmentService.DeleteAssignments(assignments); err != nil {
+	// Get the auth token from the request header
+	authToken := c.GetHeader("Authorization")
+
+	// Remove Bearer from the authToken
+	authToken = strings.Split(authToken, "Bearer ")[1]
+	//Get the user principal from the auth token
+	userPrincipal, _ := auth.GetUserPrincipalFromToken(authToken)
+
+	if err := a.assignmentService.DeleteAssignments(assignments, userPrincipal); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

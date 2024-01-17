@@ -230,13 +230,43 @@ func (a *assignmentService) UpdateAssignment(userId string, labId string, status
 	return nil
 }
 
-func (a *assignmentService) DeleteAssignments(assignmentIds []string) error {
+// func (a *assignmentService) DeleteAssignments(assignmentIds []string) error {
+// 	slog.Info("deleting assignments",
+// 		slog.String("assignmentIds", strings.Join(assignmentIds, ",")),
+// 	)
+// 	for _, assignmentId := range assignmentIds {
+// 		if err := a.assignmentRepository.DeleteAssignment(assignmentId); err != nil {
+// 			slog.Error("not able to delete assignment",
+// 				slog.String("assignmentId", assignmentId),
+// 				slog.String("error", err.Error()),
+// 			)
+// 			continue
+// 		}
+// 	}
+// 	return nil
+// }
+
+func (a *assignmentService) DeleteAssignments(assignmentIds []string, userPrincipal string) error {
 	slog.Info("deleting assignments",
 		slog.String("assignmentIds", strings.Join(assignmentIds, ",")),
 	)
 	for _, assignmentId := range assignmentIds {
-		if err := a.assignmentRepository.DeleteAssignment(assignmentId); err != nil {
-			slog.Error("not able to delete assignment",
+
+		assignment, err := getAssignmentByUserIdAndLabId(assignmentId[:strings.Index(assignmentId, "+")], assignmentId[strings.Index(assignmentId, "+")+1:], a.assignmentRepository)
+		if err != nil {
+			slog.Error("not able to get assignment",
+				slog.String("assignmentId", assignmentId),
+				slog.String("error", err.Error()),
+			)
+			continue
+		}
+
+		assignment.DeletedAt = helper.GetTodaysDateTimeString()
+		assignment.DeletedBy = userPrincipal
+		assignment.Status = entity.AssignmentStatusDeleted
+
+		if err := a.assignmentRepository.UpsertAssignment(assignment); err != nil {
+			slog.Error("not able to update assignment",
 				slog.String("assignmentId", assignmentId),
 				slog.String("error", err.Error()),
 			)

@@ -71,7 +71,7 @@ type AssignmentService interface {
 	// DeleteAssignments deletes a set of assignments.
 	// assignmentIds: The IDs of the assignments to delete.
 	// Returns any error encountered.
-	DeleteAssignments(assignmentIds []string) error
+	DeleteAssignments(assignmentIds []string, userPrincipal string) error
 }
 
 type AssignmentRepository interface {
