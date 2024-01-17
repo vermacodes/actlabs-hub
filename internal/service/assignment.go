@@ -172,7 +172,7 @@ func (a *assignmentService) CreateAssignments(userIds []string, labIds []string,
 				LabId:        labId,
 				CreatedBy:    createdBy,
 				CreatedAt:    helper.GetTodaysDateTimeString(),
-				Status:       "assigned",
+				Status:       entity.AssignmentStatusCreated,
 			}
 
 			if err := a.assignmentRepository.UpsertAssignment(assignment); err != nil {
