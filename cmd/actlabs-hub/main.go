@@ -112,7 +112,7 @@ func main() {
 
 	handler.NewHealthzHandler(authRouter.Group("/"))
 	handler.NewServerHandler(authRouter.Group("/"), serverService)
-	handler.NewAssignmentHandler(authRouter.Group("/"), assignmentService)
+	handler.NewAssignmentHandler(authRouter.Group("/"), assignmentService, appConfig)
 	handler.NewChallengeHandler(authRouter.Group("/"), challengeService)
 	handler.NewAuthHandler(authRouter.Group("/"), authService)
 

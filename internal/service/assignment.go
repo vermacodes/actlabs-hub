@@ -171,8 +171,8 @@ func (a *assignmentService) CreateAssignments(userIds []string, labIds []string,
 				UserId:       userId,
 				LabId:        labId,
 				CreatedBy:    createdBy,
-				CreatedOn:    helper.GetTodaysDateTimeString(),
-				Status:       "assigned",
+				CreatedAt:    helper.GetTodaysDateTimeString(),
+				Status:       entity.AssignmentStatusCreated,
 			}
 
 			if err := a.assignmentRepository.UpsertAssignment(assignment); err != nil {
@@ -188,13 +188,85 @@ func (a *assignmentService) CreateAssignments(userIds []string, labIds []string,
 	return nil
 }
 
-func (a *assignmentService) DeleteAssignments(assignmentIds []string) error {
+func (a *assignmentService) UpdateAssignment(userId string, labId string, status string) error {
+	slog.Info("updating assignment",
+		slog.String("userId", userId),
+		slog.String("labId", labId),
+		slog.String("status", status),
+	)
+
+	assignment, err := getAssignmentByUserIdAndLabId(userId, labId, a.assignmentRepository)
+	if err != nil {
+		return err
+	}
+
+	if status == "InProgress" {
+		assignment.StartedAt = helper.GetTodaysDateTimeString()
+	} else if status == "Completed" {
+		assignment.CompletedAt = helper.GetTodaysDateTimeString()
+	} else if status == "Deleted" {
+		assignment.DeletedAt = helper.GetTodaysDateTimeString()
+	} else {
+		slog.Error("invalid status",
+			slog.String("userId", userId),
+			slog.String("labId", labId),
+			slog.String("status", status),
+		)
+		return errors.New("invalid status")
+	}
+
+	assignment.Status = status
+
+	if err := a.assignmentRepository.UpsertAssignment(assignment); err != nil {
+		slog.Error("not able to update assignment",
+			slog.String("userId", userId),
+			slog.String("labId", labId),
+			slog.String("status", status),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	return nil
+}
+
+// func (a *assignmentService) DeleteAssignments(assignmentIds []string) error {
+// 	slog.Info("deleting assignments",
+// 		slog.String("assignmentIds", strings.Join(assignmentIds, ",")),
+// 	)
+// 	for _, assignmentId := range assignmentIds {
+// 		if err := a.assignmentRepository.DeleteAssignment(assignmentId); err != nil {
+// 			slog.Error("not able to delete assignment",
+// 				slog.String("assignmentId", assignmentId),
+// 				slog.String("error", err.Error()),
+// 			)
+// 			continue
+// 		}
+// 	}
+// 	return nil
+// }
+
+func (a *assignmentService) DeleteAssignments(assignmentIds []string, userPrincipal string) error {
 	slog.Info("deleting assignments",
 		slog.String("assignmentIds", strings.Join(assignmentIds, ",")),
 	)
 	for _, assignmentId := range assignmentIds {
-		if err := a.assignmentRepository.DeleteAssignment(assignmentId); err != nil {
-			slog.Error("not able to delete assignment",
+
+		assignment, err := getAssignmentByUserIdAndLabId(assignmentId[:strings.Index(assignmentId, "+")], assignmentId[strings.Index(assignmentId, "+")+1:], a.assignmentRepository)
+		if err != nil {
+			slog.Error("not able to get assignment",
+				slog.String("assignmentId", assignmentId),
+				slog.String("error", err.Error()),
+			)
+			continue
+		}
+
+		assignment.DeletedAt = helper.GetTodaysDateTimeString()
+		assignment.DeletedBy = userPrincipal
+		assignment.Status = entity.AssignmentStatusDeleted
+
+		if err := a.assignmentRepository.UpsertAssignment(assignment); err != nil {
+			slog.Error("not able to update assignment",
 				slog.String("assignmentId", assignmentId),
 				slog.String("error", err.Error()),
 			)
@@ -202,4 +274,34 @@ func (a *assignmentService) DeleteAssignments(assignmentIds []string) error {
 		}
 	}
 	return nil
+}
+
+func getAssignmentByUserIdAndLabId(userId string, labId string, assignmentRepository entity.AssignmentRepository) (entity.Assignment, error) {
+	assignments, err := assignmentRepository.GetAssignmentsByUserId(userId)
+	if err != nil {
+		slog.Error("not able to get assignment",
+			slog.String("userId", userId),
+			slog.String("labId", labId),
+			slog.String("error", err.Error()),
+		)
+		return entity.Assignment{}, err
+	}
+
+	var assignment entity.Assignment
+	for _, a := range assignments {
+		if a.LabId == labId {
+			assignment = a
+			break
+		}
+	}
+
+	if assignment.UserId == "" {
+		slog.Error("not able to find assignment",
+			slog.String("userId", userId),
+			slog.String("labId", labId),
+		)
+		return entity.Assignment{}, errors.New("not able to find assignment")
+	}
+
+	return assignment, nil
 }
