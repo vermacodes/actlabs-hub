@@ -823,6 +823,18 @@ func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entit
 		return err
 	}
 
+	// remove storage account and key from redis
+	err = s.rdb.Del(context.Background(), server.UserAlias+"-storageAccount", server.UserAlias+"-storageAccountKey").Err()
+	if err != nil {
+		slog.Debug("failed to delete storage account and key from redis",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("resourceGroup", server.ResourceGroup),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
 	return nil
 }
 
