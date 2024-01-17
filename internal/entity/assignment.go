@@ -1,14 +1,28 @@
 package entity
 
+type AssignmentStatus = string
+
+const (
+	AssignmentStatusCreated    AssignmentStatus = "Created"
+	AssignmentStatusCompleted  AssignmentStatus = "Completed"
+	AssignmentStatusCancelled  AssignmentStatus = "Cancelled"
+	AssignmentStatusInProgress AssignmentStatus = "InProgress"
+	AssignmentStatusDeleted    AssignmentStatus = "Deleted"
+)
+
 type Assignment struct {
-	PartitionKey string `json:"PartitionKey"`
-	RowKey       string `json:"RowKey"`
-	AssignmentId string `json:"assignmentId"`
-	UserId       string `json:"userId"`
-	LabId        string `json:"labId"`
-	CreatedBy    string `json:"createdBy"`
-	CreatedOn    string `json:"createdOn"`
-	Status       string `json:"status"`
+	PartitionKey string           `json:"PartitionKey"`
+	RowKey       string           `json:"RowKey"`
+	AssignmentId string           `json:"assignmentId"`
+	UserId       string           `json:"userId"`
+	LabId        string           `json:"labId"`
+	CreatedBy    string           `json:"createdBy"`
+	DeletedBy    string           `json:"deletedBy"`
+	CreatedAt    string           `json:"createdAt"`
+	AcceptedAt   string           `json:"acceptedAt"`
+	CompletedAt  string           `json:"completedAt"`
+	DeletedAt    string           `json:"deletedAt"`
+	Status       AssignmentStatus `json:"status"`
 }
 
 type BulkAssignment struct {
@@ -46,6 +60,13 @@ type AssignmentService interface {
 	// createdBy: The ID of the user who created the assignments.
 	// Returns any error encountered.
 	CreateAssignments(userIds []string, labIds []string, createdBy string) error
+
+	// UpdateAssignment updates a set of assignment.
+	// userId : The ID of the user.
+	// labId : The ID of the lab.
+	// status: The new status of the assignment.
+	// Returns any error encountered.
+	UpdateAssignment(userId string, labId string, status string) error
 
 	// DeleteAssignments deletes a set of assignments.
 	// assignmentIds: The IDs of the assignments to delete.
