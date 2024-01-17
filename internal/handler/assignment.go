@@ -5,18 +5,22 @@ import (
 	"strings"
 
 	"actlabs-hub/internal/auth"
+	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/exp/slog"
 )
 
 type assignmentHandler struct {
 	assignmentService entity.AssignmentService
+	appConfig         *config.Config
 }
 
-func NewAssignmentHandler(r *gin.RouterGroup, service entity.AssignmentService) {
+func NewAssignmentHandler(r *gin.RouterGroup, service entity.AssignmentService, appConfig *config.Config) {
 	handler := &assignmentHandler{
 		assignmentService: service,
+		appConfig:         appConfig,
 	}
 
 	r.GET("/assignment/labs", handler.GetAllLabsRedacted)
@@ -24,6 +28,9 @@ func NewAssignmentHandler(r *gin.RouterGroup, service entity.AssignmentService) 
 	r.GET("/assignment/my", handler.GetMyAssignments)
 	r.POST("/assignment/my", handler.CreateMyAssignments)
 	r.DELETE("/assignment/my", handler.DeleteMyAssignments)
+
+	// requires super secret header.
+	r.PUT("/assignment/:userId/:labId/:status", handler.UpdateAssignment)
 }
 
 func NewAssignmentHandlerMentorRequired(r *gin.RouterGroup, service entity.AssignmentService) {
@@ -189,6 +196,33 @@ func (a *assignmentHandler) CreateAssignments(c *gin.Context) {
 	}
 
 	c.Status(http.StatusCreated)
+}
+
+func (a *assignmentHandler) UpdateAssignment(c *gin.Context) {
+	userId := c.Param("userId")
+	labId := c.Param("labId")
+	status := c.Param("status")
+
+	// get super secret from header
+	protectedLabSecret := c.Request.Header.Get("ProtectedLabSecret")
+	if protectedLabSecret != a.appConfig.ProtectedLabSecret {
+		slog.Error("invalid protected lab secret",
+			slog.String("userId", userId),
+			slog.String("labId", labId),
+			slog.String("status", status),
+			slog.String("protectedLabSecret", protectedLabSecret),
+		)
+
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Protected lab secret is invalid."})
+		return
+	}
+
+	if err := a.assignmentService.UpdateAssignment(userId, labId, status); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusOK)
 }
 
 func (a *assignmentHandler) DeleteMyAssignments(c *gin.Context) {
