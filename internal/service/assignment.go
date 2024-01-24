@@ -64,6 +64,10 @@ func (a *assignmentService) GetAssignmentsByUserId(userId string) ([]entity.Assi
 		)
 		return assignments, errors.New("not able to get assignments for user")
 	}
+
+	// remove deleted assignments
+	assignments = RemoveDeletedAssignments(assignments)
+
 	return assignments, nil
 }
 
@@ -304,4 +308,14 @@ func getAssignmentByUserIdAndLabId(userId string, labId string, assignmentReposi
 	}
 
 	return assignment, nil
+}
+
+func RemoveDeletedAssignments(assignments []entity.Assignment) []entity.Assignment {
+	updatedAssignments := []entity.Assignment{}
+	for _, assignment := range assignments {
+		if assignment.Status != entity.AssignmentStatusDeleted {
+			updatedAssignments = append(updatedAssignments, assignment)
+		}
+	}
+	return updatedAssignments
 }
