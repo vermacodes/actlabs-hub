@@ -83,6 +83,8 @@ func (l *labHandler) GetLab(c *gin.Context) {
 	switch {
 	case validateLabType(typeOfLab, entity.ProtectedLabs):
 		lab, err = l.labService.GetProtectedLab(typeOfLab, labId)
+	case validateLabType(typeOfLab, entity.PrivateLab):
+		lab, err = l.labService.GetPrivateLab(typeOfLab, labId)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lab type: " + typeOfLab})
 		return
