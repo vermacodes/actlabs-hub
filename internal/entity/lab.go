@@ -108,6 +108,7 @@ type LabService interface {
 	// Types: privatelab, challengelab
 	GetAllPrivateLabs(typeOfLab string) ([]LabType, error) // Don't expose via API directly.
 	GetPrivateLabs(typeOfLab string, userId string) ([]LabType, error)
+	GetPrivateLab(typeOfLab string, labId string) (LabType, error)
 	GetPrivateLabVersions(typeOfLab string, labId string, userId string) ([]LabType, error)
 	UpsertPrivateLab(LabType) (LabType, error)
 	DeletePrivateLab(typeOfLab string, labId string, userId string) error

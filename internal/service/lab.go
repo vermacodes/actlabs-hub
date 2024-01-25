@@ -57,6 +57,21 @@ func (l *labService) GetPrivateLabs(typeOfLab string, userId string) ([]entity.L
 	return filteredLabs, nil
 }
 
+func (l *labService) GetPrivateLab(typeOfLab string, labId string) (entity.LabType, error) {
+	lab, err := l.labRepository.GetLab(context.TODO(), typeOfLab, labId)
+	if err != nil {
+		slog.Error("not able to get lab",
+			slog.String("labId", labId),
+			slog.String("typeOfLab", typeOfLab),
+			slog.String("error", err.Error()),
+		)
+
+		return entity.LabType{}, fmt.Errorf("not able to get lab")
+	}
+
+	return lab, nil
+}
+
 func (l *labService) GetPublicLabs(typeOfLab string) ([]entity.LabType, error) {
 	// Public labs must only be shown to users who own them.
 	return l.GetLabs(typeOfLab)
