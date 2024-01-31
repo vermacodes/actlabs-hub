@@ -206,6 +206,56 @@ func (c *challengeService) CreateChallenges(userIds []string, labIds []string, c
 	return nil
 }
 
+func (c *challengeService) UpdateChallenge(userId string, labId string, status string) error {
+	slog.Info("updating challenge",
+		slog.String("userId", userId),
+		slog.String("labId", labId),
+		slog.String("status", status),
+	)
+
+	challenges, err := c.challengeRepository.GetChallengesByUserId(userId)
+	if err != nil {
+		slog.Error("not able to get challenge",
+			slog.String("userId", userId),
+			slog.String("labId", labId),
+			slog.String("error", err.Error()),
+		)
+
+		return fmt.Errorf("not able to get challenges for user id %s", userId)
+	}
+
+	var challenge entity.Challenge
+	for _, c := range challenges {
+		if c.LabId == labId {
+			challenge = c
+			break
+		}
+	}
+
+	if challenge.ChallengeId == "" {
+		slog.Error("challenge not found",
+			slog.String("userId", userId),
+			slog.String("labId", labId),
+		)
+
+		return fmt.Errorf("challenge not found for user id %s and lab id %s", userId, labId)
+	}
+
+	challenge.Status = status
+
+	if err := c.challengeRepository.UpsertChallenge(challenge); err != nil {
+		slog.Error("not able to update challenge",
+			slog.String("userId", userId),
+			slog.String("labId", labId),
+			slog.String("error", err.Error()),
+		)
+
+		return fmt.Errorf("not able to update challenge for user id %s and lab id %s", userId, labId)
+	}
+
+	return nil
+}
+
 func (c *challengeService) DeleteChallenges(challengeIds []string) error {
 	slog.Info("deleting challenges",
 		slog.String("challengeIds", strings.Join(challengeIds, ",")),

@@ -1,5 +1,16 @@
 package entity
 
+type ChallengeStatus = string
+
+const (
+	ChallengeStatusCreated    ChallengeStatus = "Created"
+	ChallengeStatusAccepted   ChallengeStatus = "Accepted"
+	ChallengeStatusCompleted  ChallengeStatus = "Completed"
+	ChallengeStatusCancelled  ChallengeStatus = "Cancelled"
+	ChallengeStatusInProgress ChallengeStatus = "InProgress"
+	ChallengeStatusDeleted    ChallengeStatus = "Deleted"
+)
+
 type Challenge struct {
 	PartitionKey string `json:"PartitionKey"`
 	RowKey       string `json:"RowKey"`
@@ -45,6 +56,13 @@ type ChallengeService interface {
 	// UpsertChallenges upsert challenge.
 	// Returns any error encountered.
 	UpsertChallenges(Challenges []Challenge) error
+
+	// UpdateChallenge updates a challenge.
+	// userId : The ID of the user.
+	// labId : The ID of the lab.
+	// status: The new status of the challenge.
+	// Returns any error encountered.
+	UpdateChallenge(userId string, labId string, status string) error
 
 	// CreateChallenges creates new challenges for a set of users and labs.
 	// userIds: The IDs of the users.
