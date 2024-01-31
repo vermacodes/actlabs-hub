@@ -4,7 +4,6 @@ type ChallengeStatus = string
 
 const (
 	ChallengeStatusCreated    ChallengeStatus = "Created"
-	ChallengeStatusAccepted   ChallengeStatus = "Accepted"
 	ChallengeStatusCompleted  ChallengeStatus = "Completed"
 	ChallengeStatusCancelled  ChallengeStatus = "Cancelled"
 	ChallengeStatusInProgress ChallengeStatus = "InProgress"
