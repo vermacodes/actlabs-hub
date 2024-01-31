@@ -3,24 +3,23 @@ package entity
 type ChallengeStatus = string
 
 const (
-	ChallengeStatusCreated    ChallengeStatus = "Created"
-	ChallengeStatusCompleted  ChallengeStatus = "Completed"
-	ChallengeStatusCancelled  ChallengeStatus = "Cancelled"
-	ChallengeStatusInProgress ChallengeStatus = "InProgress"
-	ChallengeStatusDeleted    ChallengeStatus = "Deleted"
+	ChallengeStatusCreated   ChallengeStatus = "created"
+	ChallengeStatusCompleted ChallengeStatus = "completed"
+	ChallengeStatusFailed    ChallengeStatus = "failed"
+	ChallengeStatusAccepted  ChallengeStatus = "accepted"
 )
 
 type Challenge struct {
-	PartitionKey string `json:"PartitionKey"`
-	RowKey       string `json:"RowKey"`
-	ChallengeId  string `json:"challengeId"`
-	UserId       string `json:"userId"`
-	LabId        string `json:"labId"`
-	CreatedBy    string `json:"createdBy"`
-	CreatedOn    string `json:"createdOn"`
-	AcceptedOn   string `json:"acceptedOn"`
-	CompletedOn  string `json:"completedOn"`
-	Status       string `json:"status"`
+	PartitionKey string          `json:"PartitionKey"`
+	RowKey       string          `json:"RowKey"`
+	ChallengeId  string          `json:"challengeId"`
+	UserId       string          `json:"userId"`
+	LabId        string          `json:"labId"`
+	CreatedBy    string          `json:"createdBy"`
+	CreatedOn    string          `json:"createdOn"`
+	AcceptedOn   string          `json:"acceptedOn"`
+	CompletedOn  string          `json:"completedOn"`
+	Status       ChallengeStatus `json:"status"`
 }
 
 type BulkChallenge struct {

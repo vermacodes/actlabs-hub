@@ -124,7 +124,7 @@ func (ch *challengeHandler) UpdateChallenge(c *gin.Context) {
 
 	// get super secret from header
 	protectedLabSecret := c.Request.Header.Get("ProtectedLabSecret")
-	if protectedLabSecret != a.appConfig.ProtectedLabSecret {
+	if protectedLabSecret != ch.appConfig.ProtectedLabSecret {
 		slog.Error("invalid protected lab secret",
 			slog.String("userId", userId),
 			slog.String("labId", labId),

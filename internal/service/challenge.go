@@ -36,6 +36,12 @@ func (a *challengeService) GetAllLabsRedacted() ([]entity.LabType, error) {
 	}
 
 	for _, lab := range labs {
+
+		// Only show published labs
+		if !lab.IsPublished {
+			continue
+		}
+
 		slog.Debug("Lab ID : " + lab.Name)
 		lab.ExtendScript = "redacted"
 		lab.Description = lab.Message //Replace description with message
@@ -135,6 +141,23 @@ func (c *challengeService) UpsertChallenges(challenges []entity.Challenge) error
 			slog.String("userId", challenge.UserId),
 			slog.String("labId", challenge.LabId),
 		)
+
+		if challenge.Status == entity.ChallengeStatusAccepted {
+			if challenge.ChallengeId == "" {
+				challenge.AcceptedOn = helper.GetTodaysDateTimeString()
+			}
+		} else if challenge.Status == entity.ChallengeStatusCreated {
+			if challenge.ChallengeId == "" {
+				challenge.CreatedOn = helper.GetTodaysDateTimeString()
+			}
+		} else {
+			slog.Error("invalid status",
+				slog.String("userId", challenge.UserId),
+				slog.String("labId", challenge.LabId),
+				slog.String("status", challenge.Status),
+			)
+			return errors.New("invalid status")
+		}
 
 		if err := c.challengeRepository.UpsertChallenge(challenge); err != nil {
 			slog.Error("not able to upsert challenge",
@@ -239,6 +262,19 @@ func (c *challengeService) UpdateChallenge(userId string, labId string, status s
 		)
 
 		return fmt.Errorf("challenge not found for user id %s and lab id %s", userId, labId)
+	}
+
+	if status == entity.ChallengeStatusAccepted {
+		challenge.AcceptedOn = helper.GetTodaysDateTimeString()
+	} else if status == entity.ChallengeStatusCompleted {
+		challenge.CompletedOn = helper.GetTodaysDateTimeString()
+	} else {
+		slog.Error("invalid status",
+			slog.String("userId", userId),
+			slog.String("labId", labId),
+			slog.String("status", status),
+		)
+		return errors.New("invalid status")
 	}
 
 	challenge.Status = status
