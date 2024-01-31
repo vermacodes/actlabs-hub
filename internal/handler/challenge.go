@@ -2,20 +2,24 @@ package handler
 
 import (
 	"actlabs-hub/internal/auth"
+	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/exp/slog"
 )
 
 type challengeHandler struct {
 	challengeService entity.ChallengeService
+	appConfig        *config.Config
 }
 
-func NewChallengeHandler(r *gin.RouterGroup, service entity.ChallengeService) {
+func NewChallengeHandler(r *gin.RouterGroup, service entity.ChallengeService, appConfig *config.Config) {
 	handler := &challengeHandler{
 		challengeService: service,
+		appConfig:        appConfig,
 	}
 
 	r.GET("/challenge/labs", handler.GetAllLabsRedacted)
@@ -25,6 +29,9 @@ func NewChallengeHandler(r *gin.RouterGroup, service entity.ChallengeService) {
 	r.GET("/challenge/lab/:labId", handler.GetChallengesByLabId)
 	r.POST("/challenge", handler.UpsertChallenges)
 	r.DELETE("/challenge/:challengeId", handler.DeleteChallenge)
+
+	// requires super secret header.
+	r.PUT("/challenge/:userId/:labId/:status", handler.UpdateChallenge)
 }
 
 func (ch *challengeHandler) GetAllLabsRedacted(c *gin.Context) {
@@ -104,6 +111,33 @@ func (ch *challengeHandler) UpsertChallenges(c *gin.Context) {
 
 	if err := ch.challengeService.UpsertChallenges(challenges); err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to create/update one or more challenges"})
+		return
+	}
+
+	c.Status(http.StatusOK)
+}
+
+func (ch *challengeHandler) UpdateChallenge(c *gin.Context) {
+	userId := c.Param("userId")
+	labId := c.Param("labId")
+	status := c.Param("status")
+
+	// get super secret from header
+	protectedLabSecret := c.Request.Header.Get("ProtectedLabSecret")
+	if protectedLabSecret != a.appConfig.ProtectedLabSecret {
+		slog.Error("invalid protected lab secret",
+			slog.String("userId", userId),
+			slog.String("labId", labId),
+			slog.String("status", status),
+			slog.String("protectedLabSecret", protectedLabSecret),
+		)
+
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Protected lab secret is invalid."})
+		return
+	}
+
+	if err := ch.challengeService.UpdateChallenge(userId, labId, status); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
