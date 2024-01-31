@@ -98,6 +98,7 @@ type LabType struct {
 	Owners           []string        `json:"owners"`
 	Editors          []string        `json:"editors"`
 	Viewers          []string        `json:"viewers"`
+	IsPublished      bool            `json:"isPublished"`
 	VersionId        string          `json:"versionId"`
 	IsCurrentVersion bool            `json:"isCurrentVersion"`
 }
