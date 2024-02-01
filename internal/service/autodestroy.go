@@ -114,6 +114,7 @@ func (s *AutoDestroyService) VerifyServerIdle(server entity.Server) bool {
 	isIdle, err := s.serverRepository.EnsureServerIdle(server)
 	if err != nil {
 		slog.Error("not able to verify server idle",
+			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("error", err.Error()),
 		)
 		return false
