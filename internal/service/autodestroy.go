@@ -88,6 +88,7 @@ func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
 			server.Status != entity.ServerStatusAutoDestroyed &&
 			server.Status != entity.ServerStatusDestroyed &&
 			server.Status != entity.ServerStatusUnregistered &&
+			server.Status != entity.ServerStatusRegistered &&
 			time.Since(lastActivityTime) > time.Duration(server.InactivityDurationInSeconds)*time.Second &&
 			s.VerifyServerIdle(server) {
 
