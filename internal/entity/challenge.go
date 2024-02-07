@@ -1,16 +1,25 @@
 package entity
 
+type ChallengeStatus = string
+
+const (
+	ChallengeStatusCreated   ChallengeStatus = "created"
+	ChallengeStatusCompleted ChallengeStatus = "completed"
+	ChallengeStatusFailed    ChallengeStatus = "failed"
+	ChallengeStatusAccepted  ChallengeStatus = "accepted"
+)
+
 type Challenge struct {
-	PartitionKey string `json:"PartitionKey"`
-	RowKey       string `json:"RowKey"`
-	ChallengeId  string `json:"challengeId"`
-	UserId       string `json:"userId"`
-	LabId        string `json:"labId"`
-	CreatedBy    string `json:"createdBy"`
-	CreatedOn    string `json:"createdOn"`
-	AcceptedOn   string `json:"acceptedOn"`
-	CompletedOn  string `json:"completedOn"`
-	Status       string `json:"status"`
+	PartitionKey string          `json:"PartitionKey"`
+	RowKey       string          `json:"RowKey"`
+	ChallengeId  string          `json:"challengeId"`
+	UserId       string          `json:"userId"`
+	LabId        string          `json:"labId"`
+	CreatedBy    string          `json:"createdBy"`
+	CreatedOn    string          `json:"createdOn"`
+	AcceptedOn   string          `json:"acceptedOn"`
+	CompletedOn  string          `json:"completedOn"`
+	Status       ChallengeStatus `json:"status"`
 }
 
 type BulkChallenge struct {
@@ -45,6 +54,13 @@ type ChallengeService interface {
 	// UpsertChallenges upsert challenge.
 	// Returns any error encountered.
 	UpsertChallenges(Challenges []Challenge) error
+
+	// UpdateChallenge updates a challenge.
+	// userId : The ID of the user.
+	// labId : The ID of the lab.
+	// status: The new status of the challenge.
+	// Returns any error encountered.
+	UpdateChallenge(userId string, labId string, status string) error
 
 	// CreateChallenges creates new challenges for a set of users and labs.
 	// userIds: The IDs of the users.
