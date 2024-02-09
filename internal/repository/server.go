@@ -832,7 +832,7 @@ func (s *serverRepository) CreateUserAssignedManagedIdentity(server entity.Serve
 }
 
 // verify that user is the owner of the subscription
-func (s *serverRepository) IsUserOwner(server entity.Server) (bool, error) {
+func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) {
 	slog.Debug("is user owner of subscription",
 		slog.String("userPrincipalName", server.UserPrincipalName),
 		slog.String("subscriptionId", server.SubscriptionId),
@@ -865,11 +865,16 @@ func (s *serverRepository) IsUserOwner(server entity.Server) (bool, error) {
 		for _, roleAssignment := range page.Value {
 
 			ownerRoleDefinitionID := "/subscriptions/" + server.SubscriptionId + "/providers" + entity.OwnerRoleDefinitionId
+			contributorRoleDefinitionID := "/subscriptions/" + server.SubscriptionId + "/providers" + entity.ContributorRoleDefinitionId
 
 			if *roleAssignment.Properties.PrincipalID == server.UserPrincipalId &&
-				*roleAssignment.Properties.Scope == "/subscriptions/"+server.SubscriptionId &&
-				*roleAssignment.Properties.RoleDefinitionID == ownerRoleDefinitionID {
-				return true, nil
+				*roleAssignment.Properties.Scope == "/subscriptions/"+server.SubscriptionId {
+				if *roleAssignment.Properties.RoleDefinitionID == ownerRoleDefinitionID {
+					return true, nil
+				}
+				if *roleAssignment.Properties.RoleDefinitionID == contributorRoleDefinitionID && server.Version == "V2" {
+					return true, nil
+				}
 			}
 		}
 	}
