@@ -163,13 +163,18 @@ function create_resource_group() {
 # Function to check if a storage account exists in the resource group
 # If the storage account doesn't exist, create one with a random name
 function create_storage_account() {
-  # Check if the storage account exists in the resource group
-  SA_EXISTS=$(az storage account list --resource-group "${RESOURCE_GROUP}" --query "[].name" -o tsv)
+  # Get a list of all storage accounts in the resource group
+  SA_LIST=$(az storage account list --resource-group "${RESOURCE_GROUP}" --query "[].name" -o tsv)
 
-  if [[ -n "${SA_EXISTS}" ]]; then
-    log "storage account already exists with name ${SA_EXISTS}"
-    STORAGE_ACCOUNT_NAME="$SA_EXISTS"
-  else
+  for SA in $SA_LIST; do
+    if [[ "${SA}" == "${USER_ALIAS_FOR_SA}"* ]]; then
+      log "storage account already exists with name ${SA}"
+      STORAGE_ACCOUNT_NAME="$SA"
+      break
+    fi
+  done
+
+  if [[ -z "${STORAGE_ACCOUNT_NAME}" ]]; then
     # Generate a random name for the storage account
     RANDOM_NAME=$(openssl rand -hex 2)
     STORAGE_ACCOUNT_NAME="${USER_ALIAS_FOR_SA}sa${RANDOM_NAME}"
@@ -300,11 +305,16 @@ function register_subscription() {
   log "getting access token from cli"
   ACCESS_TOKEN=$(az account get-access-token --query accessToken -o tsv)
   log "registering subscription with the lab"
+
   OUTPUT=$(curl -X PUT \
     https://actlabs-hub-capp-beta.redisland-ff4b63ab.eastus.azurecontainerapps.io/arm/server/register/${SUBSCRIPTION_ID} \
     -H "Content-Type: application/json" \
-    -H "Authorization: Bearer ${ACCESS_TOKEN}")
-  if [ $? -ne 0 ]; then
+    -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+    -w "\n%{http_code}")
+
+  HTTP_STATUS="${OUTPUT:(-3)}"
+
+  if [ "${HTTP_STATUS}" -ne 200 ]; then
     err "deployment completed, but, failed to automatically register subscription with the lab"
     ok "Next steps: Go back to UI and register your subscription with the lab"
     ok "Your subscription id is: ${SUBSCRIPTION_ID}"
