@@ -44,6 +44,9 @@ type Config struct {
 	ProtectedLabSecret                             string
 	TenantID                                       string
 	ActlabsServerUseMsi                            bool
+	ActlabsServerUseServicePrincipal               bool
+	ActlabsServerServicePrincipalClientId          string
+	ActlabsServerServicePrincipalClientSecret      string
 	ActlabsHubUseMsi                               bool
 	// Add other configuration fields as needed
 }
@@ -79,6 +82,21 @@ func NewConfig() (*Config, error) {
 	actlabsServerUseMsi, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_SERVER_USE_MSI", "false"))
 	if err != nil {
 		return nil, err
+	}
+
+	actlabsServerUseServicePrincipal, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_SERVER_USE_SERVICE_PRINCIPAL", "false"))
+	if err != nil {
+		return nil, err
+	}
+
+	actlabsServerServicePrincipalClientId := getEnv("ACTLABS_SERVER_SERVICE_PRINCIPAL_CLIENT_ID")
+	if actlabsServerServicePrincipalClientId == "" && actlabsServerUseServicePrincipal {
+		return nil, fmt.Errorf("ACTLABS_SERVER_SERVICE_PRINCIPAL_CLIENT_ID not set")
+	}
+
+	actlabsServerServicePrincipalClientSecret := getEnv("ACTLABS_SERVER_SERVICE_PRINCIPAL_CLIENT_SECRET")
+	if actlabsServerServicePrincipalClientSecret == "" && actlabsServerUseServicePrincipal {
+		return nil, fmt.Errorf("ACTLABS_SERVER_SERVICE_PRINCIPAL_CLIENT_SECRET not set")
 	}
 
 	actlabsHubUseMsi, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_HUB_USE_MSI", "false"))
@@ -268,6 +286,9 @@ func NewConfig() (*Config, error) {
 		ProtectedLabSecret:                             protectedLabSecret,
 		TenantID:                                       tenantID,
 		ActlabsServerUseMsi:                            actlabsServerUseMsi,
+		ActlabsServerUseServicePrincipal:               actlabsServerUseServicePrincipal,
+		ActlabsServerServicePrincipalClientId:          actlabsServerServicePrincipalClientId,
+		ActlabsServerServicePrincipalClientSecret:      actlabsServerServicePrincipalClientSecret,
 		ActlabsHubUseMsi:                               actlabsHubUseMsi,
 		// Set other fields
 	}, nil

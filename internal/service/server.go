@@ -177,7 +177,7 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		return server, err
 	}
 
-	server, err = s.serverRepository.DeployAzureContainerGroup(server)
+	server, err = s.serverRepository.DeployAzureContainerApp(server)
 	if err != nil {
 		slog.Error("deploying server failed",
 			slog.String("userPrincipalName", server.UserPrincipalName),
@@ -254,7 +254,7 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 
 	s.ServerDefaults(&server)
 
-	if err := s.serverRepository.DestroyAzureContainerGroup(server); err != nil {
+	if err := s.serverRepository.DestroyAzureContainerApp(server); err != nil {
 		slog.Error("error destroying server:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),

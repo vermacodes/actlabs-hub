@@ -130,7 +130,7 @@ func (s *AutoDestroyService) VerifyServerIdle(server entity.Server) bool {
 }
 
 func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
-	if err := s.serverRepository.DestroyAzureContainerGroup(server); err != nil {
+	if err := s.serverRepository.DestroyAzureContainerApp(server); err != nil {
 
 		slog.Error("not able to destroy server",
 			slog.String("userPrincipalName", server.UserPrincipalName),
