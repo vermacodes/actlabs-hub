@@ -831,9 +831,9 @@ func (s *serverRepository) CreateUserAssignedManagedIdentity(server entity.Serve
 	return server, nil
 }
 
-// verify that user is the owner of the subscription
+// verify that user is the owner/contributor of the subscription
 func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) {
-	slog.Debug("is user owner of subscription",
+	slog.Debug("is user owner/contributor of subscription",
 		slog.String("userPrincipalName", server.UserPrincipalName),
 		slog.String("subscriptionId", server.SubscriptionId),
 	)
@@ -875,6 +875,51 @@ func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) 
 				if *roleAssignment.Properties.RoleDefinitionID == contributorRoleDefinitionID && server.Version == "V2" {
 					return true, nil
 				}
+			}
+		}
+	}
+
+	return false, nil
+}
+
+// verify that actlabs is the contributor of the subscription
+func (s *serverRepository) IsActlabsAuthorized(server entity.Server) (bool, error) {
+	slog.Debug("is actlabs contributor of subscription",
+		slog.String("userAlias", server.UserAlias),
+		slog.String("subscriptionId", server.SubscriptionId),
+	)
+
+	if server.UserAlias == "" {
+		return false, errors.New("userId is required")
+	}
+
+	if server.SubscriptionId == "" {
+		return false, errors.New("subscriptionId is required")
+	}
+
+	clientFactory, err := armauthorization.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+	if err != nil {
+		return false, err
+	}
+
+	filter := "assignedTo('" + s.appConfig.ActlabsServerServicePrincipalClientId + "')"
+
+	pager := clientFactory.NewRoleAssignmentsClient().NewListForSubscriptionPager(&armauthorization.RoleAssignmentsClientListForSubscriptionOptions{
+		Filter:   &filter,
+		TenantID: nil,
+	})
+	for pager.More() {
+		page, err := pager.NextPage(context.Background())
+		if err != nil {
+			return false, err
+		}
+		for _, roleAssignment := range page.Value {
+			contributorRoleDefinitionID := "/subscriptions/" + server.SubscriptionId + "/providers" + entity.ContributorRoleDefinitionId
+
+			if *roleAssignment.Properties.PrincipalID == server.UserPrincipalId &&
+				*roleAssignment.Properties.Scope == "/subscriptions/"+server.SubscriptionId &&
+				*roleAssignment.Properties.RoleDefinitionID == contributorRoleDefinitionID {
+				return true, nil
 			}
 		}
 	}
@@ -1034,6 +1079,43 @@ func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entit
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("resourceGroup", server.ResourceGroup),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	return nil
+}
+
+func (s *serverRepository) DeleteStorageAccount(ctx context.Context, server entity.Server) error {
+
+	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+	if err != nil {
+		slog.Debug("not able to create client factory to get storage account",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	account, err := s.GetClientStorageAccount(server)
+	if err != nil {
+		slog.Debug("not able to get storage account",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	_, err = clientFactory.NewAccountsClient().Delete(ctx, server.ResourceGroup, *account.Name, nil)
+	if err != nil {
+		slog.Debug("not able to delete storage account",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("resourceGroup", server.ResourceGroup),
+			slog.String("storageAccount", *account.Name),
 			slog.String("error", err.Error()),
 		)
 		return err
