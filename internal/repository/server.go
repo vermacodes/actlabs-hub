@@ -221,7 +221,7 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 	}
 
 	poller, err := clientFactory.NewContainerAppsClient().BeginCreateOrUpdate(ctx, s.appConfig.ActlabsHubResourceGroup, server.UserAlias+"-app", armappcontainers.ContainerApp{
-		Location: to.Ptr(server.Region),
+		Location: to.Ptr("eastus"),
 		Identity: &armappcontainers.ManagedServiceIdentity{
 			Type: to.Ptr(armappcontainers.ManagedServiceIdentityTypeUserAssigned),
 			UserAssignedIdentities: map[string]*armappcontainers.UserAssignedIdentity{
