@@ -3,9 +3,11 @@
 ACTLABS_APP_ID="00399ddd-434c-4b8a-84be-d096cff4f494"
 RESOURCE_GROUP="repro-project"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
+# Add some color
+RED='\033[0;91m'
+GREEN='\033[0;92m'
+YELLOW='\033[0;93m'
+PURPLE='\033[0;95m'
 NC='\033[0m' # No Color
 
 # Function to log messages
