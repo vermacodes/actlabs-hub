@@ -1,6 +1,7 @@
 #!/bin/bash
 
-ACTLABS_APP_ID="00399ddd-434c-4b8a-84be-d096cff4f494"
+ACTLABS_SP_APP_ID="00399ddd-434c-4b8a-84be-d096cff4f494"
+ACTLABS_MSI_APP_ID="bee16ca1-a401-40ee-bb6a-34349ebd993e"
 RESOURCE_GROUP="repro-project"
 
 # Add some color
@@ -234,14 +235,14 @@ function create_storage_account() {
 # If not, assign the managed identity the 'Contributor' role on the subscription
 function assign_contributor_role() {
   # Check if the managed identity is 'Contributor' on the subscription
-  MI_ROLE=$(az role assignment list --assignee "${ACTLABS_APP_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}" --query "[?roleDefinitionName=='Contributor'].roleDefinitionName" -o tsv)
+  MI_ROLE=$(az role assignment list --assignee "${ACTLABS_SP_APP_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}" --query "[?roleDefinitionName=='Contributor'].roleDefinitionName" -o tsv)
 
   if [[ -n "${MI_ROLE}" ]]; then
     log "actlabs is already 'Contributor' on the subscription"
   else
     log "assigning actlabs 'Contributor' role on the subscription"
     # Assign the managed identity the 'Contributor' role on the subscription
-    az role assignment create --assignee "${ACTLABS_APP_ID}" --role Contributor --scope "/subscriptions/${SUBSCRIPTION_ID}"
+    az role assignment create --assignee "${ACTLABS_SP_APP_ID}" --role Contributor --scope "/subscriptions/${SUBSCRIPTION_ID}"
     if [ $? -ne 0 ]; then
       err "failed to assign actlabs 'Contributor' role on the subscription"
       exit 1
@@ -257,14 +258,14 @@ function assign_contributor_role() {
 # If not, assign the managed identity the 'User Access Administrator' role on the subscription
 function assign_user_access_administrator_role() {
   # Check if the managed identity is 'User Access Administrator' on the subscription
-  MI_ROLE=$(az role assignment list --assignee "${ACTLABS_APP_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}" --query "[?roleDefinitionName=='User Access Administrator'].roleDefinitionName" -o tsv)
+  MI_ROLE=$(az role assignment list --assignee "${ACTLABS_SP_APP_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}" --query "[?roleDefinitionName=='User Access Administrator'].roleDefinitionName" -o tsv)
 
   if [[ -n "${MI_ROLE}" ]]; then
     log "actlabs is already 'User Access Administrator' on the subscription"
   else
     log "assigning actlabs 'User Access Administrator' role on the subscription"
     # Assign the managed identity the 'User Access Administrator' role on the subscription
-    az role assignment create --assignee "${ACTLABS_APP_ID}" --role "User Access Administrator" --scope "/subscriptions/${SUBSCRIPTION_ID}"
+    az role assignment create --assignee "${ACTLABS_SP_APP_ID}" --role "User Access Administrator" --scope "/subscriptions/${SUBSCRIPTION_ID}"
     if [ $? -ne 0 ]; then
       err "failed to assign actlabs 'User Access Administrator' role on the subscription"
       exit 1
@@ -280,19 +281,63 @@ function assign_user_access_administrator_role() {
 # If not, assign the managed identity the 'Storage Blob Data Contributor' role on the resource group repro-project
 function assign_storage_blob_data_contributor_role() {
   # Check if the managed identity is 'Storage Blob Data Contributor' on the resource group repro-project
-  MI_ROLE=$(az role assignment list --assignee "${ACTLABS_APP_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" --query "[?roleDefinitionName=='Storage Blob Data Contributor'].roleDefinitionName" -o tsv)
+  MI_ROLE=$(az role assignment list --assignee "${ACTLABS_SP_APP_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" --query "[?roleDefinitionName=='Storage Blob Data Contributor'].roleDefinitionName" -o tsv)
 
   if [[ -n "${MI_ROLE}" ]]; then
     log "actlabs is already 'Storage Blob Data Contributor' on the resource group"
   else
     log "assigning actlabs 'Storage Blob Data Contributor' role on the resource group"
     # Assign the managed identity the 'Storage Blob Data Contributor' role on the resource group
-    az role assignment create --assignee "${ACTLABS_APP_ID}" --role "Storage Blob Data Contributor" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+    az role assignment create --assignee "${ACTLABS_SP_APP_ID}" --role "Storage Blob Data Contributor" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
     if [ $? -ne 0 ]; then
       err "failed to assign actlabs 'Storage Blob Data Contributor' role on the resource group"
       exit 1
     else
       log "actlabs assigned 'Storage Blob Data Contributor' role on the resource group"
+    fi
+  fi
+
+  return 0
+}
+
+# Function to assign actlabs msi as a contributor on the resource group
+function assign_actlabs_msi_contributor_role() {
+  # Check if actlabs msi is a contributor on the resource group
+  ACTLABS_ROLE=$(az role assignment list --assignee "${ACTLABS_MSI_APP_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" --query "[?roleDefinitionName=='Contributor'].roleDefinitionName" -o tsv)
+
+  if [[ -n "${ACTLABS_ROLE}" ]]; then
+    log "actlabs msi is already 'Contributor' on the resource group"
+  else
+    log "assigning actlabs msi 'Contributor' role on the resource group"
+    # Assign actlabs msi the 'Contributor' role on the resource group
+    az role assignment create --assignee "${ACTLABS_MSI_APP_ID}" --role Contributor --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+    if [ $? -ne 0 ]; then
+      err "failed to assign actlabs msi 'Contributor' role on the resource group"
+      exit 1
+    else
+      log "actlabs msi assigned 'Contributor' role on the resource group"
+    fi
+  fi
+
+  return 0
+}
+
+# Function to assign actlabs msi as a reader on the subscription
+function assign_actlabs_msi_reader_role() {
+  # Check if actlabs msi is a reader on the subscription
+  ACTLABS_ROLE=$(az role assignment list --assignee "${ACTLABS_MSI_APP_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}" --query "[?roleDefinitionName=='Reader'].roleDefinitionName" -o tsv)
+
+  if [[ -n "${ACTLABS_ROLE}" ]]; then
+    log "actlabs msi is already 'Reader' on the subscription"
+  else
+    log "assigning actlabs msi 'Reader' role on the subscription"
+    # Assign actlabs msi the 'Reader' role on the subscription
+    az role assignment create --assignee "${ACTLABS_MSI_APP_ID}" --role Reader --scope "/subscriptions/${SUBSCRIPTION_ID}"
+    if [ $? -ne 0 ]; then
+      err "failed to assign actlabs msi 'Reader' role on the subscription"
+      exit 1
+    else
+      log "actlabs msi assigned 'Reader' role on the subscription"
     fi
   fi
 
@@ -338,5 +383,7 @@ if [[ "${is_owner}" == true ]]; then
   assign_contributor_role
   assign_user_access_administrator_role
   assign_storage_blob_data_contributor_role
+  assign_actlabs_msi_contributor_role
+  assign_actlabs_msi_reader_role
 fi
 register_subscription
