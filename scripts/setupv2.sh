@@ -237,16 +237,16 @@ function assign_contributor_role() {
   MI_ROLE=$(az role assignment list --assignee "${ACTLABS_APP_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}" --query "[?roleDefinitionName=='Contributor'].roleDefinitionName" -o tsv)
 
   if [[ -n "${MI_ROLE}" ]]; then
-    log "managed identity ${USER_ALIAS}-msi is already 'Contributor' on the subscription"
+    log "actlabs is already 'Contributor' on the subscription"
   else
-    log "assigning managed identity ${USER_ALIAS}-msi 'Contributor' role on the subscription"
+    log "assigning actlabs 'Contributor' role on the subscription"
     # Assign the managed identity the 'Contributor' role on the subscription
     az role assignment create --assignee "${ACTLABS_APP_ID}" --role Contributor --scope "/subscriptions/${SUBSCRIPTION_ID}"
     if [ $? -ne 0 ]; then
-      err "failed to assign managed identity ${USER_ALIAS}-msi 'Contributor' role on the subscription"
+      err "failed to assign actlabs 'Contributor' role on the subscription"
       exit 1
     else
-      log "managed identity ${USER_ALIAS}-msi assigned 'Contributor' role on the subscription"
+      log "actlabs assigned 'Contributor' role on the subscription"
     fi
   fi
 
@@ -260,16 +260,16 @@ function assign_user_access_administrator_role() {
   MI_ROLE=$(az role assignment list --assignee "${ACTLABS_APP_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}" --query "[?roleDefinitionName=='User Access Administrator'].roleDefinitionName" -o tsv)
 
   if [[ -n "${MI_ROLE}" ]]; then
-    log "managed identity ${USER_ALIAS}-msi is already 'User Access Administrator' on the subscription"
+    log "actlabs is already 'User Access Administrator' on the subscription"
   else
-    log "assigning managed identity ${USER_ALIAS}-msi 'User Access Administrator' role on the subscription"
+    log "assigning actlabs 'User Access Administrator' role on the subscription"
     # Assign the managed identity the 'User Access Administrator' role on the subscription
     az role assignment create --assignee "${ACTLABS_APP_ID}" --role "User Access Administrator" --scope "/subscriptions/${SUBSCRIPTION_ID}"
     if [ $? -ne 0 ]; then
-      err "failed to assign managed identity ${USER_ALIAS}-msi 'User Access Administrator' role on the subscription"
+      err "failed to assign actlabs 'User Access Administrator' role on the subscription"
       exit 1
     else
-      log "managed identity ${USER_ALIAS}-msi assigned 'User Access Administrator' role on the subscription"
+      log "actlabs assigned 'User Access Administrator' role on the subscription"
     fi
   fi
 
@@ -283,16 +283,16 @@ function assign_storage_blob_data_contributor_role() {
   MI_ROLE=$(az role assignment list --assignee "${ACTLABS_APP_ID}" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" --query "[?roleDefinitionName=='Storage Blob Data Contributor'].roleDefinitionName" -o tsv)
 
   if [[ -n "${MI_ROLE}" ]]; then
-    log "managed identity ${USER_ALIAS}-msi is already 'Storage Blob Data Contributor' on the resource group"
+    log "actlabs is already 'Storage Blob Data Contributor' on the resource group"
   else
-    log "assigning managed identity ${USER_ALIAS}-msi 'Storage Blob Data Contributor' role on the resource group"
+    log "assigning actlabs 'Storage Blob Data Contributor' role on the resource group"
     # Assign the managed identity the 'Storage Blob Data Contributor' role on the resource group
     az role assignment create --assignee "${ACTLABS_APP_ID}" --role "Storage Blob Data Contributor" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
     if [ $? -ne 0 ]; then
-      err "failed to assign managed identity ${USER_ALIAS}-msi 'Storage Blob Data Contributor' role on the resource group"
+      err "failed to assign actlabs 'Storage Blob Data Contributor' role on the resource group"
       exit 1
     else
-      log "managed identity ${USER_ALIAS}-msi assigned 'Storage Blob Data Contributor' role on the resource group"
+      log "actlabs assigned 'Storage Blob Data Contributor' role on the resource group"
     fi
   fi
 
