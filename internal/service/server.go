@@ -366,19 +366,21 @@ func (s *serverService) Validate(server entity.Server) error {
 		server.UserAlias = strings.Split(server.UserPrincipalName, "@")[0]
 	}
 
-	ok, err := s.serverRepository.IsUserOwner(server)
+	ok, err := s.serverRepository.IsUserAuthorized(server)
 	if err != nil {
-		slog.Error("failed to verify if user is the owner of subscription:",
+		slog.Error("failed to verify if user is the owner or contributor of subscription:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("serverVersion", server.Version),
 			slog.String("error", err.Error()),
 		)
-		return errors.New("failed to verify if user is the owner of subscription")
+		return errors.New("failed to verify if user is the owner or contributor of subscription")
 	}
 	if !ok {
-		slog.Error("user is not the owner of subscription:",
+		slog.Error("user is not the owner or contributor of subscription:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("serverVersion", server.Version),
 		)
 		return errors.New("insufficient permissions")
 	}
