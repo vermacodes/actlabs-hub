@@ -199,6 +199,13 @@ func (s *serverRepository) GetClientStorageAccountKey(server entity.Server) (str
 	return *resp.Keys[0].Value, nil
 }
 
+func (s *serverRepository) DeployServer(server entity.Server) (entity.Server, error) {
+	if server.Version == "V2" {
+		return s.DeployAzureContainerApp(server)
+	}
+	return s.DeployAzureContainerGroup(server)
+}
+
 func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity.Server, error) {
 
 	ctx := context.Background()
@@ -215,7 +222,12 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 
 	poller, err := clientFactory.NewContainerAppsClient().BeginCreateOrUpdate(ctx, s.appConfig.ActlabsHubResourceGroup, server.UserAlias+"-app", armappcontainers.ContainerApp{
 		Location: to.Ptr(server.Region),
-
+		Identity: &armappcontainers.ManagedServiceIdentity{
+			Type: to.Ptr(armappcontainers.ManagedServiceIdentityTypeUserAssigned),
+			UserAssignedIdentities: map[string]*armappcontainers.UserAssignedIdentity{
+				s.appConfig.ActlabsHubManagedIdentityResourceId: {},
+			},
+		},
 		Properties: &armappcontainers.ContainerAppProperties{
 			ManagedEnvironmentID: to.Ptr("/subscriptions/c2266a55-3f3e-4ff9-be04-66312926819d/resourceGroups/actlabs-app/providers/Microsoft.App/managedEnvironments/actlabs-hub-env-eastus"),
 			Configuration: &armappcontainers.Configuration{
@@ -229,8 +241,9 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 						Value: &s.appConfig.ActlabsServerServicePrincipalClientId,
 					},
 					{
-						Name:  to.Ptr("azure-client-secret"),
-						Value: &s.appConfig.ActlabsServerServicePrincipalClientSecret,
+						Name:        to.Ptr("azure-client-secret"),
+						KeyVaultURL: to.Ptr("https://actlabs-kv.vault.azure.net/secrets/azure-client-secret"),
+						Identity:    to.Ptr(s.appConfig.ActlabsHubManagedIdentityResourceId),
 					},
 				},
 			},
@@ -699,6 +712,13 @@ func (s *serverRepository) EnsureServerIdle(server entity.Server) (bool, error) 
 		return false, nil
 	}
 	return true, nil
+}
+
+func (s *serverRepository) DestroyServer(server entity.Server) error {
+	if server.Version == "V2" {
+		return s.DestroyAzureContainerApp(server)
+	}
+	return s.DestroyAzureContainerGroup(server)
 }
 
 func (s *serverRepository) DestroyAzureContainerApp(server entity.Server) error {
