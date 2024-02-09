@@ -47,6 +47,7 @@ type Config struct {
 	ActlabsServerUseMsi                            bool
 	ActlabsServerUseServicePrincipal               bool
 	ActlabsServerServicePrincipalClientId          string
+	ActlabsServerServicePrincipalObjectId          string
 	ActlabsServerServicePrincipalClientSecret      string
 	ActlabsHubUseMsi                               bool
 	// Add other configuration fields as needed
@@ -93,6 +94,11 @@ func NewConfig() (*Config, error) {
 	actlabsServerServicePrincipalClientId := getEnv("ACTLABS_SERVER_SERVICE_PRINCIPAL_CLIENT_ID")
 	if actlabsServerServicePrincipalClientId == "" && actlabsServerUseServicePrincipal {
 		return nil, fmt.Errorf("ACTLABS_SERVER_SERVICE_PRINCIPAL_CLIENT_ID not set")
+	}
+
+	actlabsServerServicePrincipalObjectId := getEnv("ACTLABS_SERVER_SERVICE_PRINCIPAL_OBJECT_ID")
+	if actlabsServerServicePrincipalObjectId == "" && actlabsServerUseServicePrincipal {
+		return nil, fmt.Errorf("ACTLABS_SERVER_SERVICE_PRINCIPAL_OBJECT_ID not set")
 	}
 
 	actlabsServerServicePrincipalClientSecret := getEnv("ACTLABS_SERVER_SERVICE_PRINCIPAL_CLIENT_SECRET")
@@ -295,6 +301,7 @@ func NewConfig() (*Config, error) {
 		ActlabsServerUseMsi:                            actlabsServerUseMsi,
 		ActlabsServerUseServicePrincipal:               actlabsServerUseServicePrincipal,
 		ActlabsServerServicePrincipalClientId:          actlabsServerServicePrincipalClientId,
+		ActlabsServerServicePrincipalObjectId:          actlabsServerServicePrincipalObjectId,
 		ActlabsServerServicePrincipalClientSecret:      actlabsServerServicePrincipalClientSecret,
 		ActlabsHubUseMsi:                               actlabsHubUseMsi,
 		// Set other fields
