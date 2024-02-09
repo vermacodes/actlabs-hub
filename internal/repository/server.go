@@ -902,7 +902,7 @@ func (s *serverRepository) IsActlabsAuthorized(server entity.Server) (bool, erro
 		return false, err
 	}
 
-	filter := "assignedTo('" + s.appConfig.ActlabsServerServicePrincipalClientId + "')"
+	filter := "assignedTo('" + s.appConfig.ActlabsServerServicePrincipalObjectId + "')"
 
 	pager := clientFactory.NewRoleAssignmentsClient().NewListForSubscriptionPager(&armauthorization.RoleAssignmentsClientListForSubscriptionOptions{
 		Filter:   &filter,
@@ -916,7 +916,7 @@ func (s *serverRepository) IsActlabsAuthorized(server entity.Server) (bool, erro
 		for _, roleAssignment := range page.Value {
 			contributorRoleDefinitionID := "/subscriptions/" + server.SubscriptionId + "/providers" + entity.ContributorRoleDefinitionId
 
-			if *roleAssignment.Properties.PrincipalID == server.UserPrincipalId &&
+			if *roleAssignment.Properties.PrincipalID == s.appConfig.ActlabsServerServicePrincipalObjectId &&
 				*roleAssignment.Properties.Scope == "/subscriptions/"+server.SubscriptionId &&
 				*roleAssignment.Properties.RoleDefinitionID == contributorRoleDefinitionID {
 				return true, nil
