@@ -421,6 +421,10 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 
 func (s *serverService) UserAssignedIdentity(server *entity.Server) error {
 
+	if server.Version == "V2" {
+		return nil
+	}
+
 	var err error
 	*server, err = s.serverRepository.GetUserAssignedManagedIdentity(*server)
 	if err != nil {
