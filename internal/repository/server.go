@@ -13,6 +13,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appcontainers/armappcontainers/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerinstance/armcontainerinstance"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
@@ -196,6 +197,147 @@ func (s *serverRepository) GetClientStorageAccountKey(server entity.Server) (str
 	}
 
 	return *resp.Keys[0].Value, nil
+}
+
+func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity.Server, error) {
+
+	ctx := context.Background()
+
+	clientFactory, err := armappcontainers.NewClientFactory(s.appConfig.ActlabsHubSubscriptionID, s.auth.Cred, nil)
+	if err != nil {
+		slog.Debug("failed to create client:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return server, err
+	}
+
+	poller, err := clientFactory.NewContainerAppsClient().BeginCreateOrUpdate(ctx, s.appConfig.ActlabsHubResourceGroup, server.UserAlias+"-app", armappcontainers.ContainerApp{
+		Location: to.Ptr(server.Region),
+
+		Properties: &armappcontainers.ContainerAppProperties{
+			ManagedEnvironmentID: to.Ptr("/subscriptions/c2266a55-3f3e-4ff9-be04-66312926819d/resourceGroups/actlabs-app/providers/Microsoft.App/managedEnvironments/actlabs-hub-env-eastus"),
+			Configuration: &armappcontainers.Configuration{
+				Ingress: &armappcontainers.Ingress{
+					External:   to.Ptr(true),
+					TargetPort: to.Ptr(int32(s.appConfig.ActlabsServerPort)),
+				},
+				Secrets: []*armappcontainers.Secret{
+					{
+						Name:  to.Ptr("azure-client-id"),
+						Value: &s.appConfig.ActlabsServerServicePrincipalClientId,
+					},
+					{
+						Name:  to.Ptr("azure-client-secret"),
+						Value: &s.appConfig.ActlabsServerServicePrincipalClientSecret,
+					},
+				},
+			},
+			Template: &armappcontainers.Template{
+				Scale: &armappcontainers.Scale{
+					MaxReplicas: to.Ptr(int32(1)),
+					MinReplicas: to.Ptr(int32(1)),
+				},
+				Containers: []*armappcontainers.Container{
+					{
+						Name:  to.Ptr("actlabs"),
+						Image: to.Ptr("ashishvermapu/repro:alpha"),
+
+						Env: []*armappcontainers.EnvironmentVar{
+							{
+								Name:  to.Ptr("USE_SERVICE_PRINCIPAL"),
+								Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseServicePrincipal)),
+							},
+							{
+								Name:  to.Ptr("ARM_USE_MSI"),
+								Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
+							},
+							{
+								Name:  to.Ptr("USE_MSI"),
+								Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
+							},
+							{
+								Name:  to.Ptr("ACTLABS_HUB_URL"),
+								Value: to.Ptr(s.appConfig.ActlabsHubURL),
+							},
+							{
+								Name:  to.Ptr("PORT"),
+								Value: to.Ptr(strconv.Itoa(int(s.appConfig.ActlabsServerPort))),
+							},
+							{
+								Name:  to.Ptr("ROOT_DIR"),
+								Value: to.Ptr(s.appConfig.ActlabsServerRootDir),
+							},
+							{
+								Name:      to.Ptr("AZURE_CLIENT_ID"), // https://github.com/microsoft/azure-container-apps/issues/442
+								SecretRef: to.Ptr("azure-client-id"),
+							},
+							{
+								Name:      to.Ptr("AZURE_CLIENT_SECRET"),
+								SecretRef: to.Ptr("azure-client-secret"),
+							},
+							{
+								Name:  to.Ptr("AZURE_TENANT_ID"),
+								Value: to.Ptr(s.appConfig.TenantID),
+							},
+							{
+								Name:  to.Ptr("ARM_SUBSCRIPTION_ID"),
+								Value: &server.SubscriptionId,
+							},
+							{
+								Name:  to.Ptr("AZURE_SUBSCRIPTION_ID"),
+								Value: &server.SubscriptionId,
+							},
+							{
+								Name:  to.Ptr("ARM_TENANT_ID"),
+								Value: to.Ptr(s.appConfig.TenantID),
+							},
+							{
+								Name:  to.Ptr("ARM_USER_PRINCIPAL_NAME"),
+								Value: to.Ptr(server.UserPrincipalName),
+							},
+							{
+								Name:  to.Ptr("LOG_LEVEL"),
+								Value: to.Ptr(server.LogLevel),
+							},
+							{
+								Name:  to.Ptr("AUTH_TOKEN_ISS"),
+								Value: to.Ptr(s.appConfig.AuthTokenIss),
+							},
+							{
+								Name:  to.Ptr("AUTH_TOKEN_AUD"),
+								Value: to.Ptr(s.appConfig.AuthTokenAud),
+							},
+						},
+					},
+				},
+			},
+		},
+	}, nil)
+	if err != nil {
+		slog.Debug("failed to finish the request:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return server, err
+	}
+
+	resp, err := poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		slog.Debug("failed to pull the result:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return server, err
+	}
+
+	server.Endpoint = *resp.Properties.Configuration.Ingress.Fqdn
+	server.Status = s.ParseServerStatus(string(*resp.Properties.ProvisioningState))
+
+	return server, nil
 }
 
 func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (entity.Server, error) {
@@ -557,6 +699,43 @@ func (s *serverRepository) EnsureServerIdle(server entity.Server) (bool, error) 
 		return false, nil
 	}
 	return true, nil
+}
+
+func (s *serverRepository) DestroyAzureContainerApp(server entity.Server) error {
+
+	ctx := context.Background()
+
+	clientFactory, err := armappcontainers.NewClientFactory(s.appConfig.ActlabsHubSubscriptionID, s.auth.Cred, nil)
+	if err != nil {
+		slog.Debug("failed to create client:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	poller, err := clientFactory.NewContainerAppsClient().BeginDelete(ctx, s.appConfig.ActlabsHubResourceGroup, server.UserAlias+"-app", nil)
+	if err != nil {
+		slog.Debug("failed to finish the request:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	_, err = poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		slog.Debug("failed to pull the result:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	return nil
 }
 
 func (s *serverRepository) DestroyAzureContainerGroup(server entity.Server) error {

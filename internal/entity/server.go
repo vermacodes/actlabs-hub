@@ -72,12 +72,14 @@ type ServerRepository interface {
 
 	GetResourceGroupRegion(context context.Context, server Server) (string, error)
 
+	DeployAzureContainerApp(server Server) (Server, error)
 	DeployAzureContainerGroup(server Server) (Server, error)
 	// CreateUserAssignedManagedIdentity(server Server) (Server, error)
 
 	EnsureServerUp(server Server) error
 	EnsureServerIdle(server Server) (bool, error)
 
+	DestroyAzureContainerApp(server Server) error
 	DestroyAzureContainerGroup(server Server) error
 
 	IsUserOwner(server Server) (bool, error)
