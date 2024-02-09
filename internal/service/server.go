@@ -36,6 +36,7 @@ func (s *serverService) RegisterSubscription(subscriptionId string, userPrincipa
 		SubscriptionId:    subscriptionId,
 		UserPrincipalId:   userPrincipalId,
 		UserPrincipalName: userPrincipalName,
+		Version:           "V2",
 	}
 
 	s.ServerDefaults(&server) // Set defaults.
@@ -402,7 +403,7 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 	}
 
 	if server.InactivityDurationInSeconds == 0 {
-		server.InactivityDurationInSeconds = 900
+		server.InactivityDurationInSeconds = 1800
 	}
 
 	if !server.AutoCreate {
