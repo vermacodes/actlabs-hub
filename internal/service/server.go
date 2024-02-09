@@ -75,14 +75,28 @@ func (s *serverService) Unregister(ctx context.Context, userPrincipalName string
 		return err
 	}
 
-	if err := s.serverRepository.DeleteResourceGroup(ctx, server); err != nil {
-		slog.Error("error deleting resource group",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
+	if server.Version == "V2" {
+		// delete storage account
+		if err := s.serverRepository.DeleteStorageAccount(ctx, server); err != nil {
+			slog.Error("error deleting storage account",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("error", err.Error()),
+			)
 
-		return fmt.Errorf("error deleting resource group")
+			return fmt.Errorf("error deleting storage account")
+		}
+	} else {
+		// delete resource group
+		if err := s.serverRepository.DeleteResourceGroup(ctx, server); err != nil {
+			slog.Error("error deleting resource group",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("error", err.Error()),
+			)
+
+			return fmt.Errorf("error deleting resource group")
+		}
 	}
 
 	// delete server from db.
@@ -167,6 +181,11 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 
 	// Managed Identity
 	if err := s.UserAssignedIdentity(&server); err != nil {
+		return server, err
+	}
+
+	// Verify Actlabs Access
+	if err := s.VerifyActlabsAccess(&server); err != nil {
 		return server, err
 	}
 
@@ -436,6 +455,34 @@ func (s *serverService) UserAssignedIdentity(server *entity.Server) error {
 		)
 
 		return errors.New("managed identity not found. please register your subscription")
+	}
+
+	return nil
+}
+
+func (s *serverService) VerifyActlabsAccess(server *entity.Server) error {
+	if server.Version != "V2" {
+		return nil
+	}
+
+	ok, err := s.serverRepository.IsActlabsAuthorized(*server)
+	if err != nil {
+		slog.Error("failed to verify if actlabs is authorized to access subscription:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("serverVersion", server.Version),
+			slog.String("error", err.Error()),
+		)
+		return errors.New("failed to verify if actlabs is authorized to access subscription")
+	}
+
+	if !ok {
+		slog.Error("actlabs is not authorized to access subscription:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("serverVersion", server.Version),
+		)
+		return errors.New("actlabs does not have permissions to access subscription. Please ask Owner to register the subscription")
 	}
 
 	return nil
