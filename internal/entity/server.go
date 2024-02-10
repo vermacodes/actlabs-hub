@@ -5,6 +5,7 @@ import (
 )
 
 const OwnerRoleDefinitionId string = "/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+const ContributorRoleDefinitionId string = "/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
 
 type ServerStatus string
 
@@ -46,6 +47,7 @@ type Server struct {
 	AutoCreate                  bool         `json:"autoCreate"`
 	AutoDestroy                 bool         `json:"autoDestroy"`
 	InactivityDurationInSeconds int          `json:"inactivityDurationInSeconds"`
+	Version                     string       `json:"version"`
 }
 
 type ManagedServerActionStatus struct {
@@ -72,20 +74,26 @@ type ServerRepository interface {
 
 	GetResourceGroupRegion(context context.Context, server Server) (string, error)
 
-	DeployAzureContainerGroup(server Server) (Server, error)
+	DeployServer(server Server) (Server, error)
+	//DeployAzureContainerApp(server Server) (Server, error)
+	//DeployAzureContainerGroup(server Server) (Server, error)
 	// CreateUserAssignedManagedIdentity(server Server) (Server, error)
 
 	EnsureServerUp(server Server) error
 	EnsureServerIdle(server Server) (bool, error)
 
-	DestroyAzureContainerGroup(server Server) error
+	DestroyServer(server Server) error
+	//DestroyAzureContainerApp(server Server) error
+	//DestroyAzureContainerGroup(server Server) error
 
-	IsUserOwner(server Server) (bool, error)
+	IsUserAuthorized(server Server) (bool, error)
+	IsActlabsAuthorized(server Server) (bool, error)
 
 	UpsertServerInDatabase(server Server) error
 	GetServerFromDatabase(partitionKey string, rowKey string) (Server, error)
 	GetAllServersFromDatabase(ctx context.Context) ([]Server, error)
 
 	DeleteResourceGroup(ctx context.Context, server Server) error
+	DeleteStorageAccount(ctx context.Context, server Server) error
 	DeleteServerFromDatabase(ctx context.Context, server Server) error
 }

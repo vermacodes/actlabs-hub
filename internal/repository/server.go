@@ -13,6 +13,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appcontainers/armappcontainers/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerinstance/armcontainerinstance"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
@@ -196,6 +197,160 @@ func (s *serverRepository) GetClientStorageAccountKey(server entity.Server) (str
 	}
 
 	return *resp.Keys[0].Value, nil
+}
+
+func (s *serverRepository) DeployServer(server entity.Server) (entity.Server, error) {
+	if server.Version == "V2" {
+		return s.DeployAzureContainerApp(server)
+	}
+	return s.DeployAzureContainerGroup(server)
+}
+
+func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity.Server, error) {
+
+	ctx := context.Background()
+
+	clientFactory, err := armappcontainers.NewClientFactory(s.appConfig.ActlabsHubSubscriptionID, s.auth.Cred, nil)
+	if err != nil {
+		slog.Debug("failed to create client:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return server, err
+	}
+
+	poller, err := clientFactory.NewContainerAppsClient().BeginCreateOrUpdate(ctx, s.appConfig.ActlabsHubResourceGroup, server.UserAlias+"-app", armappcontainers.ContainerApp{
+		Location: to.Ptr("eastus"),
+		Identity: &armappcontainers.ManagedServiceIdentity{
+			Type: to.Ptr(armappcontainers.ManagedServiceIdentityTypeUserAssigned),
+			UserAssignedIdentities: map[string]*armappcontainers.UserAssignedIdentity{
+				s.appConfig.ActlabsHubManagedIdentityResourceId: {},
+			},
+		},
+		Properties: &armappcontainers.ContainerAppProperties{
+			ManagedEnvironmentID: to.Ptr(s.appConfig.ActlabsServerManagedEnvironmentId),
+			Configuration: &armappcontainers.Configuration{
+				Ingress: &armappcontainers.Ingress{
+					External:   to.Ptr(true),
+					TargetPort: to.Ptr(int32(s.appConfig.ActlabsServerPort)),
+				},
+				Secrets: []*armappcontainers.Secret{
+					{
+						Name:  to.Ptr("azure-client-id"),
+						Value: &s.appConfig.ActlabsServerServicePrincipalClientId,
+					},
+					{
+						Name:        to.Ptr("azure-client-secret"),
+						KeyVaultURL: to.Ptr(s.appConfig.ActlabsServerServicePrincipalClientSecretKeyvaultURL),
+						Identity:    to.Ptr(s.appConfig.ActlabsHubManagedIdentityResourceId),
+					},
+				},
+			},
+			Template: &armappcontainers.Template{
+				Scale: &armappcontainers.Scale{
+					MaxReplicas: to.Ptr(int32(1)),
+					MinReplicas: to.Ptr(int32(1)),
+				},
+				Containers: []*armappcontainers.Container{
+					{
+						Name:  to.Ptr("actlabs"),
+						Image: to.Ptr(s.appConfig.ActlabsServerImage),
+
+						Env: []*armappcontainers.EnvironmentVar{
+							{
+								Name:  to.Ptr("USE_SERVICE_PRINCIPAL"),
+								Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseServicePrincipal)),
+							},
+							{
+								Name:  to.Ptr("ARM_USE_MSI"),
+								Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
+							},
+							{
+								Name:  to.Ptr("USE_MSI"),
+								Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
+							},
+							{
+								Name:  to.Ptr("ACTLABS_HUB_URL"),
+								Value: to.Ptr(s.appConfig.ActlabsHubURL),
+							},
+							{
+								Name:  to.Ptr("PORT"),
+								Value: to.Ptr(strconv.Itoa(int(s.appConfig.ActlabsServerPort))),
+							},
+							{
+								Name:  to.Ptr("ROOT_DIR"),
+								Value: to.Ptr(s.appConfig.ActlabsServerRootDir),
+							},
+							{
+								Name:      to.Ptr("AZURE_CLIENT_ID"), // https://github.com/microsoft/azure-container-apps/issues/442
+								SecretRef: to.Ptr("azure-client-id"),
+							},
+							{
+								Name:      to.Ptr("AZURE_CLIENT_SECRET"),
+								SecretRef: to.Ptr("azure-client-secret"),
+							},
+							{
+								Name:  to.Ptr("AZURE_TENANT_ID"),
+								Value: to.Ptr(s.appConfig.TenantID),
+							},
+							{
+								Name:  to.Ptr("ARM_SUBSCRIPTION_ID"),
+								Value: &server.SubscriptionId,
+							},
+							{
+								Name:  to.Ptr("AZURE_SUBSCRIPTION_ID"),
+								Value: &server.SubscriptionId,
+							},
+							{
+								Name:  to.Ptr("ARM_TENANT_ID"),
+								Value: to.Ptr(s.appConfig.TenantID),
+							},
+							{
+								Name:  to.Ptr("ARM_USER_PRINCIPAL_NAME"),
+								Value: to.Ptr(server.UserPrincipalName),
+							},
+							{
+								Name:  to.Ptr("LOG_LEVEL"),
+								Value: to.Ptr(server.LogLevel),
+							},
+							{
+								Name:  to.Ptr("AUTH_TOKEN_ISS"),
+								Value: to.Ptr(s.appConfig.AuthTokenIss),
+							},
+							{
+								Name:  to.Ptr("AUTH_TOKEN_AUD"),
+								Value: to.Ptr(s.appConfig.AuthTokenAud),
+							},
+						},
+					},
+				},
+			},
+		},
+	}, nil)
+	if err != nil {
+		slog.Debug("failed to finish the request:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return server, err
+	}
+
+	resp, err := poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		slog.Debug("failed to pull the result:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return server, err
+	}
+
+	server.Endpoint = *resp.Properties.Configuration.Ingress.Fqdn
+	server.Status = s.ParseServerStatus(string(*resp.Properties.ProvisioningState))
+
+	return server, nil
 }
 
 func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (entity.Server, error) {
@@ -559,6 +714,50 @@ func (s *serverRepository) EnsureServerIdle(server entity.Server) (bool, error) 
 	return true, nil
 }
 
+func (s *serverRepository) DestroyServer(server entity.Server) error {
+	if server.Version == "V2" {
+		return s.DestroyAzureContainerApp(server)
+	}
+	return s.DestroyAzureContainerGroup(server)
+}
+
+func (s *serverRepository) DestroyAzureContainerApp(server entity.Server) error {
+
+	ctx := context.Background()
+
+	clientFactory, err := armappcontainers.NewClientFactory(s.appConfig.ActlabsHubSubscriptionID, s.auth.Cred, nil)
+	if err != nil {
+		slog.Debug("failed to create client:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	poller, err := clientFactory.NewContainerAppsClient().BeginDelete(ctx, s.appConfig.ActlabsHubResourceGroup, server.UserAlias+"-app", nil)
+	if err != nil {
+		slog.Debug("failed to finish the request:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	_, err = poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		slog.Debug("failed to pull the result:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	return nil
+}
+
 func (s *serverRepository) DestroyAzureContainerGroup(server entity.Server) error {
 
 	ctx := context.Background()
@@ -632,9 +831,9 @@ func (s *serverRepository) CreateUserAssignedManagedIdentity(server entity.Serve
 	return server, nil
 }
 
-// verify that user is the owner of the subscription
-func (s *serverRepository) IsUserOwner(server entity.Server) (bool, error) {
-	slog.Debug("is user owner of subscription",
+// verify that user is the owner/contributor of the subscription
+func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) {
+	slog.Debug("is user owner/contributor of subscription",
 		slog.String("userPrincipalName", server.UserPrincipalName),
 		slog.String("subscriptionId", server.SubscriptionId),
 	)
@@ -666,10 +865,60 @@ func (s *serverRepository) IsUserOwner(server entity.Server) (bool, error) {
 		for _, roleAssignment := range page.Value {
 
 			ownerRoleDefinitionID := "/subscriptions/" + server.SubscriptionId + "/providers" + entity.OwnerRoleDefinitionId
+			contributorRoleDefinitionID := "/subscriptions/" + server.SubscriptionId + "/providers" + entity.ContributorRoleDefinitionId
 
 			if *roleAssignment.Properties.PrincipalID == server.UserPrincipalId &&
+				*roleAssignment.Properties.Scope == "/subscriptions/"+server.SubscriptionId {
+				if *roleAssignment.Properties.RoleDefinitionID == ownerRoleDefinitionID {
+					return true, nil
+				}
+				if *roleAssignment.Properties.RoleDefinitionID == contributorRoleDefinitionID && server.Version == "V2" {
+					return true, nil
+				}
+			}
+		}
+	}
+
+	return false, nil
+}
+
+// verify that actlabs is the contributor of the subscription
+func (s *serverRepository) IsActlabsAuthorized(server entity.Server) (bool, error) {
+	slog.Debug("is actlabs contributor of subscription",
+		slog.String("userAlias", server.UserAlias),
+		slog.String("subscriptionId", server.SubscriptionId),
+	)
+
+	if server.UserAlias == "" {
+		return false, errors.New("userId is required")
+	}
+
+	if server.SubscriptionId == "" {
+		return false, errors.New("subscriptionId is required")
+	}
+
+	clientFactory, err := armauthorization.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+	if err != nil {
+		return false, err
+	}
+
+	filter := "assignedTo('" + s.appConfig.ActlabsServerServicePrincipalObjectId + "')"
+
+	pager := clientFactory.NewRoleAssignmentsClient().NewListForSubscriptionPager(&armauthorization.RoleAssignmentsClientListForSubscriptionOptions{
+		Filter:   &filter,
+		TenantID: nil,
+	})
+	for pager.More() {
+		page, err := pager.NextPage(context.Background())
+		if err != nil {
+			return false, err
+		}
+		for _, roleAssignment := range page.Value {
+			contributorRoleDefinitionID := "/subscriptions/" + server.SubscriptionId + "/providers" + entity.ContributorRoleDefinitionId
+
+			if *roleAssignment.Properties.PrincipalID == s.appConfig.ActlabsServerServicePrincipalObjectId &&
 				*roleAssignment.Properties.Scope == "/subscriptions/"+server.SubscriptionId &&
-				*roleAssignment.Properties.RoleDefinitionID == ownerRoleDefinitionID {
+				*roleAssignment.Properties.RoleDefinitionID == contributorRoleDefinitionID {
 				return true, nil
 			}
 		}
@@ -830,6 +1079,43 @@ func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entit
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("resourceGroup", server.ResourceGroup),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	return nil
+}
+
+func (s *serverRepository) DeleteStorageAccount(ctx context.Context, server entity.Server) error {
+
+	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+	if err != nil {
+		slog.Debug("not able to create client factory to get storage account",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	account, err := s.GetClientStorageAccount(server)
+	if err != nil {
+		slog.Debug("not able to get storage account",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	_, err = clientFactory.NewAccountsClient().Delete(ctx, server.ResourceGroup, *account.Name, nil)
+	if err != nil {
+		slog.Debug("not able to delete storage account",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("resourceGroup", server.ResourceGroup),
+			slog.String("storageAccount", *account.Name),
 			slog.String("error", err.Error()),
 		)
 		return err
