@@ -75,6 +75,10 @@ func (s *serverService) Unregister(ctx context.Context, userPrincipalName string
 		return err
 	}
 
+	if err := s.DestroyServer(userPrincipalName); err != nil {
+		return err
+	}
+
 	if server.Version == "V2" {
 		// delete storage account
 		if err := s.serverRepository.DeleteStorageAccount(ctx, server); err != nil {
