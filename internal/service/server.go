@@ -36,6 +36,7 @@ func (s *serverService) RegisterSubscription(subscriptionId string, userPrincipa
 		SubscriptionId:    subscriptionId,
 		UserPrincipalId:   userPrincipalId,
 		UserPrincipalName: userPrincipalName,
+		Version:           "V2",
 	}
 
 	s.ServerDefaults(&server) // Set defaults.
@@ -74,14 +75,32 @@ func (s *serverService) Unregister(ctx context.Context, userPrincipalName string
 		return err
 	}
 
-	if err := s.serverRepository.DeleteResourceGroup(ctx, server); err != nil {
-		slog.Error("error deleting resource group",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
+	if err := s.DestroyServer(userPrincipalName); err != nil {
+		return err
+	}
 
-		return fmt.Errorf("error deleting resource group")
+	if server.Version == "V2" {
+		// delete storage account
+		if err := s.serverRepository.DeleteStorageAccount(ctx, server); err != nil {
+			slog.Error("error deleting storage account",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("error", err.Error()),
+			)
+
+			return fmt.Errorf("error deleting storage account")
+		}
+	} else {
+		// delete resource group
+		if err := s.serverRepository.DeleteResourceGroup(ctx, server); err != nil {
+			slog.Error("error deleting resource group",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("error", err.Error()),
+			)
+
+			return fmt.Errorf("error deleting resource group")
+		}
 	}
 
 	// delete server from db.
@@ -169,6 +188,11 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		return server, err
 	}
 
+	// Verify Actlabs Access
+	if err := s.VerifyActlabsAccess(&server); err != nil {
+		return server, err
+	}
+
 	// Before deploying, update the status in db.
 	server.Status = entity.ServerStatusDeploying
 
@@ -177,13 +201,19 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		return server, err
 	}
 
-	server, err = s.serverRepository.DeployAzureContainerGroup(server)
+	server, err = s.serverRepository.DeployServer(server)
 	if err != nil {
 		slog.Error("deploying server failed",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("error", err.Error()),
 		)
+
+		// Server Deployment Failed, Reset Status and Update database.
+		// Makes no sense to handle error here.
+		server.Status = entity.ServerStatusFailed
+		s.UpsertServerInDatabase(server)
+
 		return server, err
 	}
 
@@ -195,7 +225,7 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 			slog.String("ACTLABS_SERVER_UP_WAIT_TIME_SECONDS", s.appConfig.ActlabsServerUPWaitTimeSeconds),
 			slog.String("error", err.Error()),
 		)
-		return server, err
+		return server, fmt.Errorf("server deployment started, but not able to verify server is up and running")
 	}
 
 	// Ensure server is up and running. check every 5 seconds for 3 minutes.
@@ -216,7 +246,8 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 				return server, err
 			}
 
-			return server, err
+			// return server. this is the success case.
+			return server, nil
 		}
 		time.Sleep(5 * time.Second)
 	}
@@ -254,7 +285,7 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 
 	s.ServerDefaults(&server)
 
-	if err := s.serverRepository.DestroyAzureContainerGroup(server); err != nil {
+	if err := s.serverRepository.DestroyServer(server); err != nil {
 		slog.Error("error destroying server:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
@@ -366,19 +397,21 @@ func (s *serverService) Validate(server entity.Server) error {
 		server.UserAlias = strings.Split(server.UserPrincipalName, "@")[0]
 	}
 
-	ok, err := s.serverRepository.IsUserOwner(server)
+	ok, err := s.serverRepository.IsUserAuthorized(server)
 	if err != nil {
-		slog.Error("failed to verify if user is the owner of subscription:",
+		slog.Error("failed to verify if user is the owner or contributor of subscription:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("serverVersion", server.Version),
 			slog.String("error", err.Error()),
 		)
-		return errors.New("failed to verify if user is the owner of subscription")
+		return errors.New("failed to verify if user is the owner or contributor of subscription")
 	}
 	if !ok {
-		slog.Error("user is not the owner of subscription:",
+		slog.Error("user is not the owner or contributor of subscription:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("serverVersion", server.Version),
 		)
 		return errors.New("insufficient permissions")
 	}
@@ -400,7 +433,7 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 	}
 
 	if server.InactivityDurationInSeconds == 0 {
-		server.InactivityDurationInSeconds = 900
+		server.InactivityDurationInSeconds = 1800
 	}
 
 	if !server.AutoCreate {
@@ -418,6 +451,10 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 
 func (s *serverService) UserAssignedIdentity(server *entity.Server) error {
 
+	if server.Version == "V2" {
+		return nil
+	}
+
 	var err error
 	*server, err = s.serverRepository.GetUserAssignedManagedIdentity(*server)
 	if err != nil {
@@ -429,6 +466,34 @@ func (s *serverService) UserAssignedIdentity(server *entity.Server) error {
 		)
 
 		return errors.New("managed identity not found. please register your subscription")
+	}
+
+	return nil
+}
+
+func (s *serverService) VerifyActlabsAccess(server *entity.Server) error {
+	if server.Version != "V2" {
+		return nil
+	}
+
+	ok, err := s.serverRepository.IsActlabsAuthorized(*server)
+	if err != nil {
+		slog.Error("failed to verify if actlabs is authorized to access subscription:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("serverVersion", server.Version),
+			slog.String("error", err.Error()),
+		)
+		return errors.New("failed to verify if actlabs is authorized to access subscription")
+	}
+
+	if !ok {
+		slog.Error("actlabs is not authorized to access subscription:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("serverVersion", server.Version),
+		)
+		return errors.New("actlabs does not have permissions to access subscription. Please ask Owner to register the subscription")
 	}
 
 	return nil

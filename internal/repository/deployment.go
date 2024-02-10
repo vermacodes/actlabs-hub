@@ -319,6 +319,13 @@ func (d *deploymentRepository) UpsertDeployment(ctx context.Context, deployment 
 		return err
 	}
 
+	slog.Debug("deployment record added successfully ",
+		slog.String("userId", deployment.DeploymentUserId),
+		slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
+		slog.String("workspace", deployment.DeploymentWorkspace),
+		slog.String("status", string(deployment.DeploymentStatus)),
+	)
+
 	return nil
 }
 
