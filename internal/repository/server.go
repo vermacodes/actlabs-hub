@@ -260,7 +260,7 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 						Env: []*armappcontainers.EnvironmentVar{
 							{
 								Name:  to.Ptr("USE_SERVICE_PRINCIPAL"),
-								Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseServicePrincipal)),
+								Value: to.Ptr("true"),
 							},
 							{
 								Name:  to.Ptr("ARM_USE_MSI"),
@@ -495,6 +495,10 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 								{
 									Name:  to.Ptr("ARM_USE_MSI"),
 									Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
+								},
+								{
+									Name:  to.Ptr("USE_SERVICE_PRINCIPAL"),
+									Value: to.Ptr("false"),
 								},
 								{
 									Name:  to.Ptr("USE_MSI"),
