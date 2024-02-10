@@ -715,6 +715,18 @@ func (s *serverRepository) EnsureServerIdle(server entity.Server) (bool, error) 
 }
 
 func (s *serverRepository) DestroyServer(server entity.Server) error {
+
+	// remove storage account and key from redis
+	if err := s.rdb.Del(context.Background(), server.UserAlias+"-storageAccount", server.UserAlias+"-storageAccountKey").Err(); err != nil {
+		slog.Debug("failed to delete storage account and key from redis",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("resourceGroup", server.ResourceGroup),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
 	if server.Version == "V2" {
 		return s.DestroyAzureContainerApp(server)
 	}
@@ -1064,18 +1076,6 @@ func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entit
 	_, err = poller.PollUntilDone(ctx, nil)
 	if err != nil {
 		slog.Debug("failed to pull the result to delete resource group",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("resourceGroup", server.ResourceGroup),
-			slog.String("error", err.Error()),
-		)
-		return err
-	}
-
-	// remove storage account and key from redis
-	err = s.rdb.Del(context.Background(), server.UserAlias+"-storageAccount", server.UserAlias+"-storageAccountKey").Err()
-	if err != nil {
-		slog.Debug("failed to delete storage account and key from redis",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("resourceGroup", server.ResourceGroup),
