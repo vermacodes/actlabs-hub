@@ -204,6 +204,12 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("error", err.Error()),
 		)
+
+		// Server Deployment Failed, Reset Status and Update database.
+		// Makes no sense to handle error here.
+		server.Status = entity.ServerStatusFailed
+		s.UpsertServerInDatabase(server)
+
 		return server, err
 	}
 
@@ -215,7 +221,7 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 			slog.String("ACTLABS_SERVER_UP_WAIT_TIME_SECONDS", s.appConfig.ActlabsServerUPWaitTimeSeconds),
 			slog.String("error", err.Error()),
 		)
-		return server, err
+		return server, fmt.Errorf("server deployment started, but not able to verify server is up and running")
 	}
 
 	// Ensure server is up and running. check every 5 seconds for 3 minutes.
@@ -236,7 +242,8 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 				return server, err
 			}
 
-			return server, err
+			// return server. this is the success case.
+			return server, nil
 		}
 		time.Sleep(5 * time.Second)
 	}

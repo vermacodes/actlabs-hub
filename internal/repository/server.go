@@ -229,7 +229,7 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 			},
 		},
 		Properties: &armappcontainers.ContainerAppProperties{
-			ManagedEnvironmentID: to.Ptr("/subscriptions/c2266a55-3f3e-4ff9-be04-66312926819d/resourceGroups/actlabs-app/providers/Microsoft.App/managedEnvironments/actlabs-hub-env-eastus"),
+			ManagedEnvironmentID: to.Ptr(s.appConfig.ActlabsServerManagedEnvironmentId),
 			Configuration: &armappcontainers.Configuration{
 				Ingress: &armappcontainers.Ingress{
 					External:   to.Ptr(true),
@@ -242,7 +242,7 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 					},
 					{
 						Name:        to.Ptr("azure-client-secret"),
-						KeyVaultURL: to.Ptr("https://actlabs-kv.vault.azure.net/secrets/azure-client-secret"),
+						KeyVaultURL: to.Ptr(s.appConfig.ActlabsServerServicePrincipalClientSecretKeyvaultURL),
 						Identity:    to.Ptr(s.appConfig.ActlabsHubManagedIdentityResourceId),
 					},
 				},
@@ -255,7 +255,7 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 				Containers: []*armappcontainers.Container{
 					{
 						Name:  to.Ptr("actlabs"),
-						Image: to.Ptr("ashishvermapu/repro:alpha"),
+						Image: to.Ptr(s.appConfig.ActlabsServerImage),
 
 						Env: []*armappcontainers.EnvironmentVar{
 							{
