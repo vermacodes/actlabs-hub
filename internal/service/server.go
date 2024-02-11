@@ -388,6 +388,18 @@ func (s *serverService) UpsertServerInDatabase(server entity.Server) error {
 	return nil
 }
 
+func (s *serverService) FailedServerDeployment(server entity.Server) error {
+	server.Status = entity.ServerStatusFailed
+	server.LastUserActivityTime = time.Now().Format(time.RFC3339)
+
+	// Update server in database.
+	if err := s.UpsertServerInDatabase(server); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *serverService) Validate(server entity.Server) error {
 	if server.UserPrincipalName == "" || server.UserPrincipalId == "" || server.SubscriptionId == "" {
 		return errors.New("userPrincipalName, userPrincipalId, and subscriptionId are all required")
