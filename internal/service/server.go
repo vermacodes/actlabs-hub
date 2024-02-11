@@ -433,7 +433,7 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 	}
 
 	if server.InactivityDurationInSeconds == 0 {
-		server.InactivityDurationInSeconds = 1800
+		server.InactivityDurationInSeconds = 900
 	}
 
 	if !server.AutoCreate {
