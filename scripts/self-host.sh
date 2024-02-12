@@ -115,18 +115,20 @@ function create_resource_group() {
     log "creating resource group with name ${RESOURCE_GROUP}"
 
     # Ask the user for a location if one wasn't provided
-    if [[ -z "${LOCATION}" ]]; then
-      gap
-      LOCATION=$(az account list-locations --query "[?metadata.regionType!='Logical' && metadata.physicalLocation!=null].name" -o tsv)
-      echo "Please select a location (azure region) from the list below:"
-      select LOCATION in ${LOCATION}; do
-        if [[ -n "${LOCATION}" ]]; then
-          break
-        else
-          echo "Invalid selection, please try again"
-        fi
-      done
-    fi
+    # if [[ -z "${LOCATION}" ]]; then
+    #   gap
+    #   LOCATION=$(az account list-locations --query "[?metadata.regionType!='Logical' && metadata.physicalLocation!=null].name" -o tsv)
+    #   echo "Please select a location (azure region) from the list below:"
+    #   select LOCATION in ${LOCATION}; do
+    #     if [[ -n "${LOCATION}" ]]; then
+    #       break
+    #     else
+    #       echo "Invalid selection, please try again"
+    #     fi
+    #   done
+    # fi
+
+    export LOCATION="eastus"
 
     # Create the resource group
     az group create --name "${RESOURCE_GROUP}" --location "${LOCATION}"
