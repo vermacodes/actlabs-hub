@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -210,6 +211,11 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 
 	ctx := context.Background()
 
+	managedEnvironmentId, err := s.GetNextManagedEnvironmentId(server)
+	if err != nil {
+		return server, err
+	}
+
 	clientFactory, err := armappcontainers.NewClientFactory(s.appConfig.ActlabsHubSubscriptionID, s.auth.Cred, nil)
 	if err != nil {
 		slog.Debug("failed to create client:",
@@ -220,7 +226,7 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 		return server, err
 	}
 
-	poller, err := clientFactory.NewContainerAppsClient().BeginCreateOrUpdate(ctx, s.appConfig.ActlabsHubResourceGroup, server.UserAlias+"-app", armappcontainers.ContainerApp{
+	poller, err := clientFactory.NewContainerAppsClient().BeginCreateOrUpdate(ctx, s.appConfig.ActlabsServerResourceGroup, server.UserAlias+"-app", armappcontainers.ContainerApp{
 		Location: to.Ptr("eastus"),
 		Identity: &armappcontainers.ManagedServiceIdentity{
 			Type: to.Ptr(armappcontainers.ManagedServiceIdentityTypeUserAssigned),
@@ -229,7 +235,7 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 			},
 		},
 		Properties: &armappcontainers.ContainerAppProperties{
-			ManagedEnvironmentID: to.Ptr(s.appConfig.ActlabsServerManagedEnvironmentId),
+			ManagedEnvironmentID: to.Ptr(managedEnvironmentId),
 			Configuration: &armappcontainers.Configuration{
 				Ingress: &armappcontainers.Ingress{
 					External:   to.Ptr(true),
@@ -751,7 +757,7 @@ func (s *serverRepository) DestroyAzureContainerApp(server entity.Server) error 
 		return err
 	}
 
-	poller, err := clientFactory.NewContainerAppsClient().BeginDelete(ctx, s.appConfig.ActlabsHubResourceGroup, server.UserAlias+"-app", nil)
+	poller, err := clientFactory.NewContainerAppsClient().BeginDelete(ctx, s.appConfig.ActlabsServerResourceGroup, server.UserAlias+"-app", nil)
 	if err != nil {
 		slog.Debug("failed to finish the request:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
@@ -1139,6 +1145,92 @@ func (s *serverRepository) DeleteServerFromDatabase(ctx context.Context, server 
 	}
 
 	return nil
+}
+
+// Get the list of container app environments in the resource group.
+// Count the number of container apps in each environment.
+// Deploy the container app in the environment with the least number of container apps.
+func (s *serverRepository) GetNextManagedEnvironmentId(server entity.Server) (string, error) {
+
+	slog.Debug("get next managed environment id",
+		slog.String("userPrincipalName", server.UserPrincipalName),
+		slog.String("subscriptionId", server.SubscriptionId),
+		slog.String("resourceGroup", s.appConfig.ActlabsServerResourceGroup),
+	)
+
+	ctx := context.Background()
+
+	managedEnvironmentIds := map[string]int{}
+
+	clientFactory, err := armappcontainers.NewClientFactory(s.appConfig.ActlabsHubSubscriptionID, s.auth.Cred, nil)
+	if err != nil {
+		slog.Debug("failed to create client:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return "", err
+	}
+
+	pager := clientFactory.NewManagedEnvironmentsClient().NewListByResourceGroupPager(s.appConfig.ActlabsServerResourceGroup, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			slog.Debug("failed to get the list of managed environments in the resource group:",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("resourceGroup", s.appConfig.ActlabsServerResourceGroup),
+				slog.String("error", err.Error()),
+			)
+			return "", err
+		}
+
+		for _, managedEnvironment := range page.Value {
+			managedEnvironmentIds[*managedEnvironment.ID] = 0
+		}
+
+		// Get the list of container apps in the resource group.
+		// Count the number of container apps in each environment.
+		appPager := clientFactory.NewContainerAppsClient().NewListByResourceGroupPager(s.appConfig.ActlabsServerResourceGroup, nil)
+		for appPager.More() {
+			appPage, err := appPager.NextPage(ctx)
+			if err != nil {
+				slog.Debug("failed to get the list of container apps in the resource group:",
+					slog.String("userPrincipalName", server.UserPrincipalName),
+					slog.String("subscriptionId", server.SubscriptionId),
+					slog.String("resourceGroup", s.appConfig.ActlabsServerResourceGroup),
+					slog.String("error", err.Error()),
+				)
+				return "", err
+			}
+
+			for _, app := range appPage.Value {
+				if app.Properties.EnvironmentID != nil {
+					managedEnvironmentIds[*app.Properties.EnvironmentID]++
+				}
+			}
+		}
+
+	}
+	// Deploy the container app in the environment with the least number of container apps.
+	min := math.MaxInt32
+	environmentId := ""
+	for id, count := range managedEnvironmentIds {
+		if count < min {
+			min = count
+			environmentId = id
+		}
+	}
+
+	if environmentId == "" {
+		slog.Debug("no managed environment found",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+		)
+		return "", errors.New("no managed environment found")
+	}
+
+	return environmentId, nil
 }
 
 func (s *serverRepository) ParseServerStatus(status string) entity.ServerStatus {
