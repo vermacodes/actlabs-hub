@@ -40,6 +40,7 @@ type Config struct {
 	ActlabsServerRootDir                                 string
 	ActlabsServerUPWaitTimeSeconds                       string
 	ActlabsServerManagedEnvironmentId                    string
+	ActlabsServerResourceGroup                           string
 	AuthTokenAud                                         string
 	AuthTokenIss                                         string
 	HttpPort                                             int32
@@ -121,6 +122,11 @@ func NewConfig() (*Config, error) {
 	actlabsServerManagedEnvironmentId := getEnv("ACTLABS_SERVER_MANAGED_ENVIRONMENT_ID")
 	if actlabsServerManagedEnvironmentId == "" {
 		return nil, fmt.Errorf("ACTLABS_SERVER_MANAGED_ENVIRONMENT_ID not set")
+	}
+
+	actlabsServerResourceGroup := getEnv("ACTLABS_SERVER_RESOURCE_GROUP")
+	if actlabsServerResourceGroup == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_RESOURCE_GROUP not set")
 	}
 
 	actlabsServerPort, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_SERVER_PORT", "8881"), 10, 32)
@@ -306,6 +312,7 @@ func NewConfig() (*Config, error) {
 		ActlabsServerRootDir:                                 actlabsServerRootDir,
 		ActlabsServerUPWaitTimeSeconds:                       actlabsServerUPWaitTimeSeconds,
 		ActlabsServerManagedEnvironmentId:                    actlabsServerManagedEnvironmentId,
+		ActlabsServerResourceGroup:                           actlabsServerResourceGroup,
 		AuthTokenAud:                                         authTokenAud,
 		AuthTokenIss:                                         authTokenIss,
 		HttpPort:                                             int32(httpPort),
