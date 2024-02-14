@@ -9,7 +9,6 @@ import (
 	"actlabs-hub/internal/entity"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/exp/slog"
 )
 
 type labHandler struct {
@@ -32,8 +31,16 @@ func NewLabHandler(r *gin.RouterGroup, labService entity.LabService, appConfig *
 	// public lab read-only operations.
 	r.GET("/lab/public/:typeOfLab", handler.GetLabs)
 	r.GET("/lab/public/versions/:typeOfLab/:labId", handler.GetLabVersions)
+}
 
-	// protected lab read-only operations. requires super secret header.
+// Authenticated with ARM token and ProtectedLabSecret.
+func NewLabHandlerARMTokenWithProtectedLabSecret(r *gin.RouterGroup, labService entity.LabService, appConfig *config.Config) {
+	handler := &labHandler{
+		labService: labService,
+		appConfig:  appConfig,
+	}
+
+	// protected lab read-only operations. requires ARM token and super secret header.
 	r.GET("/lab/protected/:typeOfLab/:labId", handler.GetLab)
 }
 
@@ -64,18 +71,6 @@ func NewLabHandlerMentorRequired(r *gin.RouterGroup, labService entity.LabServic
 func (l *labHandler) GetLab(c *gin.Context) {
 	typeOfLab := c.Param("typeOfLab")
 	labId := c.Param("labId")
-
-	protectedLabSecret := c.Request.Header.Get("ProtectedLabSecret")
-	if protectedLabSecret != l.appConfig.ProtectedLabSecret {
-		slog.Error("invalid protected lab secret",
-			slog.String("labId", labId),
-			slog.String("typeOfLab", typeOfLab),
-			slog.String("protectedLabSecret", protectedLabSecret),
-		)
-
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Protected lab secret is invalid."})
-		return
-	}
 
 	var lab entity.LabType
 	var err error

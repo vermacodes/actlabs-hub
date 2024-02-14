@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"actlabs-hub/internal/auth"
+	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
 	"errors"
@@ -37,9 +38,23 @@ func Auth() gin.HandlerFunc {
 	}
 }
 
-func ARMTokenAuth() gin.HandlerFunc {
+// ARM Auth Token can be presented along with
+// ProtectedLabSecret and x-ms-client-principal-name headers.
+func ARMTokenAuth(appConfig *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		slog.Debug("ARMTokenAuth Middleware")
+
+		if c.GetHeader("ProtectedLabSecret") != appConfig.ProtectedLabSecret {
+			slog.Error("ProtectedLabSecret header is missing or invalid")
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		if c.GetHeader("x-ms-client-principal-name") == "" {
+			slog.Error("x-ms-client-principal-name header is missing")
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
 
 		accessToken := c.GetHeader("Authorization")
 		if accessToken == "" {
