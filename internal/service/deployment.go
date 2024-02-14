@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"actlabs-hub/internal/config"
@@ -88,6 +89,17 @@ func (d *DeploymentService) UpsertDeployment(ctx context.Context, deployment ent
 		slog.String("deploymentWorkspace", deployment.DeploymentWorkspace),
 		slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
 	)
+
+	if deployment.DeploymentWorkspace == "" || deployment.DeploymentSubscriptionId == "" || deployment.DeploymentUserId == "" {
+		slog.Error("workspace or subscription id cant be empty",
+			slog.String("userPrincipalName", deployment.DeploymentUserId),
+			slog.String("workspace", deployment.DeploymentWorkspace),
+			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
+		)
+
+		return fmt.Errorf("userId, workspace or subscription id cant be empty")
+	}
+
 	if err := d.deploymentRepository.UpsertDeployment(ctx, deployment); err != nil {
 		slog.Error("not able to upsert deployment",
 			slog.String("userPrincipalName", deployment.DeploymentUserId),

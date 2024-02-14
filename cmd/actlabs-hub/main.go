@@ -117,7 +117,7 @@ func main() {
 	handler.NewAuthHandler(authRouter.Group("/"), authService)
 
 	armAuthRouter := router.Group("/")
-	armAuthRouter.Use(middleware.ARMTokenAuth())
+	armAuthRouter.Use(middleware.ARMTokenAuth(appConfig))
 	handler.NewDeploymentHandler(armAuthRouter.Group("/"), deploymentService)
 	handler.NewServerHandlerArmToken(armAuthRouter.Group("/"), serverService)
 
@@ -140,6 +140,8 @@ func main() {
 	contributorRouter := labRouter.Group("/")
 	contributorRouter.Use(middleware.ContributorRequired(authService)).Use(middleware.UpdateCredits())
 	handler.NewLabHandlerContributorRequired(contributorRouter, labService)
+
+	handler.NewLabHandlerARMTokenWithProtectedLabSecret(armAuthRouter, labService, appConfig)
 
 	port := os.Getenv("PORT")
 	if port == "" {
