@@ -204,15 +204,6 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		return server, err
 	}
 
-	s.eventService.CreateEvent(context.TODO(), entity.Event{
-		Type:      "Normal",
-		Reason:    "ServerDeploying",
-		Message:   "deploying server for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
-		Reporter:  "actlabs-hub",
-		Object:    server.UserPrincipalName,
-		TimeStamp: time.Now().Format(time.RFC3339),
-	})
-
 	server, err = s.serverRepository.DeployServer(server)
 	if err != nil {
 		slog.Error("deploying server failed",
@@ -326,16 +317,6 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 
 	s.ServerDefaults(&server)
 
-	// Create Event
-	s.eventService.CreateEvent(context.TODO(), entity.Event{
-		Type:      "Normal",
-		Reason:    "ServerDestroying",
-		Message:   "destroying server for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
-		Reporter:  "actlabs-hub",
-		Object:    server.UserPrincipalName,
-		TimeStamp: time.Now().Format(time.RFC3339),
-	})
-
 	if err := s.serverRepository.DestroyServer(server); err != nil {
 		slog.Error("error destroying server:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
@@ -343,6 +324,17 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 			slog.String("status", string(server.Status)),
 			slog.String("error", err.Error()),
 		)
+
+		// Create Event
+		s.eventService.CreateEvent(context.TODO(), entity.Event{
+			Type:      "Normal",
+			Reason:    "ServerDestroyFailed",
+			Message:   "Failed destroying server for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
+			Reporter:  "actlabs-hub",
+			Object:    server.UserPrincipalName,
+			TimeStamp: time.Now().Format(time.RFC3339),
+		})
+
 		return err
 	}
 
