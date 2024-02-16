@@ -101,7 +101,7 @@ func main() {
 	challengeService := service.NewChallengeService(challengeRepository, labService)
 	authService := service.NewAuthService(authRepository)
 	autoDestroyService := service.NewAutoDestroyService(appConfig, serverRepository, eventService)
-	deploymentService := service.NewDeploymentService(deploymentRepository, serverService, appConfig)
+	deploymentService := service.NewDeploymentService(deploymentRepository, serverService, eventService, appConfig)
 
 	go autoDestroyService.MonitorAndDestroyInactiveServers(context.Background())
 	go deploymentService.MonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments(context.Background())

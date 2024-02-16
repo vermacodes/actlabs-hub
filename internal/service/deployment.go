@@ -15,17 +15,20 @@ import (
 type DeploymentService struct {
 	deploymentRepository entity.DeploymentRepository
 	serverService        entity.ServerService
+	eventService         entity.EventService
 	appConfig            *config.Config
 }
 
 func NewDeploymentService(
 	deploymentRepo entity.DeploymentRepository,
 	serverService entity.ServerService,
+	eventService entity.EventService,
 	appConfig *config.Config,
 ) entity.DeploymentService {
 	return &DeploymentService{
 		deploymentRepository: deploymentRepo,
 		serverService:        serverService,
+		eventService:         eventService,
 		appConfig:            appConfig,
 	}
 }
@@ -108,7 +111,41 @@ func (d *DeploymentService) UpsertDeployment(ctx context.Context, deployment ent
 			slog.String("error", err.Error()),
 		)
 
+		// Create Event
+		if err := d.eventService.CreateEvent(ctx, entity.Event{
+			TimeStamp: time.Now().Format(time.RFC3339),
+			Type:      "Warning",
+			Reason:    "DeploymentUpdateFailed",
+			Message:   fmt.Sprintf("Update of deployment of user %s for subscription %s with workspace %s failed.", deployment.DeploymentUserId, deployment.DeploymentSubscriptionId, deployment.DeploymentWorkspace),
+			Reporter:  "actlabs-hub",
+			Object:    deployment.DeploymentUserId,
+		}); err != nil {
+			slog.Error("not able to create event",
+				slog.String("userPrincipalName", deployment.DeploymentUserId),
+				slog.String("workspace", deployment.DeploymentWorkspace),
+				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
+				slog.String("error", err.Error()),
+			)
+		}
+
 		return err
+	}
+
+	// Create Event
+	if err := d.eventService.CreateEvent(ctx, entity.Event{
+		TimeStamp: time.Now().Format(time.RFC3339),
+		Type:      "Normal",
+		Reason:    "DeploymentUpdated",
+		Message:   fmt.Sprintf("Deployment of user %s for subscription %s with workspace %s is updated/created.", deployment.DeploymentUserId, deployment.DeploymentSubscriptionId, deployment.DeploymentWorkspace),
+		Reporter:  "actlabs-hub",
+		Object:    deployment.DeploymentUserId,
+	}); err != nil {
+		slog.Error("not able to create event",
+			slog.String("userPrincipalName", deployment.DeploymentUserId),
+			slog.String("workspace", deployment.DeploymentWorkspace),
+			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
+			slog.String("error", err.Error()),
+		)
 	}
 
 	// Add deployment operation entry
@@ -143,7 +180,41 @@ func (d *DeploymentService) DeleteDeployment(ctx context.Context, userPrincipalN
 			slog.String("error", err.Error()),
 		)
 
+		// Create Event
+		if err := d.eventService.CreateEvent(ctx, entity.Event{
+			TimeStamp: time.Now().Format(time.RFC3339),
+			Type:      "Warning",
+			Reason:    "DeploymentDeleteFailed",
+			Message:   fmt.Sprintf("Delete operation of deployment of user %s for subscription %s with workspace %s failed.", userPrincipalName, subscriptionId, workspace),
+			Reporter:  "actlabs-hub",
+			Object:    userPrincipalName,
+		}); err != nil {
+			slog.Error("not able to create event",
+				slog.String("userPrincipalName", userPrincipalName),
+				slog.String("workspace", workspace),
+				slog.String("subscriptionId", subscriptionId),
+				slog.String("error", err.Error()),
+			)
+		}
+
 		return err
+	}
+
+	// Create Event
+	if err := d.eventService.CreateEvent(ctx, entity.Event{
+		TimeStamp: time.Now().Format(time.RFC3339),
+		Type:      "Normal",
+		Reason:    "DeploymentDeleted",
+		Message:   fmt.Sprintf("Deployment of user %s for subscription %s with workspace %s is deleted successfully.", userPrincipalName, subscriptionId, workspace),
+		Reporter:  "actlabs-hub",
+		Object:    userPrincipalName,
+	}); err != nil {
+		slog.Error("not able to create event",
+			slog.String("userPrincipalName", userPrincipalName),
+			slog.String("workspace", workspace),
+			slog.String("subscriptionId", subscriptionId),
+			slog.String("error", err.Error()),
+		)
 	}
 
 	return nil

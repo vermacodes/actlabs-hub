@@ -104,16 +104,6 @@ func (s *AutoDestroyService) DestroyIdleServers(ctx context.Context) error {
 				slog.Duration("inactiveDuration", time.Duration(server.InactivityDurationInSeconds)*time.Second),
 			)
 
-			// Create Event
-			s.eventService.CreateEvent(ctx, entity.Event{
-				Type:      "Normal",
-				Reason:    "ServerDestroying",
-				Message:   fmt.Sprintf("Auto Destroying server of user %s for subscription %s with version %s due to inactivity.", server.UserPrincipalName, server.SubscriptionId, server.Version),
-				Reporter:  "actlabs-hub",
-				Object:    server.UserPrincipalName,
-				TimeStamp: time.Now().Format(time.RFC3339),
-			})
-
 			if err := s.DestroyServer(server); err != nil {
 				return err
 			}
@@ -150,6 +140,16 @@ func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
 			slog.String("status", string(server.Status)),
 			slog.String("error", err.Error()),
 		)
+
+		// Create Event
+		s.eventService.CreateEvent(context.Background(), entity.Event{
+			Type:      "Normal",
+			Reason:    "ServerDestroyedFailed",
+			Message:   fmt.Sprintf("Auto Destroyed of server of user %s for subscription %s with version %s failed.", server.UserPrincipalName, server.SubscriptionId, server.Version),
+			Reporter:  "actlabs-hub",
+			Object:    server.UserPrincipalName,
+			TimeStamp: time.Now().Format(time.RFC3339),
+		})
 
 		return err
 	}

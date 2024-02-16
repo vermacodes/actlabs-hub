@@ -4,20 +4,20 @@
 # -t tag
 
 while getopts ":t:" opt; do
-    case $opt in
-    t)
-        TAG="$OPTARG"
-        ;;
-    \?)
-        echo "Invalid option -$OPTARG" >&2
-        ;;
-    esac
+  case $opt in
+  t)
+    TAG="$OPTARG"
+    ;;
+  \?)
+    echo "Invalid option -$OPTARG" >&2
+    ;;
+  esac
 done
 
 source .env
 
 if [ -z "${TAG}" ]; then
-    TAG="latest"
+  TAG="latest"
 fi
 
 echo "TAG = ${TAG}"
@@ -25,15 +25,23 @@ echo "TAG = ${TAG}"
 required_env_vars=("AUTH_TOKEN_ISS" "AUTH_TOKEN_AUD")
 
 for var in "${required_env_vars[@]}"; do
-    if [[ -z "${!var}" ]]; then
-        echo "Required environment variable $var is missing"
-        exit 1
-    fi
+  if [[ -z "${!var}" ]]; then
+    echo "Required environment variable $var is missing"
+    exit 1
+  fi
 done
 
 go build -o actlabs-hub ./cmd/actlabs-hub
+if [ $? -ne 0 ]; then
+  echo "Failed to build actlabs-hub"
+  exit 1
+fi
 
 docker build -t actlab.azurecr.io/actlabs-hub:${TAG} .
+if [ $? -ne 0 ]; then
+  echo "Failed to build docker image"
+  exit 1
+fi
 
 rm actlabs-hub
 
