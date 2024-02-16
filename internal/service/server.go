@@ -17,15 +17,18 @@ import (
 type serverService struct {
 	serverRepository entity.ServerRepository
 	appConfig        *config.Config
+	eventService     entity.EventService
 }
 
 func NewServerService(
 	serverRepository entity.ServerRepository,
 	appConfig *config.Config,
+	eventService entity.EventService,
 ) entity.ServerService {
 	return &serverService{
 		serverRepository: serverRepository,
 		appConfig:        appConfig,
+		eventService:     eventService,
 	}
 }
 
@@ -201,6 +204,15 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		return server, err
 	}
 
+	s.eventService.CreateEvent(context.TODO(), entity.Event{
+		Type:      "Normal",
+		Reason:    "ServerDeploying",
+		Message:   "deploying server for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
+		Reporter:  "actlabs-hub",
+		Object:    server.UserPrincipalName,
+		TimeStamp: time.Now().Format(time.RFC3339),
+	})
+
 	server, err = s.serverRepository.DeployServer(server)
 	if err != nil {
 		slog.Error("deploying server failed",
@@ -213,6 +225,15 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		// Makes no sense to handle error here.
 		server.Status = entity.ServerStatusFailed
 		s.UpsertServerInDatabase(server)
+
+		s.eventService.CreateEvent(context.TODO(), entity.Event{
+			Type:      "Warning",
+			Reason:    "ServerDeploymentFailed",
+			Message:   "server deployment for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version + " failed" + " with error " + err.Error(),
+			Reporter:  "actlabs-hub",
+			Object:    server.UserPrincipalName,
+			TimeStamp: time.Now().Format(time.RFC3339),
+		})
 
 		return server, err
 	}
@@ -246,6 +267,16 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 				return server, err
 			}
 
+			// Create Event
+			s.eventService.CreateEvent(context.TODO(), entity.Event{
+				Type:      "Normal",
+				Reason:    "ServerDeployed",
+				Message:   "server deployed for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
+				Reporter:  "actlabs-hub",
+				Object:    server.UserPrincipalName,
+				TimeStamp: time.Now().Format(time.RFC3339),
+			})
+
 			// return server. this is the success case.
 			return server, nil
 		}
@@ -263,6 +294,16 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	if err := s.UpsertServerInDatabase(server); err != nil {
 		return server, err
 	}
+
+	// Create Event
+	s.eventService.CreateEvent(context.TODO(), entity.Event{
+		Type:      "Warning",
+		Reason:    "ServerUnknown",
+		Message:   "server deployed for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version + " but not able to verify server is up and running",
+		Reporter:  "actlabs-hub",
+		Object:    server.UserPrincipalName,
+		TimeStamp: time.Now().Format(time.RFC3339),
+	})
 
 	return server, errors.New("server deployed, but not able to verify server is up and running")
 }
@@ -285,6 +326,16 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 
 	s.ServerDefaults(&server)
 
+	// Create Event
+	s.eventService.CreateEvent(context.TODO(), entity.Event{
+		Type:      "Normal",
+		Reason:    "ServerDestroying",
+		Message:   "destroying server for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
+		Reporter:  "actlabs-hub",
+		Object:    server.UserPrincipalName,
+		TimeStamp: time.Now().Format(time.RFC3339),
+	})
+
 	if err := s.serverRepository.DestroyServer(server); err != nil {
 		slog.Error("error destroying server:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
@@ -301,6 +352,16 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 	if err := s.UpsertServerInDatabase(server); err != nil {
 		return err
 	}
+
+	// Create Event
+	s.eventService.CreateEvent(context.TODO(), entity.Event{
+		Type:      "Normal",
+		Reason:    "ServerDestroyed",
+		Message:   "server destroyed for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
+		Reporter:  "actlabs-hub",
+		Object:    server.UserPrincipalName,
+		TimeStamp: time.Now().Format(time.RFC3339),
+	})
 
 	return nil
 }

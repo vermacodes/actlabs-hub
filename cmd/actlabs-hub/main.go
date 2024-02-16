@@ -43,6 +43,14 @@ func main() {
 		panic(err)
 	}
 
+	eventRepository, err := repository.NewEventRepository(auth)
+	if err != nil {
+		slog.Error("Error initializing event repository",
+			slog.String("error", err.Error()),
+		)
+		panic(err)
+	}
+
 	serverRepository, err := repository.NewServerRepository(appConfig, auth, rdb)
 	if err != nil {
 		slog.Error("Error initializing server repository",
@@ -86,12 +94,13 @@ func main() {
 		panic(err)
 	}
 
-	serverService := service.NewServerService(serverRepository, appConfig)
+	eventService := service.NewEventService(eventRepository)
+	serverService := service.NewServerService(serverRepository, appConfig, eventService)
 	labService := service.NewLabService(labRepository)
 	assignmentService := service.NewAssignmentService(assignmentRepository, labService)
 	challengeService := service.NewChallengeService(challengeRepository, labService)
 	authService := service.NewAuthService(authRepository)
-	autoDestroyService := service.NewAutoDestroyService(appConfig, serverRepository)
+	autoDestroyService := service.NewAutoDestroyService(appConfig, serverRepository, eventService)
 	deploymentService := service.NewDeploymentService(deploymentRepository, serverService, appConfig)
 
 	go autoDestroyService.MonitorAndDestroyInactiveServers(context.Background())
