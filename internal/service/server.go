@@ -204,14 +204,26 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		return server, err
 	}
 
-	server, err = s.serverRepository.DeployServer(server)
-	if err != nil {
+	// Deploy server. Retry 3 times.
+	for i := 0; i < 3; i++ {
+		server, err = s.serverRepository.DeployServer(server)
+		if err == nil {
+			break
+		}
+
 		slog.Error("deploying server failed",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("attempt", strconv.Itoa(i+1)),
 			slog.String("error", err.Error()),
 		)
 
+		if i < 2 { // Don't sleep after the last attempt
+			time.Sleep(time.Second * 5) // Wait for 5 seconds before retrying
+		}
+	}
+
+	if err != nil {
 		// Server Deployment Failed, Reset Status and Update database.
 		// Makes no sense to handle error here.
 		server.Status = entity.ServerStatusFailed
