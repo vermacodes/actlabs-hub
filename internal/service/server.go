@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -204,14 +205,15 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		return server, err
 	}
 
-	// Deploy server. Retry 3 times.
-	for i := 0; i < 3; i++ {
+	// Deploy server. Retry 5 times.
+	for i := 0; i < 5; i++ {
 		server, err = s.serverRepository.DeployServer(server)
 		if err == nil {
 			break
 		}
 
 		slog.Error("deploying server failed",
+			slog.String("backoff", strconv.FormatFloat(math.Min(math.Pow(2, float64(i))*10, 120.0), 'f', -1, 64)+"s"),
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("attempt", strconv.Itoa(i+1)),
@@ -219,7 +221,8 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		)
 
 		if i < 2 { // Don't sleep after the last attempt
-			time.Sleep(time.Second * 5) // Wait for 5 seconds before retrying
+			sleepDuration := math.Min(math.Pow(2, float64(i))*10, 120.0)
+			time.Sleep(time.Duration(sleepDuration) * time.Second) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 seconds
 		}
 	}
 
