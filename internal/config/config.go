@@ -16,6 +16,7 @@ type Config struct {
 	ActlabsHubChallengesTableName                        string
 	ActlabsHubProfilesTableName                          string
 	ActlabsHubDeploymentsTableName                       string
+	ActlabsHubEventsTableName                            string
 	ActlabsHubDeploymentOperationsTableName              string
 	ActlabsHubManagedIdentityResourceId                  string
 	ActlabsHubResourceGroup                              string
@@ -254,6 +255,11 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_HUB_DEPLOYMENTS_TABLE_NAME not set")
 	}
 
+	actlabsHubEventsTableName := getEnv("ACTLABS_HUB_EVENTS_TABLE_NAME")
+	if actlabsHubEventsTableName == "" {
+		return nil, fmt.Errorf("ACTLABS_HUB_EVENTS_TABLE_NAME not set")
+	}
+
 	actlabsHubDeploymentOperationsTableName := getEnv("ACTLABS_HUB_DEPLOYMENT_OPERATIONS_TABLE_NAME")
 	if actlabsHubDeploymentOperationsTableName == "" {
 		return nil, fmt.Errorf("ACTLABS_HUB_DEPLOYMENT_OPERATIONS_TABLE_NAME not set")
@@ -288,6 +294,7 @@ func NewConfig() (*Config, error) {
 		ActlabsHubChallengesTableName:                        actlabsHubChallengesTableName,
 		ActlabsHubProfilesTableName:                          actlabsHubProfilesTableName,
 		ActlabsHubDeploymentsTableName:                       actlabsHubDeploymentsTableName,
+		ActlabsHubEventsTableName:                            actlabsHubEventsTableName,
 		ActlabsHubDeploymentOperationsTableName:              actlabsHubDeploymentOperationsTableName,
 		ActlabsHubManagedIdentityResourceId:                  actlabsHubManagedIdentityResourceId,
 		ActlabsHubResourceGroup:                              actlabsHubResourceGroup,

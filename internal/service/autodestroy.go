@@ -14,12 +14,14 @@ import (
 type AutoDestroyService struct {
 	appConfig        *config.Config
 	serverRepository entity.ServerRepository
+	eventService     entity.EventService
 }
 
-func NewAutoDestroyService(appConfig *config.Config, repo entity.ServerRepository) *AutoDestroyService {
+func NewAutoDestroyService(appConfig *config.Config, repo entity.ServerRepository, eventService entity.EventService) *AutoDestroyService {
 	return &AutoDestroyService{
 		appConfig:        appConfig,
 		serverRepository: repo,
+		eventService:     eventService,
 	}
 }
 
@@ -139,6 +141,16 @@ func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
 			slog.String("error", err.Error()),
 		)
 
+		// Create Event
+		s.eventService.CreateEvent(context.Background(), entity.Event{
+			Type:      "Normal",
+			Reason:    "ServerDestroyedFailed",
+			Message:   fmt.Sprintf("Auto Destroyed of server of user %s for subscription %s with version %s failed.", server.UserPrincipalName, server.SubscriptionId, server.Version),
+			Reporter:  "actlabs-hub",
+			Object:    server.UserPrincipalName,
+			TimeStamp: time.Now().Format(time.RFC3339),
+		})
+
 		return err
 	}
 
@@ -156,6 +168,16 @@ func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
 
 		return fmt.Errorf("server was destroyed but not able to update status in database")
 	}
+
+	// Create Event
+	s.eventService.CreateEvent(context.Background(), entity.Event{
+		Type:      "Normal",
+		Reason:    "ServerDestroyed",
+		Message:   fmt.Sprintf("Auto Destroyed server of user %s for subscription %s with version %s due to inactivity.", server.UserPrincipalName, server.SubscriptionId, server.Version),
+		Reporter:  "actlabs-hub",
+		Object:    server.UserPrincipalName,
+		TimeStamp: time.Now().Format(time.RFC3339),
+	})
 
 	return nil
 }

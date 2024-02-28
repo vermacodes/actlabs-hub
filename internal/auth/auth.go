@@ -18,6 +18,7 @@ type Auth struct {
 	ActlabsChallengesTableClient           *aztables.Client
 	ActlabsProfilesTableClient             *aztables.Client
 	ActlabsDeploymentsTableClient          *aztables.Client
+	ActlabsEventsTableClient               *aztables.Client
 	ActlabSDeploymentOperationsTableClient *aztables.Client
 	StorageAccountKey                      string
 }
@@ -95,6 +96,15 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 		return nil, fmt.Errorf("not able to create table client %w", err)
 	}
 
+	actlabsEventsTableClient, err := GetTableClient(
+		accountKey,
+		appConfig.ActlabsHubStorageAccount,
+		appConfig.ActlabsHubEventsTableName,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("not able to create table client %w", err)
+	}
+
 	actlabsDeploymentOperationsTableClient, err := GetTableClient(
 		accountKey,
 		appConfig.ActlabsHubStorageAccount,
@@ -112,6 +122,7 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 		ActlabsChallengesTableClient:           actlabsChallengesTableClient,
 		ActlabsProfilesTableClient:             actlabsProfilesTableClient,
 		ActlabsDeploymentsTableClient:          actlabsDeploymentsTableClient,
+		ActlabsEventsTableClient:               actlabsEventsTableClient,
 		ActlabSDeploymentOperationsTableClient: actlabsDeploymentOperationsTableClient,
 	}, nil
 }
