@@ -220,7 +220,7 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 			slog.String("error", err.Error()),
 		)
 
-		if i < 2 { // Don't sleep after the last attempt
+		if i < 4 { // Don't sleep after the last attempt
 			sleepDuration := math.Min(math.Pow(2, float64(i))*10, 120.0)
 			time.Sleep(time.Duration(sleepDuration) * time.Second) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 seconds
 		}
@@ -332,14 +332,28 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 
 	s.ServerDefaults(&server)
 
-	if err := s.serverRepository.DestroyServer(server); err != nil {
-		slog.Error("error destroying server:",
+	// Retry 5 times.
+	for i := 0; i < 5; i++ {
+		err = s.serverRepository.DestroyServer(server)
+		if err == nil {
+			break
+		}
+
+		slog.Error("destroying server failed",
+			slog.String("backoff", strconv.FormatFloat(math.Min(math.Pow(2, float64(i))*10, 120.0), 'f', -1, 64)+"s"),
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("status", string(server.Status)),
+			slog.String("attempt", strconv.Itoa(i+1)),
 			slog.String("error", err.Error()),
 		)
 
+		if i < 4 { // Don't sleep after the last attempt
+			sleepDuration := math.Min(math.Pow(2, float64(i))*10, 120.0)
+			time.Sleep(time.Duration(sleepDuration) * time.Second) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 waitTimeSeconds
+		}
+	}
+
+	if err != nil {
 		// Create Event
 		s.eventService.CreateEvent(context.TODO(), entity.Event{
 			Type:      "Normal",
@@ -349,6 +363,12 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 			Object:    server.UserPrincipalName,
 			TimeStamp: time.Now().Format(time.RFC3339),
 		})
+
+		slog.Error("destroying server failed, all attempts exhausted",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 
 		return err
 	}
