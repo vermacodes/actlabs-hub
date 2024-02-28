@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -17,15 +18,18 @@ import (
 type serverService struct {
 	serverRepository entity.ServerRepository
 	appConfig        *config.Config
+	eventService     entity.EventService
 }
 
 func NewServerService(
 	serverRepository entity.ServerRepository,
 	appConfig *config.Config,
+	eventService entity.EventService,
 ) entity.ServerService {
 	return &serverService{
 		serverRepository: serverRepository,
 		appConfig:        appConfig,
+		eventService:     eventService,
 	}
 }
 
@@ -201,18 +205,41 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		return server, err
 	}
 
-	server, err = s.serverRepository.DeployServer(server)
-	if err != nil {
+	// Deploy server. Retry 5 times.
+	for i := 0; i < 5; i++ {
+		server, err = s.serverRepository.DeployServer(server)
+		if err == nil {
+			break
+		}
+
 		slog.Error("deploying server failed",
+			slog.String("backoff", strconv.FormatFloat(math.Min(math.Pow(2, float64(i))*10, 120.0), 'f', -1, 64)+"s"),
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("attempt", strconv.Itoa(i+1)),
 			slog.String("error", err.Error()),
 		)
 
+		if i < 4 { // Don't sleep after the last attempt
+			sleepDuration := math.Min(math.Pow(2, float64(i))*10, 120.0)
+			time.Sleep(time.Duration(sleepDuration) * time.Second) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 seconds
+		}
+	}
+
+	if err != nil {
 		// Server Deployment Failed, Reset Status and Update database.
 		// Makes no sense to handle error here.
 		server.Status = entity.ServerStatusFailed
 		s.UpsertServerInDatabase(server)
+
+		s.eventService.CreateEvent(context.TODO(), entity.Event{
+			Type:      "Warning",
+			Reason:    "ServerDeploymentFailed",
+			Message:   "server deployment for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version + " failed" + " with error " + err.Error(),
+			Reporter:  "actlabs-hub",
+			Object:    server.UserPrincipalName,
+			TimeStamp: time.Now().Format(time.RFC3339),
+		})
 
 		return server, err
 	}
@@ -246,6 +273,16 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 				return server, err
 			}
 
+			// Create Event
+			s.eventService.CreateEvent(context.TODO(), entity.Event{
+				Type:      "Normal",
+				Reason:    "ServerDeployed",
+				Message:   "server deployed for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
+				Reporter:  "actlabs-hub",
+				Object:    server.UserPrincipalName,
+				TimeStamp: time.Now().Format(time.RFC3339),
+			})
+
 			// return server. this is the success case.
 			return server, nil
 		}
@@ -263,6 +300,16 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	if err := s.UpsertServerInDatabase(server); err != nil {
 		return server, err
 	}
+
+	// Create Event
+	s.eventService.CreateEvent(context.TODO(), entity.Event{
+		Type:      "Warning",
+		Reason:    "ServerUnknown",
+		Message:   "server deployed for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version + " but not able to verify server is up and running",
+		Reporter:  "actlabs-hub",
+		Object:    server.UserPrincipalName,
+		TimeStamp: time.Now().Format(time.RFC3339),
+	})
 
 	return server, errors.New("server deployed, but not able to verify server is up and running")
 }
@@ -285,13 +332,44 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 
 	s.ServerDefaults(&server)
 
-	if err := s.serverRepository.DestroyServer(server); err != nil {
-		slog.Error("error destroying server:",
+	// Retry 5 times.
+	for i := 0; i < 5; i++ {
+		err = s.serverRepository.DestroyServer(server)
+		if err == nil {
+			break
+		}
+
+		slog.Error("destroying server failed",
+			slog.String("backoff", strconv.FormatFloat(math.Min(math.Pow(2, float64(i))*10, 120.0), 'f', -1, 64)+"s"),
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("status", string(server.Status)),
+			slog.String("attempt", strconv.Itoa(i+1)),
 			slog.String("error", err.Error()),
 		)
+
+		if i < 4 { // Don't sleep after the last attempt
+			sleepDuration := math.Min(math.Pow(2, float64(i))*10, 120.0)
+			time.Sleep(time.Duration(sleepDuration) * time.Second) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 waitTimeSeconds
+		}
+	}
+
+	if err != nil {
+		// Create Event
+		s.eventService.CreateEvent(context.TODO(), entity.Event{
+			Type:      "Normal",
+			Reason:    "ServerDestroyFailed",
+			Message:   "Failed destroying server for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
+			Reporter:  "actlabs-hub",
+			Object:    server.UserPrincipalName,
+			TimeStamp: time.Now().Format(time.RFC3339),
+		})
+
+		slog.Error("destroying server failed, all attempts exhausted",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+
 		return err
 	}
 
@@ -301,6 +379,16 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 	if err := s.UpsertServerInDatabase(server); err != nil {
 		return err
 	}
+
+	// Create Event
+	s.eventService.CreateEvent(context.TODO(), entity.Event{
+		Type:      "Normal",
+		Reason:    "ServerDestroyed",
+		Message:   "server destroyed for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
+		Reporter:  "actlabs-hub",
+		Object:    server.UserPrincipalName,
+		TimeStamp: time.Now().Format(time.RFC3339),
+	})
 
 	return nil
 }
