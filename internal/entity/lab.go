@@ -7,9 +7,11 @@ type TfvarResourceGroupType struct {
 }
 
 type TfvarDefaultNodePoolType struct {
-	EnableAutoScaling bool `json:"enableAutoScaling"`
-	MinCount          int  `json:"minCount"`
-	MaxCount          int  `json:"maxCount"`
+	EnableAutoScaling         bool   `json:"enableAutoScaling"`
+	MinCount                  int    `json:"minCount"`
+	MaxCount                  int    `json:"maxCount"`
+	VmSize                    string `json:"vmSize"`
+	OnlyCriticalAddonsEnabled bool   `json:"onlyCriticalAddonsEnabled"`
 }
 
 type TfvarAddonsType struct {
