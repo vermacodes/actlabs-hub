@@ -12,6 +12,7 @@ type TfvarDefaultNodePoolType struct {
 	MaxCount                  int    `json:"maxCount"`
 	VmSize                    string `json:"vmSize"`
 	OnlyCriticalAddonsEnabled bool   `json:"onlyCriticalAddonsEnabled"`
+	OsSku                     string `json:"osSku"`
 }
 
 type TfvarAddonsType struct {
@@ -39,8 +40,7 @@ type TfvarSubnetType struct {
 	AddressPrefixes []string
 }
 
-type TfvarNetworkSecurityGroupType struct {
-}
+type TfvarNetworkSecurityGroupType struct{}
 
 type TfvarJumpserverType struct {
 	AdminPassword string `json:"adminPassword"`
@@ -52,8 +52,7 @@ type TfvarFirewallType struct {
 	SkuTier string `json:"skuTier"`
 }
 
-type ContainerRegistryType struct {
-}
+type ContainerRegistryType struct{}
 
 type AppGatewayType struct{}
 
@@ -71,10 +70,10 @@ type TfvarConfigType struct {
 
 // didn't find exported equivalent of https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/storage/azblob@v1.2.1/internal/generated#BlobItem
 type Blob struct {
-	Name             string `xml:"Name" json:"name"`
-	VersionId        string `xml:"VersionId" json:"versionId"`
+	Name             string `xml:"Name"             json:"name"`
+	VersionId        string `xml:"VersionId"        json:"versionId"`
 	IsCurrentVersion bool   `xml:"IsCurrentVersion" json:"isCurrentVersion"`
-	//Url  string `xml:"Url" json:"url"`
+	// Url  string `xml:"Url" json:"url"`
 }
 
 var (
@@ -143,7 +142,11 @@ type LabService interface {
 type LabRepository interface {
 	ListBlobs(ctx context.Context, typeOfLab string) ([]Blob, error)
 
-	GetLab(ctx context.Context, typeOfLab string, labId string) (LabType, error) // send empty versionId ("") to get current version.
+	GetLab(
+		ctx context.Context,
+		typeOfLab string,
+		labId string,
+	) (LabType, error) // send empty versionId ("") to get current version.
 	GetLabWithVersions(ctx context.Context, typeOfLab string, labId string) ([]LabType, error)
 
 	UpsertLab(ctx context.Context, labId string, lab string, typeOfLab string) error
