@@ -1,16 +1,17 @@
 package middleware
 
 import (
-	"actlabs-hub/internal/auth"
-	"actlabs-hub/internal/config"
-	"actlabs-hub/internal/entity"
-	"actlabs-hub/internal/helper"
 	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/exp/slog"
+
+	"actlabs-hub/internal/auth"
+	"actlabs-hub/internal/config"
+	"actlabs-hub/internal/entity"
+	"actlabs-hub/internal/helper"
 )
 
 func Auth() gin.HandlerFunc {
@@ -44,16 +45,12 @@ func ARMTokenAuth(appConfig *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		slog.Debug("ARMTokenAuth Middleware")
 
-		if c.GetHeader("ProtectedLabSecret") != appConfig.ProtectedLabSecret {
-			slog.Error("ProtectedLabSecret header is missing or invalid")
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		if c.GetHeader("x-ms-client-principal-name") == "" {
-			slog.Error("x-ms-client-principal-name header is missing")
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
+		// If requst path includes /arm/server/register/ then sktip verifyProtectedLabSecretAndUserPrincipalName
+		if !strings.Contains(c.Request.URL.Path, "/arm/server/register/") {
+			err := verifyProtectedLabSecretAndUserPrincipalName(c, appConfig)
+			if err != nil {
+				return
+			}
 		}
 
 		accessToken := c.GetHeader("Authorization")
@@ -151,7 +148,10 @@ func ContributorRequired(authService entity.AuthService) gin.HandlerFunc {
 
 		// Check if the calling user has the mentor role
 		if !helper.Contains(profile.Roles, "contributor") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user is not an contributor"})
+			c.AbortWithStatusJSON(
+				http.StatusUnauthorized,
+				gin.H{"error": "user is not an contributor"},
+			)
 			return
 		}
 
@@ -159,12 +159,30 @@ func ContributorRequired(authService entity.AuthService) gin.HandlerFunc {
 	}
 }
 
+func verifyProtectedLabSecretAndUserPrincipalName(c *gin.Context, appConfig *config.Config) error {
+	if c.GetHeader("ProtectedLabSecret") != appConfig.ProtectedLabSecret {
+		slog.Error("ProtectedLabSecret header is missing or invalid")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return errors.New("ProtectedLabSecret header is missing or invalid")
+	}
+
+	if c.GetHeader("x-ms-client-principal-name") == "" {
+		slog.Error("x-ms-client-principal-name header is missing")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return errors.New("x-ms-client-principal-name header is missing")
+	}
+
+	return nil
+}
+
 func verifyAccessToken(c *gin.Context, accessToken string) error {
 	splitToken := strings.Split(accessToken, "Bearer ")
 	if len(splitToken) < 2 {
 		slog.Error("found something in the Authorization header, but it's not a bearer token")
 		c.AbortWithStatus(http.StatusUnauthorized)
-		return errors.New("found something in the Authorization header, but it's not a bearer token")
+		return errors.New(
+			"found something in the Authorization header, but it's not a bearer token",
+		)
 	}
 
 	ok, err := auth.VerifyToken(accessToken)
@@ -181,7 +199,9 @@ func verifyArmAccessToken(c *gin.Context, accessToken string) error {
 	splitToken := strings.Split(accessToken, "Bearer ")
 	if len(splitToken) < 2 {
 		c.AbortWithStatus(http.StatusUnauthorized)
-		return errors.New("found something in the Authorization header, but it's not a bearer token")
+		return errors.New(
+			"found something in the Authorization header, but it's not a bearer token",
+		)
 	}
 
 	ok, err := auth.VerifyArmToken(accessToken)
