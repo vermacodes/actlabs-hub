@@ -10,50 +10,57 @@ import (
 )
 
 type Config struct {
-	ActlabsHubClientID                                   string
-	ActlabsHubManagedServersTableName                    string
-	ActlabsHubReadinessAssignmentsTableName              string
-	ActlabsHubChallengesTableName                        string
-	ActlabsHubProfilesTableName                          string
-	ActlabsHubDeploymentsTableName                       string
-	ActlabsHubEventsTableName                            string
-	ActlabsHubDeploymentOperationsTableName              string
-	ActlabsHubManagedIdentityResourceId                  string
-	ActlabsHubResourceGroup                              string
-	ActlabsHubStorageAccount                             string
-	ActlabsHubSubscriptionID                             string
-	ActlabsHubURL                                        string
-	ActlabsHubAutoDestroyPollingIntervalSeconds          int32
-	ActlabsHubAutoDestroyIdleTimeSeconds                 int32
-	ActlabsHubDeploymentsPollingIntervalSeconds          int32
-	ActlabsServerCaddyCPU                                float64
-	ActlabsServerCaddyMemory                             float64
-	ActlabsServerCPU                                     float64
-	ActlabsServerMemory                                  float64
-	ActlabsServerImage                                   string
-	ActlabsServerPort                                    int32
-	ActlabsServerReadinessProbeFailureThreshold          int32
-	ActlabsServerReadinessProbeInitialDelaySeconds       int32
-	ActlabsServerReadinessProbePath                      string
-	ActlabsServerReadinessProbePeriodSeconds             int32
-	ActlabsServerReadinessProbeSuccessThreshold          int32
-	ActlabsServerReadinessProbeTimeoutSeconds            int32
-	ActlabsServerRootDir                                 string
-	ActlabsServerUPWaitTimeSeconds                       string
-	ActlabsServerManagedEnvironmentId                    string
-	ActlabsServerResourceGroup                           string
-	AuthTokenAud                                         string
-	AuthTokenIss                                         string
-	HttpPort                                             int32
-	HttpsPort                                            int32
-	ProtectedLabSecret                                   string
-	TenantID                                             string
-	ActlabsServerUseMsi                                  bool
-	ActlabsServerUseServicePrincipal                     bool
-	ActlabsServerServicePrincipalClientId                string
-	ActlabsServerServicePrincipalObjectId                string
-	ActlabsServerServicePrincipalClientSecretKeyvaultURL string
-	ActlabsHubUseMsi                                     bool
+	ActlabsHubClientID                                       string
+	ActlabsHubManagedServersTableName                        string
+	ActlabsHubReadinessAssignmentsTableName                  string
+	ActlabsHubChallengesTableName                            string
+	ActlabsHubProfilesTableName                              string
+	ActlabsHubDeploymentsTableName                           string
+	ActlabsHubEventsTableName                                string
+	ActlabsHubDeploymentOperationsTableName                  string
+	ActlabsHubManagedIdentityResourceId                      string
+	ActlabsHubResourceGroup                                  string
+	ActlabsHubStorageAccount                                 string
+	ActlabsHubSubscriptionID                                 string
+	ActlabsHubURL                                            string
+	ActlabsHubAutoDestroyPollingIntervalSeconds              int32
+	ActlabsHubAutoDestroyIdleTimeSeconds                     int32
+	ActlabsHubDeploymentsPollingIntervalSeconds              int32
+	ActlabsServerCaddyCPU                                    float64
+	ActlabsServerCaddyMemory                                 float64
+	ActlabsServerCPU                                         float64
+	ActlabsServerMemory                                      float64
+	ActlabsServerImage                                       string
+	ActlabsServerPort                                        int32
+	ActlabsServerReadinessProbeFailureThreshold              int32
+	ActlabsServerReadinessProbeInitialDelaySeconds           int32
+	ActlabsServerReadinessProbePath                          string
+	ActlabsServerReadinessProbePeriodSeconds                 int32
+	ActlabsServerReadinessProbeSuccessThreshold              int32
+	ActlabsServerReadinessProbeTimeoutSeconds                int32
+	ActlabsServerRootDir                                     string
+	ActlabsServerUPWaitTimeSeconds                           string
+	ActlabsServerManagedEnvironmentId                        string
+	ActlabsServerResourceGroup                               string
+	AuthTokenAud                                             string
+	AuthTokenIss                                             string
+	HttpPort                                                 int32
+	HttpsPort                                                int32
+	ProtectedLabSecret                                       string
+	TenantID                                                 string
+	ActlabsServerUseMsi                                      bool
+	ActlabsServerUseServicePrincipal                         bool
+	ActlabsServerServicePrincipalClientId                    string
+	ActlabsServerServicePrincipalObjectId                    string
+	ActlabsServerServicePrincipalClientSecretKeyvaultURL     string
+	ActlabsServerFdpoServicePrincipalClientId                string
+	ActlabsServerFdpoServicePrincipalObjectId                string
+	ActlabsServerFdpoServicePrincipalSecret                  string
+	ActlabsServerFdpoTenantID                                string
+	ActlabsServerFdpoSubscriptionID                          string
+	ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL string
+	ActlabsServerFdpoManagedIdentityResourceId               string
+	ActlabsHubUseMsi                                         bool
 	// Add other configuration fields as needed
 }
 
@@ -108,6 +115,41 @@ func NewConfig() (*Config, error) {
 	actlabsServerServicePrincipalClientSecretKeyvaultURL := getEnv("ACTLABS_SERVER_SERVICE_PRINCIPAL_CLIENT_SECRET_KEYVAULT_URL")
 	if actlabsServerServicePrincipalClientSecretKeyvaultURL == "" && actlabsServerUseServicePrincipal {
 		return nil, fmt.Errorf("ACTLABS_SERVER_SERVICE_PRINCIPAL_CLIENT_SECRET_KEYVAULT_URL not set")
+	}
+
+	actlabsServerFdpoServicePrincipalClientId := getEnv("ACTLABS_SERVER_FDPO_SERVICE_PRINCIPAL_CLIENT_ID")
+	if actlabsServerFdpoServicePrincipalClientId == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_FDPO_SERVICE_PRINCIPAL_CLIENT_ID not set")
+	}
+
+	actlabsServerFdpoServicePrincipalObjectId := getEnv("ACTLABS_SERVER_FDPO_SERVICE_PRINCIPAL_OBJECT_ID")
+	if actlabsServerFdpoServicePrincipalObjectId == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_FDPO_SERVICE_PRINCIPAL_OBJECT_ID not set")
+	}
+
+	actlabsServerFdpoServicePrincipalSecret := getEnv("ACTLABS_SERVER_FDPO_SERVICE_PRINCIPAL_SECRET")
+	if actlabsServerFdpoServicePrincipalSecret == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_FDPO_SERVICE_PRINCIPAL_SECRET not set")
+	}
+
+	actlabsServerFdpoTenantID := getEnv("ACTLABS_SERVER_FDPO_TENANT_ID")
+	if actlabsServerFdpoTenantID == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_FDPO_TENANT_ID not set")
+	}
+
+	ActlabsServerFdpoSubscriptionID := getEnv("ACTLABS_SERVER_FDPO_SUBSCRIPTION_ID")
+	if ActlabsServerFdpoSubscriptionID == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_FDPO_SUBSCRIPTION_ID not set")
+	}
+
+	actlabsServerFdpoServicePrincipalClientSecretKeyvaultURL := getEnv("ACTLABS_SERVER_FDPO_SERVICE_PRINCIPAL_CLIENT_SECRET_KEYVAULT_URL")
+	if actlabsServerFdpoServicePrincipalClientSecretKeyvaultURL == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_FDPO_SERVICE_PRINCIPAL_CLIENT_SECRET_KEYVAULT_URL not set")
+	}
+
+	actlabsServerFdpoManagedIdentityResourceId := getEnv("ACTLABS_SERVER_FDPO_MANAGED_IDENTITY_RESOURCE_ID")
+	if actlabsServerFdpoManagedIdentityResourceId == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_FDPO_MANAGED_IDENTITY_RESOURCE_ID not set")
 	}
 
 	actlabsHubUseMsi, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_HUB_USE_MSI", "false"))
@@ -288,50 +330,57 @@ func NewConfig() (*Config, error) {
 	// Retrieve other environment variables and check them as needed
 
 	return &Config{
-		ActlabsHubClientID:                                   actlabsHubClientID,
-		ActlabsHubManagedServersTableName:                    actlabsHubManagedServersTableName,
-		ActlabsHubReadinessAssignmentsTableName:              actlabsHubReadinessAssignmentsTableName,
-		ActlabsHubChallengesTableName:                        actlabsHubChallengesTableName,
-		ActlabsHubProfilesTableName:                          actlabsHubProfilesTableName,
-		ActlabsHubDeploymentsTableName:                       actlabsHubDeploymentsTableName,
-		ActlabsHubEventsTableName:                            actlabsHubEventsTableName,
-		ActlabsHubDeploymentOperationsTableName:              actlabsHubDeploymentOperationsTableName,
-		ActlabsHubManagedIdentityResourceId:                  actlabsHubManagedIdentityResourceId,
-		ActlabsHubResourceGroup:                              actlabsHubResourceGroup,
-		ActlabsHubStorageAccount:                             actlabsHubStorageAccount,
-		ActlabsHubSubscriptionID:                             actlabsHubSubscriptionID,
-		ActlabsHubURL:                                        actlabsHubURL,
-		ActlabsHubAutoDestroyPollingIntervalSeconds:          int32(actlabsHubAutoDestroyPollingIntervalSeconds),
-		ActlabsHubAutoDestroyIdleTimeSeconds:                 int32(actlabsHubAutoDestroyIdleTimeSeconds),
-		ActlabsHubDeploymentsPollingIntervalSeconds:          int32(actlabsHubDeploymentsPollingIntervalSeconds),
-		ActlabsServerCaddyCPU:                                actlabsServerCaddyCPUFloat,
-		ActlabsServerCaddyMemory:                             actlabsServerCaddyMemoryFloat,
-		ActlabsServerCPU:                                     actlabsServerCPUFloat,
-		ActlabsServerMemory:                                  actlabsServerMemoryFloat,
-		ActlabsServerPort:                                    int32(actlabsServerPort),
-		ActlabsServerImage:                                   actlabsServerImage,
-		ActlabsServerReadinessProbeFailureThreshold:          int32(actlabsServerReadinessProbeFailureThresholdInt),
-		ActlabsServerReadinessProbeInitialDelaySeconds:       int32(actlabsServerReadinessProbeInitialDelaySecondsInt),
-		ActlabsServerReadinessProbePath:                      actlabsServerReadinessProbePath,
-		ActlabsServerReadinessProbePeriodSeconds:             int32(actlabsServerReadinessProbePeriodSecondsInt),
-		ActlabsServerReadinessProbeSuccessThreshold:          int32(actlabsServerReadinessProbeSuccessThresholdInt),
-		ActlabsServerReadinessProbeTimeoutSeconds:            int32(actlabsServerReadinessProbeTimeoutSecondsInt),
-		ActlabsServerRootDir:                                 actlabsServerRootDir,
-		ActlabsServerUPWaitTimeSeconds:                       actlabsServerUPWaitTimeSeconds,
-		ActlabsServerManagedEnvironmentId:                    actlabsServerManagedEnvironmentId,
-		ActlabsServerResourceGroup:                           actlabsServerResourceGroup,
-		AuthTokenAud:                                         authTokenAud,
-		AuthTokenIss:                                         authTokenIss,
-		HttpPort:                                             int32(httpPort),
-		HttpsPort:                                            int32(httpsPort),
-		ProtectedLabSecret:                                   protectedLabSecret,
-		TenantID:                                             tenantID,
-		ActlabsServerUseMsi:                                  actlabsServerUseMsi,
-		ActlabsServerUseServicePrincipal:                     actlabsServerUseServicePrincipal,
-		ActlabsServerServicePrincipalClientId:                actlabsServerServicePrincipalClientId,
-		ActlabsServerServicePrincipalObjectId:                actlabsServerServicePrincipalObjectId,
-		ActlabsServerServicePrincipalClientSecretKeyvaultURL: actlabsServerServicePrincipalClientSecretKeyvaultURL,
-		ActlabsHubUseMsi:                                     actlabsHubUseMsi,
+		ActlabsHubClientID:                                       actlabsHubClientID,
+		ActlabsHubManagedServersTableName:                        actlabsHubManagedServersTableName,
+		ActlabsHubReadinessAssignmentsTableName:                  actlabsHubReadinessAssignmentsTableName,
+		ActlabsHubChallengesTableName:                            actlabsHubChallengesTableName,
+		ActlabsHubProfilesTableName:                              actlabsHubProfilesTableName,
+		ActlabsHubDeploymentsTableName:                           actlabsHubDeploymentsTableName,
+		ActlabsHubEventsTableName:                                actlabsHubEventsTableName,
+		ActlabsHubDeploymentOperationsTableName:                  actlabsHubDeploymentOperationsTableName,
+		ActlabsHubManagedIdentityResourceId:                      actlabsHubManagedIdentityResourceId,
+		ActlabsHubResourceGroup:                                  actlabsHubResourceGroup,
+		ActlabsHubStorageAccount:                                 actlabsHubStorageAccount,
+		ActlabsHubSubscriptionID:                                 actlabsHubSubscriptionID,
+		ActlabsHubURL:                                            actlabsHubURL,
+		ActlabsHubAutoDestroyPollingIntervalSeconds:              int32(actlabsHubAutoDestroyPollingIntervalSeconds),
+		ActlabsHubAutoDestroyIdleTimeSeconds:                     int32(actlabsHubAutoDestroyIdleTimeSeconds),
+		ActlabsHubDeploymentsPollingIntervalSeconds:              int32(actlabsHubDeploymentsPollingIntervalSeconds),
+		ActlabsServerCaddyCPU:                                    actlabsServerCaddyCPUFloat,
+		ActlabsServerCaddyMemory:                                 actlabsServerCaddyMemoryFloat,
+		ActlabsServerCPU:                                         actlabsServerCPUFloat,
+		ActlabsServerMemory:                                      actlabsServerMemoryFloat,
+		ActlabsServerPort:                                        int32(actlabsServerPort),
+		ActlabsServerImage:                                       actlabsServerImage,
+		ActlabsServerReadinessProbeFailureThreshold:              int32(actlabsServerReadinessProbeFailureThresholdInt),
+		ActlabsServerReadinessProbeInitialDelaySeconds:           int32(actlabsServerReadinessProbeInitialDelaySecondsInt),
+		ActlabsServerReadinessProbePath:                          actlabsServerReadinessProbePath,
+		ActlabsServerReadinessProbePeriodSeconds:                 int32(actlabsServerReadinessProbePeriodSecondsInt),
+		ActlabsServerReadinessProbeSuccessThreshold:              int32(actlabsServerReadinessProbeSuccessThresholdInt),
+		ActlabsServerReadinessProbeTimeoutSeconds:                int32(actlabsServerReadinessProbeTimeoutSecondsInt),
+		ActlabsServerRootDir:                                     actlabsServerRootDir,
+		ActlabsServerUPWaitTimeSeconds:                           actlabsServerUPWaitTimeSeconds,
+		ActlabsServerManagedEnvironmentId:                        actlabsServerManagedEnvironmentId,
+		ActlabsServerResourceGroup:                               actlabsServerResourceGroup,
+		AuthTokenAud:                                             authTokenAud,
+		AuthTokenIss:                                             authTokenIss,
+		HttpPort:                                                 int32(httpPort),
+		HttpsPort:                                                int32(httpsPort),
+		ProtectedLabSecret:                                       protectedLabSecret,
+		TenantID:                                                 tenantID,
+		ActlabsServerUseMsi:                                      actlabsServerUseMsi,
+		ActlabsServerUseServicePrincipal:                         actlabsServerUseServicePrincipal,
+		ActlabsServerServicePrincipalClientId:                    actlabsServerServicePrincipalClientId,
+		ActlabsServerServicePrincipalObjectId:                    actlabsServerServicePrincipalObjectId,
+		ActlabsServerServicePrincipalClientSecretKeyvaultURL:     actlabsServerServicePrincipalClientSecretKeyvaultURL,
+		ActlabsServerFdpoServicePrincipalClientId:                actlabsServerFdpoServicePrincipalClientId,
+		ActlabsServerFdpoServicePrincipalObjectId:                actlabsServerFdpoServicePrincipalObjectId,
+		ActlabsServerFdpoServicePrincipalSecret:                  actlabsServerFdpoServicePrincipalSecret,
+		ActlabsServerFdpoTenantID:                                actlabsServerFdpoTenantID,
+		ActlabsServerFdpoSubscriptionID:                          ActlabsServerFdpoSubscriptionID,
+		ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL: actlabsServerFdpoServicePrincipalClientSecretKeyvaultURL,
+		ActlabsServerFdpoManagedIdentityResourceId:               actlabsServerFdpoManagedIdentityResourceId,
+		ActlabsHubUseMsi:                                         actlabsHubUseMsi,
 		// Set other fields
 	}, nil
 }

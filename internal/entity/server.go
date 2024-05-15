@@ -33,6 +33,7 @@ type Server struct {
 	Status                      ServerStatus `json:"status"`
 	Region                      string       `json:"region"`
 	UserPrincipalId             string       `json:"userPrincipalId"`
+	FdpoUserPrincipalId         string       `json:"fdpoUserPrincipalId"`
 	UserPrincipalName           string       `json:"userPrincipalName"`
 	UserAlias                   string       `json:"userAlias"`
 	ManagedIdentityResourceId   string       `json:"managedIdentityResourceId"`

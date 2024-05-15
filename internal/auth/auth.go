@@ -13,6 +13,7 @@ import (
 
 type Auth struct {
 	Cred                                   azcore.TokenCredential
+	FdpoCredential                         azcore.TokenCredential
 	ActlabsServersTableClient              *aztables.Client
 	ActlabsReadinessTableClient            *aztables.Client
 	ActlabsChallengesTableClient           *aztables.Client
@@ -39,6 +40,11 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize default auth: %v", err)
 		}
+	}
+
+	fdpoCredential, err := azidentity.NewClientSecretCredential(appConfig.ActlabsServerFdpoTenantID, appConfig.ActlabsServerFdpoServicePrincipalClientId, appConfig.ActlabsServerFdpoServicePrincipalSecret, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize fdpo auth: %v", err)
 	}
 
 	accountKey, err := GetStorageAccountKey(
@@ -116,6 +122,7 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 
 	return &Auth{
 		Cred:                                   cred,
+		FdpoCredential:                         fdpoCredential,
 		StorageAccountKey:                      accountKey,
 		ActlabsServersTableClient:              actlabsServersTableClient,
 		ActlabsReadinessTableClient:            actlabsReadinessTableClient,
