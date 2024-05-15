@@ -1,6 +1,7 @@
 #!/bin/bash
 
 ACTLABS_SP_APP_ID="00399ddd-434c-4b8a-84be-d096cff4f494"
+ACTLABS_FDPO_SP_APP_ID="50cc6d33-3224-477f-b2bd-5c1c6595fdf5"
 ACTLABS_MSI_APP_ID="bee16ca1-a401-40ee-bb6a-34349ebd993e"
 RESOURCE_GROUP="repro-project"
 
@@ -73,8 +74,9 @@ get_upn() {
 
   # drop the domain name from the upn
   if [[ "${UPN}" == *"fdpo.onmicrosoft.com"* ]]; then
-    # USER_ALIAS=${UPN%%_*}
-    handle_error "We currently do not support Microsoft Non-Prod Tenant. Please reach out to the team for support."
+    ACTLABS_SP_APP_ID=${ACTLABS_FDPO_SP_APP_ID}
+    USER_ALIAS=${UPN%%_*}
+    # handle_error "We currently do not support Microsoft Non-Prod Tenant. Please reach out to the team for support."
   else
     USER_ALIAS=${UPN%%@*}
   fi
