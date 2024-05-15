@@ -76,11 +76,11 @@ get_upn() {
   if [[ "${UPN}" == *"fdpo.onmicrosoft.com"* ]]; then
     ACTLABS_SP_APP_ID=${ACTLABS_FDPO_SP_APP_ID}
     USER_ALIAS=${UPN%%_*}
-    isfdpo=true
+    is_fdpo=true
     # handle_error "We currently do not support Microsoft Non-Prod Tenant. Please reach out to the team for support."
   else
     USER_ALIAS=${UPN%%@*}
-    isfdpo=false
+    is_fdpo=false
   fi
   log "USER_ALIAS: $USER_ALIAS"
 
@@ -389,7 +389,7 @@ if [[ "${is_owner}" == true ]]; then
   assign_contributor_role
   assign_user_access_administrator_role
   assign_storage_blob_data_contributor_role
-  if [[ "${isfdpo}" == false ]]; then
+  if [[ "${is_fdpo}" == false ]]; then
     assign_actlabs_msi_contributor_role
     assign_actlabs_msi_reader_role
   fi
