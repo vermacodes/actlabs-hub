@@ -74,6 +74,7 @@ get_upn() {
 
   # drop the domain name from the upn
   if [[ "${UPN}" == *"fdpo.onmicrosoft.com"* ]]; then
+    log "FDPO Tenant"
     ACTLABS_SP_APP_ID=${ACTLABS_FDPO_SP_APP_ID}
     USER_ALIAS=${UPN%%_*}
     is_fdpo=true
