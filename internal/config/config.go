@@ -56,7 +56,7 @@ type Config struct {
 	ActlabsServerFdpoServicePrincipalClientId                string
 	ActlabsServerFdpoServicePrincipalObjectId                string
 	ActlabsServerFdpoServicePrincipalSecret                  string
-	ActlabsServerFdpoTenantID                                string
+	FdpoTenantID                                             string
 	ActlabsServerFdpoSubscriptionID                          string
 	ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL string
 	ActlabsServerFdpoManagedIdentityResourceId               string
@@ -132,9 +132,9 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_SERVER_FDPO_SERVICE_PRINCIPAL_SECRET not set")
 	}
 
-	actlabsServerFdpoTenantID := getEnv("ACTLABS_SERVER_FDPO_TENANT_ID")
-	if actlabsServerFdpoTenantID == "" {
-		return nil, fmt.Errorf("ACTLABS_SERVER_FDPO_TENANT_ID not set")
+	fdpoTenantID := getEnv("FDPO_TENANT_ID")
+	if fdpoTenantID == "" {
+		return nil, fmt.Errorf("FDPO_TENANT_ID not set")
 	}
 
 	ActlabsServerFdpoSubscriptionID := getEnv("ACTLABS_SERVER_FDPO_SUBSCRIPTION_ID")
@@ -376,7 +376,7 @@ func NewConfig() (*Config, error) {
 		ActlabsServerFdpoServicePrincipalClientId:                actlabsServerFdpoServicePrincipalClientId,
 		ActlabsServerFdpoServicePrincipalObjectId:                actlabsServerFdpoServicePrincipalObjectId,
 		ActlabsServerFdpoServicePrincipalSecret:                  actlabsServerFdpoServicePrincipalSecret,
-		ActlabsServerFdpoTenantID:                                actlabsServerFdpoTenantID,
+		FdpoTenantID:                                             fdpoTenantID,
 		ActlabsServerFdpoSubscriptionID:                          ActlabsServerFdpoSubscriptionID,
 		ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL: actlabsServerFdpoServicePrincipalClientSecretKeyvaultURL,
 		ActlabsServerFdpoManagedIdentityResourceId:               actlabsServerFdpoManagedIdentityResourceId,

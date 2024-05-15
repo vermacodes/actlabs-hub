@@ -207,167 +207,10 @@ func (s *serverRepository) GetClientStorageAccountKey(server entity.Server) (str
 }
 
 func (s *serverRepository) DeployServer(server entity.Server) (entity.Server, error) {
-	if server.Version == "V2" {
+	if server.Version == "V2" || server.Version == "V3" {
 		return s.DeployAzureContainerApp(server)
 	}
-	if server.Version == "V3" {
-		return s.DeployAzureContainerAppFDPO(server)
-	}
 	return s.DeployAzureContainerGroup(server)
-}
-
-func (s *serverRepository) DeployAzureContainerAppFDPO(server entity.Server) (entity.Server, error) {
-
-	ctx := context.Background()
-
-	// managedEnvironmentId, err := s.GetNextManagedEnvironmentId(server)
-	// if err != nil {
-	// 	return server, err
-	// }
-
-	managedEnvironmentId := "/subscriptions/c2266a55-3f3e-4ff9-be04-66312926819d/resourceGroups/actlabs-servers/providers/Microsoft.App/managedEnvironments/actlabs-servers-env-01"
-
-	clientFactory, err := armappcontainers.NewClientFactory(s.appConfig.ActlabsHubSubscriptionID, s.auth.Cred, nil)
-	if err != nil {
-		slog.Debug("failed to create client:",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-		return server, err
-	}
-
-	poller, err := clientFactory.NewContainerAppsClient().BeginCreateOrUpdate(ctx, s.appConfig.ActlabsServerResourceGroup, server.UserAlias+"-app", armappcontainers.ContainerApp{
-		Location: to.Ptr("eastus"),
-		Identity: &armappcontainers.ManagedServiceIdentity{
-			Type: to.Ptr(armappcontainers.ManagedServiceIdentityTypeUserAssigned),
-			UserAssignedIdentities: map[string]*armappcontainers.UserAssignedIdentity{
-				s.appConfig.ActlabsHubManagedIdentityResourceId: {},
-			},
-		},
-		Properties: &armappcontainers.ContainerAppProperties{
-			ManagedEnvironmentID: to.Ptr(managedEnvironmentId),
-			Configuration: &armappcontainers.Configuration{
-				Ingress: &armappcontainers.Ingress{
-					External:   to.Ptr(true),
-					TargetPort: to.Ptr(int32(s.appConfig.ActlabsServerPort)),
-				},
-				Secrets: []*armappcontainers.Secret{
-					{
-						Name:  to.Ptr("azure-client-id"),
-						Value: &s.appConfig.ActlabsServerFdpoServicePrincipalClientId,
-					},
-					{
-						Name:        to.Ptr("azure-client-secret"),
-						KeyVaultURL: to.Ptr(s.appConfig.ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL),
-						Identity:    to.Ptr(s.appConfig.ActlabsHubManagedIdentityResourceId),
-					},
-				},
-			},
-			Template: &armappcontainers.Template{
-				Scale: &armappcontainers.Scale{
-					MaxReplicas: to.Ptr(int32(1)),
-					MinReplicas: to.Ptr(int32(1)),
-				},
-				Containers: []*armappcontainers.Container{
-					{
-						Name:  to.Ptr("actlabs"),
-						Image: to.Ptr(s.appConfig.ActlabsServerImage),
-
-						Env: []*armappcontainers.EnvironmentVar{
-							{
-								Name:  to.Ptr("USE_SERVICE_PRINCIPAL"),
-								Value: to.Ptr("true"),
-							},
-							{
-								Name:  to.Ptr("ARM_USE_MSI"),
-								Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
-							},
-							{
-								Name:  to.Ptr("USE_MSI"),
-								Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
-							},
-							{
-								Name:  to.Ptr("ACTLABS_HUB_URL"),
-								Value: to.Ptr(s.appConfig.ActlabsHubURL),
-							},
-							{
-								Name:  to.Ptr("PORT"),
-								Value: to.Ptr(strconv.Itoa(int(s.appConfig.ActlabsServerPort))),
-							},
-							{
-								Name:  to.Ptr("ROOT_DIR"),
-								Value: to.Ptr(s.appConfig.ActlabsServerRootDir),
-							},
-							{
-								Name:      to.Ptr("AZURE_CLIENT_ID"), // https://github.com/microsoft/azure-container-apps/issues/442
-								SecretRef: to.Ptr("azure-client-id"),
-							},
-							{
-								Name:      to.Ptr("AZURE_CLIENT_SECRET"),
-								SecretRef: to.Ptr("azure-client-secret"),
-							},
-							{
-								Name:  to.Ptr("AZURE_TENANT_ID"),
-								Value: to.Ptr(s.appConfig.ActlabsServerFdpoTenantID),
-							},
-							{
-								Name:  to.Ptr("ARM_SUBSCRIPTION_ID"),
-								Value: &server.SubscriptionId,
-							},
-							{
-								Name:  to.Ptr("AZURE_SUBSCRIPTION_ID"),
-								Value: &server.SubscriptionId,
-							},
-							{
-								Name:  to.Ptr("ARM_TENANT_ID"),
-								Value: to.Ptr(s.appConfig.ActlabsServerFdpoTenantID),
-							},
-							{
-								Name:  to.Ptr("ARM_USER_PRINCIPAL_NAME"),
-								Value: to.Ptr(server.UserPrincipalName),
-							},
-							{
-								Name:  to.Ptr("LOG_LEVEL"),
-								Value: to.Ptr(server.LogLevel),
-							},
-							{
-								Name:  to.Ptr("AUTH_TOKEN_ISS"),
-								Value: to.Ptr(s.appConfig.AuthTokenIss),
-							},
-							{
-								Name:  to.Ptr("AUTH_TOKEN_AUD"),
-								Value: to.Ptr(s.appConfig.AuthTokenAud),
-							},
-						},
-					},
-				},
-			},
-		},
-	}, nil)
-	if err != nil {
-		slog.Debug("failed to finish the request:",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-		return server, err
-	}
-
-	resp, err := poller.PollUntilDone(ctx, nil)
-	if err != nil {
-		slog.Debug("failed to pull the result:",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-		return server, err
-	}
-
-	server.Endpoint = *resp.Properties.Configuration.Ingress.Fqdn
-	server.Status = s.ParseServerStatus(string(*resp.Properties.ProvisioningState))
-
-	return server, nil
 }
 
 func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity.Server, error) {
@@ -389,6 +232,16 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 		return server, err
 	}
 
+	servicePrincipalClientID := s.appConfig.ActlabsServerServicePrincipalClientId
+	servicePrincipalClientSecretKeyvaultURL := s.appConfig.ActlabsServerServicePrincipalClientSecretKeyvaultURL
+	tenantID := s.appConfig.TenantID
+
+	if server.Version == "V3" {
+		servicePrincipalClientID = s.appConfig.ActlabsServerFdpoServicePrincipalClientId
+		servicePrincipalClientSecretKeyvaultURL = s.appConfig.ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL
+		tenantID = s.appConfig.FdpoTenantID
+	}
+
 	poller, err := clientFactory.NewContainerAppsClient().BeginCreateOrUpdate(ctx, s.appConfig.ActlabsServerResourceGroup, server.UserAlias+"-app", armappcontainers.ContainerApp{
 		Location: to.Ptr("eastus"),
 		Identity: &armappcontainers.ManagedServiceIdentity{
@@ -407,11 +260,11 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 				Secrets: []*armappcontainers.Secret{
 					{
 						Name:  to.Ptr("azure-client-id"),
-						Value: &s.appConfig.ActlabsServerServicePrincipalClientId,
+						Value: &servicePrincipalClientID,
 					},
 					{
 						Name:        to.Ptr("azure-client-secret"),
-						KeyVaultURL: to.Ptr(s.appConfig.ActlabsServerServicePrincipalClientSecretKeyvaultURL),
+						KeyVaultURL: to.Ptr(servicePrincipalClientSecretKeyvaultURL),
 						Identity:    to.Ptr(s.appConfig.ActlabsHubManagedIdentityResourceId),
 					},
 				},
@@ -461,7 +314,7 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 							},
 							{
 								Name:  to.Ptr("AZURE_TENANT_ID"),
-								Value: to.Ptr(s.appConfig.TenantID),
+								Value: to.Ptr(tenantID),
 							},
 							{
 								Name:  to.Ptr("ARM_SUBSCRIPTION_ID"),
@@ -473,7 +326,7 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 							},
 							{
 								Name:  to.Ptr("ARM_TENANT_ID"),
-								Value: to.Ptr(s.appConfig.TenantID),
+								Value: to.Ptr(tenantID),
 							},
 							{
 								Name:  to.Ptr("ARM_USER_PRINCIPAL_NAME"),
@@ -903,48 +756,8 @@ func (s *serverRepository) DestroyServer(server entity.Server) error {
 	if server.Version == "V2" || server.Version == "V3" {
 		return s.DestroyAzureContainerApp(server)
 	}
-	// if server.Version == "V3" {
-	// 	return s.DestroyAzureContainerAppFDPO(server)
-	// }
 	return s.DestroyAzureContainerGroup(server)
 }
-
-// func (s *serverRepository) DestroyAzureContainerAppFDPO(server entity.Server) error {
-
-// 	ctx := context.Background()
-
-// 	clientFactory, err := armappcontainers.NewClientFactory(s.appConfig.ActlabsServerFdpoSubscriptionID, s.auth.FdpoCredential, nil)
-// 	if err != nil {
-// 		slog.Debug("failed to create client:",
-// 			slog.String("userPrincipalName", server.UserPrincipalName),
-// 			slog.String("subscriptionId", server.SubscriptionId),
-// 			slog.String("error", err.Error()),
-// 		)
-// 		return err
-// 	}
-
-// 	poller, err := clientFactory.NewContainerAppsClient().BeginDelete(ctx, s.appConfig.ActlabsServerResourceGroup, server.UserAlias+"-app", nil)
-// 	if err != nil {
-// 		slog.Debug("failed to finish the request:",
-// 			slog.String("userPrincipalName", server.UserPrincipalName),
-// 			slog.String("subscriptionId", server.SubscriptionId),
-// 			slog.String("error", err.Error()),
-// 		)
-// 		return err
-// 	}
-
-// 	_, err = poller.PollUntilDone(ctx, nil)
-// 	if err != nil {
-// 		slog.Debug("failed to pull the result:",
-// 			slog.String("userPrincipalName", server.UserPrincipalName),
-// 			slog.String("subscriptionId", server.SubscriptionId),
-// 			slog.String("error", err.Error()),
-// 		)
-// 		return err
-// 	}
-
-// 	return nil
-// }
 
 func (s *serverRepository) DestroyAzureContainerApp(server entity.Server) error {
 
@@ -1387,18 +1200,6 @@ func (s *serverRepository) GetNextManagedEnvironmentId(server entity.Server) (st
 		)
 		return "", err
 	}
-
-	// if server.Version == "V3" {
-	// 	clientFactory, err = armappcontainers.NewClientFactory(s.appConfig.ActlabsServerFdpoSubscriptionID, s.auth.FdpoCredential, nil)
-	// 	if err != nil {
-	// 		slog.Debug("failed to create client:",
-	// 			slog.String("userPrincipalName", server.UserPrincipalName),
-	// 			slog.String("subscriptionId", server.SubscriptionId),
-	// 			slog.String("error", err.Error()),
-	// 		)
-	// 		return "", err
-	// 	}
-	// }
 
 	pager := clientFactory.NewManagedEnvironmentsClient().NewListByResourceGroupPager(s.appConfig.ActlabsServerResourceGroup, nil)
 	for pager.More() {

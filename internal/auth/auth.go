@@ -42,7 +42,7 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 		}
 	}
 
-	fdpoCredential, err := azidentity.NewClientSecretCredential(appConfig.ActlabsServerFdpoTenantID, appConfig.ActlabsServerFdpoServicePrincipalClientId, appConfig.ActlabsServerFdpoServicePrincipalSecret, nil)
+	fdpoCredential, err := azidentity.NewClientSecretCredential(appConfig.FdpoTenantID, appConfig.ActlabsServerFdpoServicePrincipalClientId, appConfig.ActlabsServerFdpoServicePrincipalSecret, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize fdpo auth: %v", err)
 	}
