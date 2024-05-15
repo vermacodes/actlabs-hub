@@ -78,10 +78,12 @@ get_upn() {
     ACTLABS_SP_APP_ID=${ACTLABS_FDPO_SP_APP_ID}
     USER_ALIAS=${UPN%%_*}
     is_fdpo=true
+    ENV="fdpo"
     # handle_error "We currently do not support Microsoft Non-Prod Tenant. Please reach out to the team for support."
   else
     USER_ALIAS=${UPN%%@*}
     is_fdpo=false
+    ENV="prod"
   fi
   log "USER_ALIAS: $USER_ALIAS"
 
@@ -359,7 +361,7 @@ function register_subscription() {
   log "registering subscription with the lab"
 
   OUTPUT=$(curl -X PUT \
-    https://actlabs-hub-capp-beta.redisland-ff4b63ab.eastus.azurecontainerapps.io/arm/server/register/${SUBSCRIPTION_ID} \
+    https://actlabs-hub-capp-beta.redisland-ff4b63ab.eastus.azurecontainerapps.io/arm/server/register/${ENV}/${SUBSCRIPTION_ID} \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer ${ACCESS_TOKEN}" \
     -w "\n%{http_code}")
