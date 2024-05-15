@@ -57,9 +57,7 @@ type Config struct {
 	ActlabsServerFdpoServicePrincipalObjectId                string
 	ActlabsServerFdpoServicePrincipalSecret                  string
 	FdpoTenantID                                             string
-	ActlabsServerFdpoSubscriptionID                          string
 	ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL string
-	ActlabsServerFdpoManagedIdentityResourceId               string
 	ActlabsHubUseMsi                                         bool
 	// Add other configuration fields as needed
 }
@@ -137,19 +135,9 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("FDPO_TENANT_ID not set")
 	}
 
-	ActlabsServerFdpoSubscriptionID := getEnv("ACTLABS_SERVER_FDPO_SUBSCRIPTION_ID")
-	if ActlabsServerFdpoSubscriptionID == "" {
-		return nil, fmt.Errorf("ACTLABS_SERVER_FDPO_SUBSCRIPTION_ID not set")
-	}
-
 	actlabsServerFdpoServicePrincipalClientSecretKeyvaultURL := getEnv("ACTLABS_SERVER_FDPO_SERVICE_PRINCIPAL_CLIENT_SECRET_KEYVAULT_URL")
 	if actlabsServerFdpoServicePrincipalClientSecretKeyvaultURL == "" {
 		return nil, fmt.Errorf("ACTLABS_SERVER_FDPO_SERVICE_PRINCIPAL_CLIENT_SECRET_KEYVAULT_URL not set")
-	}
-
-	actlabsServerFdpoManagedIdentityResourceId := getEnv("ACTLABS_SERVER_FDPO_MANAGED_IDENTITY_RESOURCE_ID")
-	if actlabsServerFdpoManagedIdentityResourceId == "" {
-		return nil, fmt.Errorf("ACTLABS_SERVER_FDPO_MANAGED_IDENTITY_RESOURCE_ID not set")
 	}
 
 	actlabsHubUseMsi, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_HUB_USE_MSI", "false"))
@@ -377,9 +365,7 @@ func NewConfig() (*Config, error) {
 		ActlabsServerFdpoServicePrincipalObjectId:                actlabsServerFdpoServicePrincipalObjectId,
 		ActlabsServerFdpoServicePrincipalSecret:                  actlabsServerFdpoServicePrincipalSecret,
 		FdpoTenantID:                                             fdpoTenantID,
-		ActlabsServerFdpoSubscriptionID:                          ActlabsServerFdpoSubscriptionID,
 		ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL: actlabsServerFdpoServicePrincipalClientSecretKeyvaultURL,
-		ActlabsServerFdpoManagedIdentityResourceId:               actlabsServerFdpoManagedIdentityResourceId,
 		ActlabsHubUseMsi:                                         actlabsHubUseMsi,
 		// Set other fields
 	}, nil
