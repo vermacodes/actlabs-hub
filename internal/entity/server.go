@@ -40,6 +40,7 @@ type Server struct {
 	ManagedIdentityClientId     string       `json:"managedIdentityClientId"`
 	ManagedIdentityPrincipalId  string       `json:"managedIdentityPrincipalId"`
 	SubscriptionId              string       `json:"subscriptionId"`
+	TenantID                    string       `json:"tenantId"`
 	ResourceGroup               string       `json:"resourceGroup"`
 	LogLevel                    string       `json:"logLevel"`
 	LastUserActivityTime        string       `json:"lastActivityTime"`
@@ -56,7 +57,7 @@ type ManagedServerActionStatus struct {
 }
 
 type ServerService interface {
-	RegisterSubscription(subscriptionId string, userPrincipalName string, userPrincipalId string) error
+	RegisterSubscription(server Server) error
 	Unregister(ctx context.Context, userPrincipalName string) error
 
 	UpdateServer(server Server) error // just updates in db. used to set flags like autoDestroy, autoCreate, etc.
