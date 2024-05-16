@@ -70,6 +70,8 @@ handle_error() {
 # Function to get upn of the logged in user
 get_upn() {
   UPN=$(az ad signed-in-user show --query userPrincipalName -o tsv)
+  USER_PRINCIPAL_ID=$(az ad signed-in-user show --query id -o tsv)
+  TENANT_ID=$(az account show --query tenantId -o tsv)
   log "UPN: $UPN"
 
   # drop the domain name from the upn
@@ -364,7 +366,15 @@ function register_subscription() {
     https://actlabs-hub-capp-beta.redisland-ff4b63ab.eastus.azurecontainerapps.io/arm/server/register/${ENV}/${SUBSCRIPTION_ID} \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+    -d '{
+        "userAlias": "'"${USER_ALIAS}"'",
+        "userPrincipalId": "'"${USER_PRINCIPAL_ID}"'",
+        "subscriptionId": "'"${SUBSCRIPTION_ID}"'",
+        "tenantId": "'"${TENANT_ID}"'"
+      }' \
     -w "\n%{http_code}")
+
+  log "Output: $OUTPUT"
 
   HTTP_STATUS="${OUTPUT:(-3)}"
 
