@@ -237,8 +237,8 @@ func VerifyArmToken(tokenString string) (bool, error) {
 		return false, errors.New("not able to get issuer from claims")
 	}
 
-	if iss != "https://sts.windows.net/"+os.Getenv("TENANT_ID")+"/" {
-		return false, errors.New("unexpected issuer, expected https://sts.windows.net/" + os.Getenv("TENANT_ID") + "/ but got " + iss)
+	if iss != "https://sts.windows.net/"+os.Getenv("TENANT_ID")+"/" && iss != "https://sts.windows.net/"+os.Getenv("FDPO_TENANT_ID")+"/" {
+		return false, errors.New("unexpected issuer, expected https://sts.windows.net/" + os.Getenv("TENANT_ID") + "/ or https://sts.windows.net/" + os.Getenv("FDPO_TENANT_ID") + "/ but got " + iss)
 	}
 
 	// Check the expiration time

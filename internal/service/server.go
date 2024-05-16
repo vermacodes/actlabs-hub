@@ -33,29 +33,45 @@ func NewServerService(
 	}
 }
 
-func (s *serverService) RegisterSubscription(subscriptionId string, userPrincipalName string, userPrincipalId string) error {
-	server := entity.Server{
-		PartitionKey:      "actlabs",
-		RowKey:            userPrincipalName,
-		SubscriptionId:    subscriptionId,
-		UserPrincipalId:   userPrincipalId,
-		UserPrincipalName: userPrincipalName,
-		Version:           "V2",
+func (s *serverService) RegisterSubscription(server entity.Server) error {
+	// server := entity.Server{
+	// 	PartitionKey:      "actlabs",
+	// 	RowKey:            userPrincipalName,
+	// 	SubscriptionId:    subscriptionId,
+	// 	UserPrincipalId:   userPrincipalId,
+	// 	UserPrincipalName: userPrincipalName,
+	// 	Version:           "V2",
+	// 	Region:            "eastus",
+	// }
+	server.UserPrincipalName = server.UserAlias + "@microsoft.com"
+	server.PartitionKey = "actlabs"
+	server.RowKey = server.UserPrincipalName
+	server.Version = "V2"
+	server.Region = "eastus"
+
+	// if tenant is fdpo, set version to V3.
+	// set FdpoUserPrincipalId to userPrincipalId.
+	// set UserPrincipalId to empty.
+	if server.TenantID == s.appConfig.FdpoTenantID {
+		server.Version = "V3"
+		server.FdpoUserPrincipalId = server.UserPrincipalId
+		server.UserPrincipalId = ""
 	}
 
 	s.ServerDefaults(&server) // Set defaults.
 
+	// All deployments are being done in East US.
 	// get resource group region.
-	region, err := s.serverRepository.GetResourceGroupRegion(context.TODO(), server)
-	if err != nil {
-		slog.Error("error getting resource group region",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-		return fmt.Errorf("error getting resource group region. is it deployed?")
-	}
-	server.Region = region
+	// region, err := s.serverRepository.GetResourceGroupRegion(context.TODO(), server)
+	// if err != nil {
+	// 	slog.Error("error getting resource group region",
+	// 		slog.String("userPrincipalName", server.UserPrincipalName),
+	// 		slog.String("subscriptionId", server.SubscriptionId),
+	// 		slog.String("error", err.Error()),
+	// 	)
+	// 	return fmt.Errorf("error getting resource group region. is it deployed?")
+	// }
+	// server.Region = region
 
 	if err := s.Validate(server); err != nil { // Validate object. handles logging.
 		return err
@@ -489,8 +505,14 @@ func (s *serverService) FailedServerDeployment(server entity.Server) error {
 }
 
 func (s *serverService) Validate(server entity.Server) error {
-	if server.UserPrincipalName == "" || server.UserPrincipalId == "" || server.SubscriptionId == "" {
-		return errors.New("userPrincipalName, userPrincipalId, and subscriptionId are all required")
+	if server.UserPrincipalName == "" || (server.UserPrincipalId == "" && server.FdpoUserPrincipalId == "") || server.SubscriptionId == "" {
+		slog.Error("Server validation failed. userPrincipalName, userPrincipalId or FdpoUserPrincipalId, and subscriptionId are all required",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("userPrincipalId", server.UserPrincipalId),
+			slog.String("FdpoUserPrincipalId", server.FdpoUserPrincipalId),
+			slog.String("subscriptionId", server.SubscriptionId),
+		)
+		return errors.New("userPrincipalName, userPrincipalId or FdpoUserPrincipalId, and subscriptionId are all required")
 	}
 
 	if server.UserAlias == "" {
