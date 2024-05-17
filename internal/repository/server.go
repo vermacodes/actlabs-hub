@@ -72,6 +72,12 @@ func (s *serverRepository) GetAzureContainerGroup(server entity.Server) (entity.
 }
 
 func (s *serverRepository) GetUserAssignedManagedIdentity(server entity.Server) (entity.Server, error) {
+
+	// Not needed in V3 servers.
+	if server.Version == "V3" {
+		return server, nil
+	}
+
 	ctx := context.Background()
 	clientFactory, err := armmsi.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
 	if err != nil {
@@ -201,7 +207,7 @@ func (s *serverRepository) GetClientStorageAccountKey(server entity.Server) (str
 }
 
 func (s *serverRepository) DeployServer(server entity.Server) (entity.Server, error) {
-	if server.Version == "V2" {
+	if server.Version == "V2" || server.Version == "V3" {
 		return s.DeployAzureContainerApp(server)
 	}
 	return s.DeployAzureContainerGroup(server)
@@ -226,6 +232,16 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 		return server, err
 	}
 
+	servicePrincipalClientID := s.appConfig.ActlabsServerServicePrincipalClientId
+	servicePrincipalClientSecretKeyvaultURL := s.appConfig.ActlabsServerServicePrincipalClientSecretKeyvaultURL
+	tenantID := s.appConfig.TenantID
+
+	if server.Version == "V3" {
+		servicePrincipalClientID = s.appConfig.ActlabsServerFdpoServicePrincipalClientId
+		servicePrincipalClientSecretKeyvaultURL = s.appConfig.ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL
+		tenantID = s.appConfig.FdpoTenantID
+	}
+
 	poller, err := clientFactory.NewContainerAppsClient().BeginCreateOrUpdate(ctx, s.appConfig.ActlabsServerResourceGroup, server.UserAlias+"-app", armappcontainers.ContainerApp{
 		Location: to.Ptr("eastus"),
 		Identity: &armappcontainers.ManagedServiceIdentity{
@@ -244,11 +260,11 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 				Secrets: []*armappcontainers.Secret{
 					{
 						Name:  to.Ptr("azure-client-id"),
-						Value: &s.appConfig.ActlabsServerServicePrincipalClientId,
+						Value: &servicePrincipalClientID,
 					},
 					{
 						Name:        to.Ptr("azure-client-secret"),
-						KeyVaultURL: to.Ptr(s.appConfig.ActlabsServerServicePrincipalClientSecretKeyvaultURL),
+						KeyVaultURL: to.Ptr(servicePrincipalClientSecretKeyvaultURL),
 						Identity:    to.Ptr(s.appConfig.ActlabsHubManagedIdentityResourceId),
 					},
 				},
@@ -298,7 +314,7 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 							},
 							{
 								Name:  to.Ptr("AZURE_TENANT_ID"),
-								Value: to.Ptr(s.appConfig.TenantID),
+								Value: to.Ptr(tenantID),
 							},
 							{
 								Name:  to.Ptr("ARM_SUBSCRIPTION_ID"),
@@ -310,7 +326,7 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 							},
 							{
 								Name:  to.Ptr("ARM_TENANT_ID"),
-								Value: to.Ptr(s.appConfig.TenantID),
+								Value: to.Ptr(tenantID),
 							},
 							{
 								Name:  to.Ptr("ARM_USER_PRINCIPAL_NAME"),
@@ -737,7 +753,7 @@ func (s *serverRepository) DestroyServer(server entity.Server) error {
 		return err
 	}
 
-	if server.Version == "V2" {
+	if server.Version == "V2" || server.Version == "V3" {
 		return s.DestroyAzureContainerApp(server)
 	}
 	return s.DestroyAzureContainerGroup(server)
@@ -784,7 +800,12 @@ func (s *serverRepository) DestroyAzureContainerGroup(server entity.Server) erro
 
 	ctx := context.Background()
 
-	clientFactory, err := armcontainerinstance.NewContainerGroupsClient(server.SubscriptionId, s.auth.Cred, nil)
+	cred := s.auth.Cred
+	if server.Version == "V3" {
+		cred = s.auth.FdpoCredential
+	}
+
+	clientFactory, err := armcontainerinstance.NewContainerGroupsClient(server.SubscriptionId, cred, nil)
 	if err != nil {
 		slog.Debug("failed to create client:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
@@ -873,7 +894,20 @@ func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) 
 		return false, err
 	}
 
-	filter := "assignedTo('" + server.UserPrincipalId + "')"
+	userPrincipalId := server.UserPrincipalId
+
+	// Updates for FDPO Environments.
+	// The userPrincipalId is different for FDPO environments. This is the object ID in new tenant.
+	// The FDPO Credentials are different from the normal credentials.
+	if server.Version == "V3" {
+		userPrincipalId = server.FdpoUserPrincipalId
+		clientFactory, err = armauthorization.NewClientFactory(server.SubscriptionId, s.auth.FdpoCredential, nil)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	filter := "assignedTo('" + userPrincipalId + "')"
 
 	pager := clientFactory.NewRoleAssignmentsClient().NewListForSubscriptionPager(&armauthorization.RoleAssignmentsClientListForSubscriptionOptions{
 		Filter:   &filter,
@@ -889,7 +923,7 @@ func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) 
 			ownerRoleDefinitionID := "/subscriptions/" + server.SubscriptionId + "/providers" + entity.OwnerRoleDefinitionId
 			contributorRoleDefinitionID := "/subscriptions/" + server.SubscriptionId + "/providers" + entity.ContributorRoleDefinitionId
 
-			if *roleAssignment.Properties.PrincipalID == server.UserPrincipalId &&
+			if *roleAssignment.Properties.PrincipalID == userPrincipalId &&
 				*roleAssignment.Properties.Scope == "/subscriptions/"+server.SubscriptionId {
 				if *roleAssignment.Properties.RoleDefinitionID == ownerRoleDefinitionID {
 					return true, nil
@@ -1062,7 +1096,13 @@ func (s *serverRepository) GetResourceGroupRegion(ctx context.Context, server en
 }
 
 func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entity.Server) error {
-	clientFactory, err := armresources.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+
+	cred := s.auth.Cred
+	if server.Version == "V3" {
+		cred = s.auth.FdpoCredential
+	}
+
+	clientFactory, err := armresources.NewClientFactory(server.SubscriptionId, cred, nil)
 	if err != nil {
 		slog.Debug("failed to create client factory to delete resource group",
 			slog.String("userPrincipalName", server.UserPrincipalName),
@@ -1099,7 +1139,12 @@ func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entit
 
 func (s *serverRepository) DeleteStorageAccount(ctx context.Context, server entity.Server) error {
 
-	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+	cred := s.auth.Cred
+	if server.Version == "V3" {
+		cred = s.auth.FdpoCredential
+	}
+
+	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, cred, nil)
 	if err != nil {
 		slog.Debug("not able to create client factory to get storage account",
 			slog.String("userPrincipalName", server.UserPrincipalName),

@@ -3,6 +3,7 @@ package handler
 import (
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/entity"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -41,28 +42,54 @@ func NewServerHandlerArmToken(r *gin.RouterGroup, serverService entity.ServerSer
 		serverService: serverService,
 	}
 
-	r.PUT("/arm/server/register/:subscriptionId", handler.RegisterSubscription)
+	r.PUT("/arm/server/register", handler.RegisterSubscription)
 }
 
 func (h *serverHandler) RegisterSubscription(c *gin.Context) {
-	subscriptionId := c.Param("subscriptionId")
-	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
+	server := entity.Server{}
+	if err := c.ShouldBindJSON(&server); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid object"})
+		return
 	}
 
-	userPrincipalId, err := auth.GetUserObjectIdFromToken(c.GetHeader("Authorization"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
-	}
+	// userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
+	// }
 
-	if err := h.serverService.RegisterSubscription(subscriptionId, userPrincipalName, userPrincipalId); err != nil {
+	// userPrincipalId, err := auth.GetUserObjectIdFromToken(c.GetHeader("Authorization"))
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
+	// }
+
+	if err := h.serverService.RegisterSubscription(server); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(200, gin.H{"status": "success"})
 }
+
+// func (h *serverHandler) RegisterSubscription(c *gin.Context) {
+// 	tenant := c.Param("tenant")
+// 	subscriptionId := c.Param("subscriptionId")
+// 	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
+// 	if err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
+// 	}
+
+// 	userPrincipalId, err := auth.GetUserObjectIdFromToken(c.GetHeader("Authorization"))
+// 	if err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
+// 	}
+
+// 	if err := h.serverService.RegisterSubscription(subscriptionId, userPrincipalName, userPrincipalId, tenant); err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+// 		return
+// 	}
+
+// 	c.JSON(200, gin.H{"status": "success"})
+// }
 
 func (h *serverHandler) Unregister(c *gin.Context) {
 	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
@@ -131,7 +158,23 @@ func (h *serverHandler) DeployServer(c *gin.Context) {
 		return
 	}
 
+	if server.UserPrincipalId == "" {
+		slog.Info("UserPrincipalId not found in request, getting from token")
+		userPrincipalId, err := auth.GetUserObjectIdFromToken(c.GetHeader("Authorization"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
+		}
+		server.UserPrincipalId = userPrincipalId
+
+		// Updating server if user principal id is not present to record the user principal id
+		if err := h.serverService.UpdateServer(server); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	if !auth.VerifyUserObjectId(server.UserPrincipalId, c.GetHeader("Authorization")) {
+		slog.Error("UserPrincipalId does not match token")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid request"})
 		return
 	}
