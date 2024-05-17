@@ -45,7 +45,7 @@ func ARMTokenAuth(appConfig *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		slog.Debug("ARMTokenAuth Middleware")
 
-		// If request path includes /arm/server/register/ then sktip verifyProtectedLabSecretAndUserPrincipalName
+		// If request path includes /arm/server/register/ then skip verifyProtectedLabSecretAndUserPrincipalName
 		if !strings.Contains(c.Request.URL.Path, "/arm/server/register") {
 			err := verifyProtectedLabSecretAndUserPrincipalName(c, appConfig)
 			if err != nil {
