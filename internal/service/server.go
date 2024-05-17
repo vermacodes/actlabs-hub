@@ -99,29 +99,42 @@ func (s *serverService) Unregister(ctx context.Context, userPrincipalName string
 		return err
 	}
 
-	if server.Version == "V2" {
-		// delete storage account
-		if err := s.serverRepository.DeleteStorageAccount(ctx, server); err != nil {
-			slog.Error("error deleting storage account",
-				slog.String("userPrincipalName", server.UserPrincipalName),
-				slog.String("subscriptionId", server.SubscriptionId),
-				slog.String("error", err.Error()),
-			)
+	// delete resource group
+	if err := s.serverRepository.DeleteResourceGroup(ctx, server); err != nil {
+		slog.Error("error deleting resource group",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 
-			return fmt.Errorf("error deleting storage account")
-		}
-	} else {
-		// delete resource group
-		if err := s.serverRepository.DeleteResourceGroup(ctx, server); err != nil {
-			slog.Error("error deleting resource group",
-				slog.String("userPrincipalName", server.UserPrincipalName),
-				slog.String("subscriptionId", server.SubscriptionId),
-				slog.String("error", err.Error()),
-			)
-
+		if !strings.Contains(err.Error(), "ERROR CODE: ResourceGroupNotFound") {
 			return fmt.Errorf("error deleting resource group")
 		}
 	}
+
+	// if server.Version == "V2" {
+	// 	// delete storage account
+	// 	if err := s.serverRepository.DeleteStorageAccount(ctx, server); err != nil {
+	// 		slog.Error("error deleting storage account",
+	// 			slog.String("userPrincipalName", server.UserPrincipalName),
+	// 			slog.String("subscriptionId", server.SubscriptionId),
+	// 			slog.String("error", err.Error()),
+	// 		)
+
+	// 		return fmt.Errorf("error deleting storage account")
+	// 	}
+	// } else {
+	// 	// delete resource group
+	// 	if err := s.serverRepository.DeleteResourceGroup(ctx, server); err != nil {
+	// 		slog.Error("error deleting resource group",
+	// 			slog.String("userPrincipalName", server.UserPrincipalName),
+	// 			slog.String("subscriptionId", server.SubscriptionId),
+	// 			slog.String("error", err.Error()),
+	// 		)
+
+	// 		return fmt.Errorf("error deleting resource group")
+	// 	}
+	// }
 
 	// delete server from db.
 	if err := s.serverRepository.DeleteServerFromDatabase(ctx, server); err != nil {
