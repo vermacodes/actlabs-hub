@@ -1,6 +1,7 @@
 #!/bin/bash
 
 ACTLABS_SP_APP_ID="00399ddd-434c-4b8a-84be-d096cff4f494"
+ACTLABS_FDPO_SP_APP_ID="50cc6d33-3224-477f-b2bd-5c1c6595fdf5"
 ACTLABS_MSI_APP_ID="bee16ca1-a401-40ee-bb6a-34349ebd993e"
 RESOURCE_GROUP="repro-project"
 
@@ -69,14 +70,22 @@ handle_error() {
 # Function to get upn of the logged in user
 get_upn() {
   UPN=$(az ad signed-in-user show --query userPrincipalName -o tsv)
+  USER_PRINCIPAL_ID=$(az ad signed-in-user show --query id -o tsv)
+  TENANT_ID=$(az account show --query tenantId -o tsv)
   log "UPN: $UPN"
 
   # drop the domain name from the upn
   if [[ "${UPN}" == *"fdpo.onmicrosoft.com"* ]]; then
-    # USER_ALIAS=${UPN%%_*}
-    handle_error "We currently do not support Microsoft Non-Prod Tenant. Please reach out to the team for support."
+    log "FDPO Tenant"
+    ACTLABS_SP_APP_ID=${ACTLABS_FDPO_SP_APP_ID}
+    USER_ALIAS=${UPN%%_*}
+    is_fdpo=true
+    ENV="fdpo"
+    # handle_error "We currently do not support Microsoft Non-Prod Tenant. Please reach out to the team for support."
   else
     USER_ALIAS=${UPN%%@*}
+    is_fdpo=false
+    ENV="prod"
   fi
   log "USER_ALIAS: $USER_ALIAS"
 
@@ -183,6 +192,9 @@ function create_storage_account() {
     STORAGE_ACCOUNT_NAME="${USER_ALIAS_FOR_SA}sa${RANDOM_NAME}"
 
     log "creating storage account with name ${STORAGE_ACCOUNT_NAME} in resource group ${RESOURCE_GROUP}"
+
+    # Register the storage provider
+    az provider register --namespace Microsoft.Storage --consent-to-permission --wait
     # Create the storage account
     az storage account create --name "${STORAGE_ACCOUNT_NAME}" --resource-group "${RESOURCE_GROUP}" --sku Standard_LRS
     if [ $? -ne 0 ]; then
@@ -354,10 +366,18 @@ function register_subscription() {
   log "registering subscription with the lab"
 
   OUTPUT=$(curl -X PUT \
-    https://actlabs-hub-capp.redisland-ff4b63ab.eastus.azurecontainerapps.io/arm/server/register/${SUBSCRIPTION_ID} \
+    https://actlabs-hub-capp-beta.redisland-ff4b63ab.eastus.azurecontainerapps.io/arm/server/register \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+    -d '{
+        "userAlias": "'"${USER_ALIAS}"'",
+        "userPrincipalId": "'"${USER_PRINCIPAL_ID}"'",
+        "subscriptionId": "'"${SUBSCRIPTION_ID}"'",
+        "tenantId": "'"${TENANT_ID}"'"
+      }' \
     -w "\n%{http_code}")
+
+  log "Output: $OUTPUT"
 
   HTTP_STATUS="${OUTPUT:(-3)}"
 
@@ -385,7 +405,9 @@ if [[ "${is_owner}" == true ]]; then
   assign_contributor_role
   assign_user_access_administrator_role
   assign_storage_blob_data_contributor_role
-  assign_actlabs_msi_contributor_role
-  assign_actlabs_msi_reader_role
+  if [[ "${is_fdpo}" == false ]]; then
+    assign_actlabs_msi_contributor_role
+    assign_actlabs_msi_reader_role
+  fi
 fi
 register_subscription
