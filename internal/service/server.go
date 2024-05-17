@@ -1,9 +1,6 @@
 package service
 
 import (
-	"actlabs-hub/internal/config"
-	"actlabs-hub/internal/entity"
-	"actlabs-hub/internal/helper"
 	"context"
 	"errors"
 	"fmt"
@@ -13,6 +10,10 @@ import (
 	"time"
 
 	"golang.org/x/exp/slog"
+
+	"actlabs-hub/internal/config"
+	"actlabs-hub/internal/entity"
+	"actlabs-hub/internal/helper"
 )
 
 type serverService struct {
@@ -34,15 +35,6 @@ func NewServerService(
 }
 
 func (s *serverService) RegisterSubscription(server entity.Server) error {
-	// server := entity.Server{
-	// 	PartitionKey:      "actlabs",
-	// 	RowKey:            userPrincipalName,
-	// 	SubscriptionId:    subscriptionId,
-	// 	UserPrincipalId:   userPrincipalId,
-	// 	UserPrincipalName: userPrincipalName,
-	// 	Version:           "V2",
-	// 	Region:            "eastus",
-	// }
 	server.UserPrincipalName = server.UserAlias + "@microsoft.com"
 	server.PartitionKey = "actlabs"
 	server.RowKey = server.UserPrincipalName
@@ -59,19 +51,6 @@ func (s *serverService) RegisterSubscription(server entity.Server) error {
 	}
 
 	s.ServerDefaults(&server) // Set defaults.
-
-	// All deployments are being done in East US.
-	// get resource group region.
-	// region, err := s.serverRepository.GetResourceGroupRegion(context.TODO(), server)
-	// if err != nil {
-	// 	slog.Error("error getting resource group region",
-	// 		slog.String("userPrincipalName", server.UserPrincipalName),
-	// 		slog.String("subscriptionId", server.SubscriptionId),
-	// 		slog.String("error", err.Error()),
-	// 	)
-	// 	return fmt.Errorf("error getting resource group region. is it deployed?")
-	// }
-	// server.Region = region
 
 	if err := s.Validate(server); err != nil { // Validate object. handles logging.
 		return err
@@ -99,26 +78,15 @@ func (s *serverService) Unregister(ctx context.Context, userPrincipalName string
 		return err
 	}
 
-	if server.Version == "V2" {
-		// delete storage account
-		if err := s.serverRepository.DeleteStorageAccount(ctx, server); err != nil {
-			slog.Error("error deleting storage account",
-				slog.String("userPrincipalName", server.UserPrincipalName),
-				slog.String("subscriptionId", server.SubscriptionId),
-				slog.String("error", err.Error()),
-			)
+	// delete resource group
+	if err := s.serverRepository.DeleteResourceGroup(ctx, server); err != nil {
+		slog.Error("error deleting resource group",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
 
-			return fmt.Errorf("error deleting storage account")
-		}
-	} else {
-		// delete resource group
-		if err := s.serverRepository.DeleteResourceGroup(ctx, server); err != nil {
-			slog.Error("error deleting resource group",
-				slog.String("userPrincipalName", server.UserPrincipalName),
-				slog.String("subscriptionId", server.SubscriptionId),
-				slog.String("error", err.Error()),
-			)
-
+		if !strings.Contains(err.Error(), "ERROR CODE: ResourceGroupNotFound") {
 			return fmt.Errorf("error deleting resource group")
 		}
 	}
@@ -182,7 +150,8 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	}
 
 	// if server is already deployed or deploying, return.
-	if serverFromDB.Status == entity.ServerStatusDeploying || serverFromDB.Status == entity.ServerStatusRunning {
+	if serverFromDB.Status == entity.ServerStatusDeploying ||
+		serverFromDB.Status == entity.ServerStatusRunning {
 		slog.Info("server is already deployed or deploying",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
@@ -228,8 +197,12 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 			break
 		}
 
-		slog.Error("deploying server failed",
-			slog.String("backoff", strconv.FormatFloat(math.Min(math.Pow(2, float64(i))*10, 120.0), 'f', -1, 64)+"s"),
+		slog.Error(
+			"deploying server failed",
+			slog.String(
+				"backoff",
+				strconv.FormatFloat(math.Min(math.Pow(2, float64(i))*10, 120.0), 'f', -1, 64)+"s",
+			),
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("attempt", strconv.Itoa(i+1)),
@@ -238,7 +211,9 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 
 		if i < 4 { // Don't sleep after the last attempt
 			sleepDuration := math.Min(math.Pow(2, float64(i))*10, 120.0)
-			time.Sleep(time.Duration(sleepDuration) * time.Second) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 seconds
+			time.Sleep(
+				time.Duration(sleepDuration) * time.Second,
+			) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 seconds
 		}
 	}
 
@@ -263,12 +238,18 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	// convert to int
 	waitTimeSeconds, err := strconv.Atoi(s.appConfig.ActlabsServerUPWaitTimeSeconds)
 	if err != nil {
-		slog.Error("error converting ACTLABS_SERVER_UP_WAIT_TIME_SECONDS to int",
+		slog.Error(
+			"error converting ACTLABS_SERVER_UP_WAIT_TIME_SECONDS to int",
 			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("ACTLABS_SERVER_UP_WAIT_TIME_SECONDS", s.appConfig.ActlabsServerUPWaitTimeSeconds),
+			slog.String(
+				"ACTLABS_SERVER_UP_WAIT_TIME_SECONDS",
+				s.appConfig.ActlabsServerUPWaitTimeSeconds,
+			),
 			slog.String("error", err.Error()),
 		)
-		return server, fmt.Errorf("server deployment started, but not able to verify server is up and running")
+		return server, fmt.Errorf(
+			"server deployment started, but not able to verify server is up and running",
+		)
 	}
 
 	// Ensure server is up and running. check every 5 seconds for 3 minutes.
@@ -355,8 +336,12 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 			break
 		}
 
-		slog.Error("destroying server failed",
-			slog.String("backoff", strconv.FormatFloat(math.Min(math.Pow(2, float64(i))*10, 120.0), 'f', -1, 64)+"s"),
+		slog.Error(
+			"destroying server failed",
+			slog.String(
+				"backoff",
+				strconv.FormatFloat(math.Min(math.Pow(2, float64(i))*10, 120.0), 'f', -1, 64)+"s",
+			),
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("attempt", strconv.Itoa(i+1)),
@@ -365,7 +350,9 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 
 		if i < 4 { // Don't sleep after the last attempt
 			sleepDuration := math.Min(math.Pow(2, float64(i))*10, 120.0)
-			time.Sleep(time.Duration(sleepDuration) * time.Second) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 waitTimeSeconds
+			time.Sleep(
+				time.Duration(sleepDuration) * time.Second,
+			) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 waitTimeSeconds
 		}
 	}
 
@@ -459,7 +446,10 @@ func (s *serverService) GetServerFromDatabase(userPrincipalName string) (entity.
 			slog.String("userPrincipalName", userPrincipalName),
 			slog.String("error", err.Error()),
 		)
-		return server, fmt.Errorf("not able to find server for %s in database, is it registered?", userPrincipalName)
+		return server, fmt.Errorf(
+			"not able to find server for %s in database, is it registered?",
+			userPrincipalName,
+		)
 	}
 
 	return server, nil
@@ -505,14 +495,19 @@ func (s *serverService) FailedServerDeployment(server entity.Server) error {
 }
 
 func (s *serverService) Validate(server entity.Server) error {
-	if server.UserPrincipalName == "" || (server.UserPrincipalId == "" && server.FdpoUserPrincipalId == "") || server.SubscriptionId == "" {
-		slog.Error("Server validation failed. userPrincipalName, userPrincipalId or FdpoUserPrincipalId, and subscriptionId are all required",
+	if server.UserPrincipalName == "" ||
+		(server.UserPrincipalId == "" && server.FdpoUserPrincipalId == "") ||
+		server.SubscriptionId == "" {
+		slog.Error(
+			"Server validation failed. userPrincipalName, userPrincipalId or FdpoUserPrincipalId, and subscriptionId are all required",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("userPrincipalId", server.UserPrincipalId),
 			slog.String("FdpoUserPrincipalId", server.FdpoUserPrincipalId),
 			slog.String("subscriptionId", server.SubscriptionId),
 		)
-		return errors.New("userPrincipalName, userPrincipalId or FdpoUserPrincipalId, and subscriptionId are all required")
+		return errors.New(
+			"userPrincipalName, userPrincipalId or FdpoUserPrincipalId, and subscriptionId are all required",
+		)
 	}
 
 	if server.UserAlias == "" {
@@ -572,7 +567,6 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 }
 
 func (s *serverService) UserAssignedIdentity(server *entity.Server) error {
-
 	if server.Version == "V2" {
 		return nil
 	}
@@ -615,7 +609,9 @@ func (s *serverService) VerifyActlabsAccess(server *entity.Server) error {
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("serverVersion", server.Version),
 		)
-		return errors.New("actlabs does not have permissions to access subscription. Please ask Owner to register the subscription")
+		return errors.New(
+			"actlabs does not have permissions to access subscription. Please ask Owner to register the subscription",
+		)
 	}
 
 	return nil
