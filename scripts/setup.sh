@@ -192,6 +192,9 @@ function create_storage_account() {
     STORAGE_ACCOUNT_NAME="${USER_ALIAS_FOR_SA}sa${RANDOM_NAME}"
 
     log "creating storage account with name ${STORAGE_ACCOUNT_NAME} in resource group ${RESOURCE_GROUP}"
+
+    # Register the storage provider
+    az provider register --namespace Microsoft.Storage --consent-to-permission --wait
     # Create the storage account
     az storage account create --name "${STORAGE_ACCOUNT_NAME}" --resource-group "${RESOURCE_GROUP}" --sku Standard_LRS
     if [ $? -ne 0 ]; then

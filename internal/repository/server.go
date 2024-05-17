@@ -800,7 +800,12 @@ func (s *serverRepository) DestroyAzureContainerGroup(server entity.Server) erro
 
 	ctx := context.Background()
 
-	clientFactory, err := armcontainerinstance.NewContainerGroupsClient(server.SubscriptionId, s.auth.Cred, nil)
+	cred := s.auth.Cred
+	if server.Version == "V3" {
+		cred = s.auth.FdpoCredential
+	}
+
+	clientFactory, err := armcontainerinstance.NewContainerGroupsClient(server.SubscriptionId, cred, nil)
 	if err != nil {
 		slog.Debug("failed to create client:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
@@ -1091,7 +1096,13 @@ func (s *serverRepository) GetResourceGroupRegion(ctx context.Context, server en
 }
 
 func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entity.Server) error {
-	clientFactory, err := armresources.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+
+	cred := s.auth.Cred
+	if server.Version == "V3" {
+		cred = s.auth.FdpoCredential
+	}
+
+	clientFactory, err := armresources.NewClientFactory(server.SubscriptionId, cred, nil)
 	if err != nil {
 		slog.Debug("failed to create client factory to delete resource group",
 			slog.String("userPrincipalName", server.UserPrincipalName),
@@ -1128,7 +1139,12 @@ func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entit
 
 func (s *serverRepository) DeleteStorageAccount(ctx context.Context, server entity.Server) error {
 
-	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+	cred := s.auth.Cred
+	if server.Version == "V3" {
+		cred = s.auth.FdpoCredential
+	}
+
+	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, cred, nil)
 	if err != nil {
 		slog.Debug("not able to create client factory to get storage account",
 			slog.String("userPrincipalName", server.UserPrincipalName),
