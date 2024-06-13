@@ -138,6 +138,21 @@ func (h *serverHandler) UpdateServer(c *gin.Context) {
 		return
 	}
 
+	if server.UserPrincipalId == "" {
+		slog.Info("UserPrincipalId not found in request, getting from token")
+		userPrincipalId, err := auth.GetUserObjectIdFromToken(c.GetHeader("Authorization"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
+		}
+		server.UserPrincipalId = userPrincipalId
+
+		// Updating server if user principal id is not present to record the user principal id
+		if err := h.serverService.UpdateServer(server); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	if !auth.VerifyUserObjectId(server.UserPrincipalId, c.GetHeader("Authorization")) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid request"})
 		return
