@@ -247,6 +247,24 @@ func (l *labService) DeleteProtectedLab(typeOfLab string, labId string) error {
 }
 
 func (l *labService) DeleteLab(typeOfLab string, labId string) error {
+	// Delete supporting document if any.
+	lab, err := l.labRepository.GetLab(context.TODO(), typeOfLab, labId)
+	if err != nil {
+		slog.Error("not able to get lab",
+			slog.String("labId", labId),
+		)
+		return err
+	}
+
+	if lab.SupportingDocumentId != "" {
+		if err := l.DeleteSupportingDocument(context.TODO(), lab.SupportingDocumentId); err != nil {
+			slog.Error("not able to delete supporting document",
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+	}
+
 	if err := l.labRepository.DeleteLab(context.TODO(), typeOfLab, labId); err != nil {
 		slog.Error("not able to delete lab",
 			slog.String("error", err.Error()),
