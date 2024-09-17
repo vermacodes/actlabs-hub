@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"strings"
 
 	"actlabs-hub/internal/entity"
@@ -287,6 +289,42 @@ func (l *labService) GetLabVersions(typeOfLab string, labId string) ([]entity.La
 	}
 
 	return labs, nil
+}
+
+// Supporting Documents
+func (l *labService) UpsertSupportingDocument(ctx context.Context, supportingDocument multipart.File) (string, error) {
+	supportingDocumentId, err := l.labRepository.UpsertSupportingDocument(ctx, supportingDocument)
+	if err != nil {
+		slog.Error("not able to save supporting document",
+			slog.String("error", err.Error()),
+		)
+		return "", err
+	}
+
+	return supportingDocumentId, nil
+}
+
+func (l *labService) DeleteSupportingDocument(ctx context.Context, supportingDocumentId string) error {
+	if err := l.labRepository.DeleteSupportingDocument(ctx, supportingDocumentId); err != nil {
+		slog.Error("not able to delete supporting document",
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	return nil
+}
+
+func (l *labService) GetSupportingDocument(ctx context.Context, supportingDocumentId string) (io.ReadCloser, error) {
+	supportingDocument, err := l.labRepository.GetSupportingDocument(ctx, supportingDocumentId)
+	if err != nil {
+		slog.Error("not able to get supporting document",
+			slog.String("error", err.Error()),
+		)
+		return nil, err
+	}
+
+	return supportingDocument, nil
 }
 
 // Helper functions.
