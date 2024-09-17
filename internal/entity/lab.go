@@ -1,6 +1,10 @@
 package entity
 
-import "context"
+import (
+	"context"
+	"io"
+	"mime/multipart"
+)
 
 type TfvarResourceGroupType struct {
 	Location string `json:"location"`
@@ -83,25 +87,27 @@ var (
 )
 
 type LabType struct {
-	Id               string          `json:"id"`
-	Name             string          `json:"name"`
-	Description      string          `json:"description"`
-	Tags             []string        `json:"tags"`
-	Template         TfvarConfigType `json:"template"`
-	ExtendScript     string          `json:"extendScript"`
-	Message          string          `json:"message"`
-	Category         string          `json:"category"`
-	Type             string          `json:"type"`
-	CreatedBy        string          `json:"createdBy"`
-	CreatedOn        string          `json:"createdOn"`
-	UpdatedBy        string          `json:"updatedBy"`
-	UpdatedOn        string          `json:"updatedOn"`
-	Owners           []string        `json:"owners"`
-	Editors          []string        `json:"editors"`
-	Viewers          []string        `json:"viewers"`
-	IsPublished      bool            `json:"isPublished"`
-	VersionId        string          `json:"versionId"`
-	IsCurrentVersion bool            `json:"isCurrentVersion"`
+	Id                       string          `json:"id"`
+	Name                     string          `json:"name"`
+	Description              string          `json:"description"`
+	Tags                     []string        `json:"tags"`
+	Template                 TfvarConfigType `json:"template"`
+	ExtendScript             string          `json:"extendScript"`
+	Message                  string          `json:"message"`
+	Category                 string          `json:"category"`
+	Type                     string          `json:"type"`
+	CreatedBy                string          `json:"createdBy"`
+	CreatedOn                string          `json:"createdOn"`
+	UpdatedBy                string          `json:"updatedBy"`
+	UpdatedOn                string          `json:"updatedOn"`
+	Owners                   []string        `json:"owners"`
+	Editors                  []string        `json:"editors"`
+	Viewers                  []string        `json:"viewers"`
+	RbacEnforcedProtectedLab bool            `json:"rbacEnforcedProtectedLab"`
+	IsPublished              bool            `json:"isPublished"`
+	VersionId                string          `json:"versionId"`
+	IsCurrentVersion         bool            `json:"isCurrentVersion"`
+	SupportingDocumentId     string          `json:"supportingDocumentId"`
 }
 
 type LabService interface {
@@ -137,6 +143,11 @@ type LabService interface {
 	GetLabVersions(typeOfLab string, labId string) ([]LabType, error)
 	UpsertLab(LabType) (LabType, error)
 	DeleteLab(typeOfLab string, labId string) error
+
+	// Supporting Documents
+	UpsertSupportingDocument(ctx context.Context, supportingDocument multipart.File) (string, error)
+	DeleteSupportingDocument(ctx context.Context, supportingDocumentId string) error
+	GetSupportingDocument(ctx context.Context, supportingDocumentId string) (io.ReadCloser, error)
 }
 
 type LabRepository interface {
@@ -151,4 +162,9 @@ type LabRepository interface {
 
 	UpsertLab(ctx context.Context, labId string, lab string, typeOfLab string) error
 	DeleteLab(ctx context.Context, typeOfLab string, labId string) error
+
+	// Supporting Documents
+	UpsertSupportingDocument(ctx context.Context, supportingDocument multipart.File) (string, error)
+	DeleteSupportingDocument(ctx context.Context, supportingDocumentId string) error
+	GetSupportingDocument(ctx context.Context, supportingDocumentId string) (io.ReadCloser, error)
 }
