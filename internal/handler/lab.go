@@ -34,11 +34,6 @@ func NewLabHandler(r *gin.RouterGroup, labService entity.LabService, appConfig *
 	// public lab read-only operations.
 	r.GET("/lab/public/:typeOfLab", handler.GetLabs)
 	r.GET("/lab/public/versions/:typeOfLab/:labId", handler.GetLabVersions)
-
-	// supporting documents testing only
-	r.POST("/lab/supportingDocument", handler.UpsertSupportingDocument)
-	r.DELETE("/lab/supportingDocument/:supportingDocumentId", handler.DeleteSupportingDocument)
-	r.GET("/lab/supportingDocument/:supportingDocumentId", handler.GetSupportingDocument)
 }
 
 // Authenticated with ARM token and ProtectedLabSecret.
@@ -71,9 +66,15 @@ func NewLabHandlerMentorRequired(r *gin.RouterGroup, labService entity.LabServic
 
 	// all protected lab operations.
 	r.POST("/lab/protected", handler.UpsertLab)
+	r.POST("/lab/protected/withSupportingDocument", handler.UpsertLabWithSupportingDocument)
 	r.GET("/lab/protected/:typeOfLab", handler.GetLabs)
 	r.GET("/lab/protected/versions/:typeOfLab/:labId", handler.GetLabVersions)
 	r.DELETE("/lab/protected/:typeOfLab/:labId", handler.DeleteLab)
+
+	// supporting documents testing only
+	r.POST("/lab/protected/supportingDocument", handler.UpsertSupportingDocument)
+	r.DELETE("/lab/protected/supportingDocument/:supportingDocumentId", handler.DeleteSupportingDocument)
+	r.GET("/lab/protected/supportingDocument/:supportingDocumentId", handler.GetSupportingDocument)
 }
 
 func (l *labHandler) GetLab(c *gin.Context) {
@@ -133,6 +134,36 @@ func (l *labHandler) GetLabs(c *gin.Context) {
 }
 
 func (l *labHandler) UpsertLab(c *gin.Context) {
+	// Bind the request body to the LabType struct
+	var lab entity.LabType
+	if err := c.Bind(&lab); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	var upsertErr error
+
+	switch {
+	case validateLabType(lab.Type, entity.PrivateLab):
+		lab, upsertErr = l.labService.UpsertPrivateLab(lab)
+	case validateLabType(lab.Type, entity.PublicLab):
+		lab, upsertErr = l.labService.UpsertPublicLab(lab)
+	case validateLabType(lab.Type, entity.ProtectedLabs):
+		lab, upsertErr = l.labService.UpsertProtectedLab(lab)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lab type: " + lab.Type})
+		return
+	}
+
+	if upsertErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": upsertErr.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, lab)
+}
+
+func (l *labHandler) UpsertLabWithSupportingDocument(c *gin.Context) {
 	// Parse the multipart form
 	if err := c.Request.ParseMultipartForm(10 << 20); err != nil { // 10 MB max memory
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse multipart form: " + err.Error()})
