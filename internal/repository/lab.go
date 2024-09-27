@@ -376,6 +376,23 @@ func (l *labRepository) DeleteSupportingDocument(ctx context.Context, supporting
 	return nil
 }
 
+func (l *labRepository) DoesSupportingDocumentExist(ctx context.Context, supportingDocumentId string) bool {
+	containerUrl := fmt.Sprintf("https://%s.blob.core.windows.net/%s", l.appConfig.ActlabsHubStorageAccount, "repro-project-supporting-documents")
+	containerClient, err := container.NewClient(containerUrl, l.auth.Cred, nil)
+	if err != nil {
+		return false
+	}
+
+	blobClient := containerClient.NewBlobClient(supportingDocumentId)
+
+	_, err = blobClient.GetProperties(ctx, nil)
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
 func appendDotJson(labId string) string {
 	if labId[len(labId)-5:] == ".json" {
 		return labId
