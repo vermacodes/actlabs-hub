@@ -56,7 +56,14 @@ func (a *assignmentHandler) GetAllAssignments(c *gin.Context) {
 }
 
 func (a *assignmentHandler) GetAllLabsRedacted(c *gin.Context) {
-	labs, err := a.assignmentService.GetAllLabsRedacted()
+
+	// Get the auth token from the request header
+	authToken := c.GetHeader("Authorization")
+	// Remove Bearer from the authToken
+	authToken = strings.Split(authToken, "Bearer ")[1]
+	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+
+	labs, err := a.assignmentService.GetAllLabsRedacted(userId)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

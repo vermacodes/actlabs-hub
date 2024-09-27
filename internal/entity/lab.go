@@ -132,10 +132,10 @@ type LabService interface {
 	// Protected Labs
 	// Role: mentor
 	// Types: readinesslab, mockcase
-	GetProtectedLabs(typeOfLab string) ([]LabType, error)
-	GetProtectedLab(typeOfLab string, labId string) (LabType, error)
+	GetProtectedLabs(typeOfLab string, userId string, requestIsWithSecret bool) ([]LabType, error)
+	GetProtectedLab(typeOfLab string, labId string, userId string, requestIsWithSecret bool) (LabType, error)
 	GetProtectedLabVersions(typeOfLab string, labId string) ([]LabType, error)
-	UpsertProtectedLab(LabType) (LabType, error)
+	UpsertProtectedLab(lab LabType, userId string) (LabType, error)
 	DeleteProtectedLab(typeOfLab string, labId string) error
 
 	// Shared functions
@@ -148,6 +148,7 @@ type LabService interface {
 	UpsertSupportingDocument(ctx context.Context, supportingDocument multipart.File) (string, error)
 	DeleteSupportingDocument(ctx context.Context, supportingDocumentId string) error
 	GetSupportingDocument(ctx context.Context, supportingDocumentId string) (io.ReadCloser, error)
+	DoesSupportingDocumentExist(ctx context.Context, supportingDocumentId string) bool
 }
 
 type LabRepository interface {
@@ -167,4 +168,5 @@ type LabRepository interface {
 	UpsertSupportingDocument(ctx context.Context, supportingDocument multipart.File) (string, error)
 	DeleteSupportingDocument(ctx context.Context, supportingDocumentId string) error
 	GetSupportingDocument(ctx context.Context, supportingDocumentId string) (io.ReadCloser, error)
+	DoesSupportingDocumentExist(ctx context.Context, supportingDocumentId string) bool
 }

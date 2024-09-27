@@ -44,7 +44,7 @@ func NewLabHandlerARMTokenWithProtectedLabSecret(r *gin.RouterGroup, labService 
 	}
 
 	// protected lab read-only operations. requires ARM token and super secret header.
-	r.GET("/lab/protected/:typeOfLab/:labId", handler.GetLab)
+	r.GET("/lab/protected/:typeOfLab/:labId", handler.GetLabWithSecret)
 }
 
 // Authenticated user with 'contributor' role.
@@ -77,6 +77,37 @@ func NewLabHandlerMentorRequired(r *gin.RouterGroup, labService entity.LabServic
 	r.GET("/lab/protected/supportingDocument/:supportingDocumentId", handler.GetSupportingDocument)
 }
 
+func (l *labHandler) GetLabWithSecret(c *gin.Context) {
+	typeOfLab := c.Param("typeOfLab")
+	labId := c.Param("labId")
+
+	var lab entity.LabType
+	var err error
+
+	// Get the auth token from the request header
+	authToken := c.GetHeader("Authorization")
+	// Remove Bearer from the authToken
+	authToken = strings.Split(authToken, "Bearer ")[1]
+	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+
+	switch {
+	case validateLabType(typeOfLab, entity.ProtectedLabs):
+		lab, err = l.labService.GetProtectedLab(typeOfLab, labId, userId, true)
+	case validateLabType(typeOfLab, entity.PrivateLab):
+		lab, err = l.labService.GetPrivateLab(typeOfLab, labId)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lab type: " + typeOfLab})
+		return
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, lab)
+}
+
 func (l *labHandler) GetLab(c *gin.Context) {
 	typeOfLab := c.Param("typeOfLab")
 	labId := c.Param("labId")
@@ -84,9 +115,15 @@ func (l *labHandler) GetLab(c *gin.Context) {
 	var lab entity.LabType
 	var err error
 
+	// Get the auth token from the request header
+	authToken := c.GetHeader("Authorization")
+	// Remove Bearer from the authToken
+	authToken = strings.Split(authToken, "Bearer ")[1]
+	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+
 	switch {
 	case validateLabType(typeOfLab, entity.ProtectedLabs):
-		lab, err = l.labService.GetProtectedLab(typeOfLab, labId)
+		lab, err = l.labService.GetProtectedLab(typeOfLab, labId, userId, false)
 	case validateLabType(typeOfLab, entity.PrivateLab):
 		lab, err = l.labService.GetPrivateLab(typeOfLab, labId)
 	default:
@@ -108,6 +145,12 @@ func (l *labHandler) GetLabs(c *gin.Context) {
 	var labs []entity.LabType
 	var err error
 
+	// Get the auth token from the request header
+	authToken := c.GetHeader("Authorization")
+	// Remove Bearer from the authToken
+	authToken = strings.Split(authToken, "Bearer ")[1]
+	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+
 	switch {
 	case validateLabType(typeOfLab, entity.PrivateLab):
 		// Get the auth token from the request header
@@ -119,7 +162,7 @@ func (l *labHandler) GetLabs(c *gin.Context) {
 	case validateLabType(typeOfLab, entity.PublicLab):
 		labs, err = l.labService.GetPublicLabs(typeOfLab)
 	case validateLabType(typeOfLab, entity.ProtectedLabs):
-		labs, err = l.labService.GetProtectedLabs(typeOfLab)
+		labs, err = l.labService.GetProtectedLabs(typeOfLab, userId, false)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lab type: " + typeOfLab})
 		return
@@ -149,7 +192,12 @@ func (l *labHandler) UpsertLab(c *gin.Context) {
 	case validateLabType(lab.Type, entity.PublicLab):
 		lab, upsertErr = l.labService.UpsertPublicLab(lab)
 	case validateLabType(lab.Type, entity.ProtectedLabs):
-		lab, upsertErr = l.labService.UpsertProtectedLab(lab)
+		// Get the auth token from the request header
+		authToken := c.GetHeader("Authorization")
+		// Remove Bearer from the authToken
+		authToken = strings.Split(authToken, "Bearer ")[1]
+		userId, _ := auth.GetUserPrincipalFromToken(authToken)
+		lab, upsertErr = l.labService.UpsertProtectedLab(lab, userId)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lab type: " + lab.Type})
 		return
@@ -211,7 +259,12 @@ func (l *labHandler) UpsertLabWithSupportingDocument(c *gin.Context) {
 	case validateLabType(lab.Type, entity.PublicLab):
 		lab, upsertErr = l.labService.UpsertPublicLab(lab)
 	case validateLabType(lab.Type, entity.ProtectedLabs):
-		lab, upsertErr = l.labService.UpsertProtectedLab(lab)
+		// Get the auth token from the request header
+		authToken := c.GetHeader("Authorization")
+		// Remove Bearer from the authToken
+		authToken = strings.Split(authToken, "Bearer ")[1]
+		userId, _ := auth.GetUserPrincipalFromToken(authToken)
+		lab, upsertErr = l.labService.UpsertProtectedLab(lab, userId)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lab type: " + lab.Type})
 		return
