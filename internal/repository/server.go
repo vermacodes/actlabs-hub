@@ -796,6 +796,9 @@ func (s *serverRepository) DestroyAzureContainerGroup(server entity.Server) erro
 	ctx := context.Background()
 
 	cred := s.auth.Cred
+	if server.Version == "V3" {
+		cred = s.auth.FdpoCredential
+	}
 
 	clientFactory, err := armcontainerinstance.NewContainerGroupsClient(server.SubscriptionId, cred, nil)
 	if err != nil {
@@ -890,8 +893,13 @@ func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) 
 
 	// Updates for FDPO Environments.
 	// The userPrincipalId is different for FDPO environments. This is the object ID in new tenant.
+	// The FDPO Credentials are different from the normal credentials.
 	if server.Version == "V3" {
 		userPrincipalId = server.FdpoUserPrincipalId
+		clientFactory, err = armauthorization.NewClientFactory(server.SubscriptionId, s.auth.FdpoCredential, nil)
+		if err != nil {
+			return false, err
+		}
 	}
 
 	filter := "assignedTo('" + userPrincipalId + "')"
@@ -1085,6 +1093,9 @@ func (s *serverRepository) GetResourceGroupRegion(ctx context.Context, server en
 func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entity.Server) error {
 
 	cred := s.auth.Cred
+	if server.Version == "V3" {
+		cred = s.auth.FdpoCredential
+	}
 
 	clientFactory, err := armresources.NewClientFactory(server.SubscriptionId, cred, nil)
 	if err != nil {
@@ -1124,6 +1135,9 @@ func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entit
 func (s *serverRepository) DeleteStorageAccount(ctx context.Context, server entity.Server) error {
 
 	cred := s.auth.Cred
+	if server.Version == "V3" {
+		cred = s.auth.FdpoCredential
+	}
 
 	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, cred, nil)
 	if err != nil {
