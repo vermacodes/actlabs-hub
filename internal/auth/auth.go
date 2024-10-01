@@ -58,7 +58,7 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 	}
 
 	actlabsServersTableClient, err := GetTableClient(
-		accountKey,
+		cred,
 		appConfig.ActlabsHubStorageAccount,
 		appConfig.ActlabsHubManagedServersTableName,
 	)
@@ -67,7 +67,7 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 	}
 
 	actlabsReadinessTableClient, err := GetTableClient(
-		accountKey,
+		cred,
 		appConfig.ActlabsHubStorageAccount,
 		appConfig.ActlabsHubReadinessAssignmentsTableName,
 	)
@@ -76,7 +76,7 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 	}
 
 	actlabsChallengesTableClient, err := GetTableClient(
-		accountKey,
+		cred,
 		appConfig.ActlabsHubStorageAccount,
 		appConfig.ActlabsHubChallengesTableName,
 	)
@@ -85,7 +85,7 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 	}
 
 	actlabsProfilesTableClient, err := GetTableClient(
-		accountKey,
+		cred,
 		appConfig.ActlabsHubStorageAccount,
 		appConfig.ActlabsHubProfilesTableName,
 	)
@@ -94,7 +94,7 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 	}
 
 	actlabsDeploymentsTableClient, err := GetTableClient(
-		accountKey,
+		cred,
 		appConfig.ActlabsHubStorageAccount,
 		appConfig.ActlabsHubDeploymentsTableName,
 	)
@@ -103,7 +103,7 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 	}
 
 	actlabsEventsTableClient, err := GetTableClient(
-		accountKey,
+		cred,
 		appConfig.ActlabsHubStorageAccount,
 		appConfig.ActlabsHubEventsTableName,
 	)
@@ -112,7 +112,7 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 	}
 
 	actlabsDeploymentOperationsTableClient, err := GetTableClient(
-		accountKey,
+		cred,
 		appConfig.ActlabsHubStorageAccount,
 		appConfig.ActlabsHubDeploymentOperationsTableName,
 	)
@@ -152,13 +152,8 @@ func GetStorageAccountKey(subscriptionId string, cred azcore.TokenCredential, re
 	return *resp.Keys[0].Value, nil
 }
 
-func GetTableClient(accountKey string, storageAccountName string, tableName string) (*aztables.Client, error) {
-	sharedKeyCred, err := aztables.NewSharedKeyCredential(storageAccountName, accountKey)
-	if err != nil {
-		return &aztables.Client{}, fmt.Errorf("error creating shared key credential %w", err)
-	}
-
+func GetTableClient(cred azcore.TokenCredential, storageAccountName string, tableName string) (*aztables.Client, error) {
 	tableUrl := "https://" + storageAccountName + ".table.core.windows.net/" + tableName
 
-	return aztables.NewClientWithSharedKey(tableUrl, sharedKeyCred, nil)
+	return aztables.NewClient(tableUrl, cred, nil)
 }
