@@ -232,14 +232,16 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 		return server, err
 	}
 
-	servicePrincipalClientID := s.appConfig.ActlabsServerServicePrincipalClientId
-	servicePrincipalClientSecretKeyvaultURL := s.appConfig.ActlabsServerServicePrincipalClientSecretKeyvaultURL
 	tenantID := s.appConfig.TenantID
 
 	if server.Version == "V3" {
-		servicePrincipalClientID = s.appConfig.ActlabsServerFdpoServicePrincipalClientId
-		servicePrincipalClientSecretKeyvaultURL = s.appConfig.ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL
 		tenantID = s.appConfig.FdpoTenantID
+	}
+
+	// Defaults to service principal, if not using MSI
+	clientId := s.appConfig.ActlabsServerFdpoServicePrincipalClientId
+	if s.appConfig.ActlabsServerUseMsi {
+		clientId = s.appConfig.ActlabsHubClientID
 	}
 
 	poller, err := clientFactory.NewContainerAppsClient().BeginCreateOrUpdate(ctx, s.appConfig.ActlabsServerResourceGroup, server.UserAlias+"-app", armappcontainers.ContainerApp{
@@ -257,17 +259,6 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 					External:   to.Ptr(true),
 					TargetPort: to.Ptr(int32(s.appConfig.ActlabsServerPort)),
 				},
-				Secrets: []*armappcontainers.Secret{
-					{
-						Name:  to.Ptr("azure-client-id"),
-						Value: &servicePrincipalClientID,
-					},
-					{
-						Name:        to.Ptr("azure-client-secret"),
-						KeyVaultURL: to.Ptr(servicePrincipalClientSecretKeyvaultURL),
-						Identity:    to.Ptr(s.appConfig.ActlabsHubManagedIdentityResourceId),
-					},
-				},
 			},
 			Template: &armappcontainers.Template{
 				Scale: &armappcontainers.Scale{
@@ -282,11 +273,15 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 						Env: []*armappcontainers.EnvironmentVar{
 							{
 								Name:  to.Ptr("USE_SERVICE_PRINCIPAL"),
-								Value: to.Ptr("true"),
+								Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseServicePrincipal)),
 							},
 							{
 								Name:  to.Ptr("ARM_USE_MSI"),
 								Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
+							},
+							{
+								Name:  to.Ptr("ARM_CLIENT_ID"),
+								Value: to.Ptr(clientId),
 							},
 							{
 								Name:  to.Ptr("USE_MSI"),
@@ -305,12 +300,12 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 								Value: to.Ptr(s.appConfig.ActlabsServerRootDir),
 							},
 							{
-								Name:      to.Ptr("AZURE_CLIENT_ID"), // https://github.com/microsoft/azure-container-apps/issues/442
-								SecretRef: to.Ptr("azure-client-id"),
+								Name:  to.Ptr("AZURE_CLIENT_ID"),
+								Value: to.Ptr(s.appConfig.ActlabsServerFdpoServicePrincipalClientId),
 							},
 							{
-								Name:      to.Ptr("AZURE_CLIENT_SECRET"),
-								SecretRef: to.Ptr("azure-client-secret"),
+								Name:  to.Ptr("AZURE_CLIENT_SECRET"),
+								Value: to.Ptr(s.appConfig.ActlabsServerFdpoServicePrincipalSecret),
 							},
 							{
 								Name:  to.Ptr("AZURE_TENANT_ID"),

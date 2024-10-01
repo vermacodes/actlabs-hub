@@ -33,7 +33,7 @@ type BulkAssignment struct {
 type AssignmentService interface {
 	// GetAllLabsRedacted retrieves all labs assigned to a user, with sensitive information redacted.
 	// Returns an array of LabType (with redacted information) and any error encountered.
-	GetAllLabsRedacted() ([]LabType, error)
+	GetAllLabsRedacted(userId string) ([]LabType, error)
 
 	// GetMyAssignedLabs retrieves all labs assigned to a specific user.
 	// userId: The ID of the user.

@@ -71,11 +71,11 @@ func (a *assignmentService) GetAssignmentsByUserId(userId string) ([]entity.Assi
 	return assignments, nil
 }
 
-func (a *assignmentService) GetAllLabsRedacted() ([]entity.LabType, error) {
+func (a *assignmentService) GetAllLabsRedacted(userId string) ([]entity.LabType, error) {
 	slog.Info("getting all labs redacted")
 	readinessLabRedacted := []entity.LabType{}
 
-	labs, err := a.labService.GetProtectedLabs("readinesslab")
+	labs, err := a.labService.GetProtectedLabs("readinesslab", userId, false)
 	if err != nil {
 		slog.Error("not able to get readiness labs",
 			slog.String("error", err.Error()),
@@ -110,7 +110,7 @@ func (a *assignmentService) GetAssignedLabsRedactedByUserId(userId string) ([]en
 		return assignedLabs, err
 	}
 
-	labs, err := a.labService.GetProtectedLabs("readinesslab")
+	labs, err := a.labService.GetProtectedLabs("readinesslab", userId, false)
 	if err != nil {
 		slog.Error("not able to get readiness labs",
 			slog.String("userId", userId),

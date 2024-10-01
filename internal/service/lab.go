@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"strings"
 
 	"actlabs-hub/internal/entity"
@@ -77,8 +80,8 @@ func (l *labService) GetPublicLabs(typeOfLab string) ([]entity.LabType, error) {
 	return l.GetLabs(typeOfLab)
 }
 
-func (l *labService) GetProtectedLab(typeOfLab string, labId string) (entity.LabType, error) {
-	labs, err := l.GetProtectedLabs(typeOfLab)
+func (l *labService) GetProtectedLab(typeOfLab string, labId string, userId string, requestIsWithSecret bool) (entity.LabType, error) {
+	labs, err := l.GetProtectedLabs(typeOfLab, userId, requestIsWithSecret)
 	if err != nil {
 		return entity.LabType{}, err
 	}
@@ -91,8 +94,28 @@ func (l *labService) GetProtectedLab(typeOfLab string, labId string) (entity.Lab
 	return entity.LabType{}, errors.New("lab not found")
 }
 
-func (l *labService) GetProtectedLabs(typeOfLab string) ([]entity.LabType, error) {
-	return l.GetLabs(typeOfLab)
+func (l *labService) GetProtectedLabs(typeOfLab string, userId string, requestIsWithSecret bool) ([]entity.LabType, error) {
+
+	// If RbacEnforcedProtectedLab is enabled then we need to redact description, supporting document and script.
+	labs, err := l.GetLabs(typeOfLab)
+	if err != nil {
+		return []entity.LabType{}, err
+	}
+
+	if requestIsWithSecret {
+		return labs, nil
+	}
+
+	for i := range labs {
+
+		if labs[i].RbacEnforcedProtectedLab && !helper.Contains(labs[i].Owners, userId) && !helper.Contains(labs[i].Editors, userId) && !helper.Contains(labs[i].Viewers, userId) {
+			labs[i].Description = base64.StdEncoding.EncodeToString([]byte("Access to this lab is restricted by its owners. Please contact them for access or further information."))
+			labs[i].SupportingDocumentId = ""
+			labs[i].ExtendScript = ""
+		}
+	}
+
+	return labs, nil
 }
 
 func (l *labService) GetLabs(typeOfLab string) ([]entity.LabType, error) {
@@ -122,7 +145,7 @@ func (l *labService) GetLabs(typeOfLab string) ([]entity.LabType, error) {
 				)
 				continue
 			}
-			AddCategoryToLabIfMissing(&lab)
+			AddCategoryToLabIfMissing(l, &lab)
 			labs = append(labs, lab)
 		}
 	}
@@ -155,7 +178,15 @@ func (l *labService) UpsertPublicLab(lab entity.LabType) (entity.LabType, error)
 	return l.UpsertLab(lab)
 }
 
-func (l *labService) UpsertProtectedLab(lab entity.LabType) (entity.LabType, error) {
+func (l *labService) UpsertProtectedLab(lab entity.LabType, userId string) (entity.LabType, error) {
+	// if lab Id is empty and there are no owners, let it go.
+	if lab.Id == "" && len(lab.Owners) == 0 {
+		return l.UpsertLab(lab)
+	}
+
+	if lab.RbacEnforcedProtectedLab && !helper.Contains(lab.Owners, userId) && !helper.Contains(lab.Editors, userId) {
+		return lab, errors.New("only the owner or an editor can modify this RBAC-enforced lab, please contact the owner or editor for access or further details")
+	}
 	return l.UpsertLab(lab)
 }
 
@@ -172,6 +203,16 @@ func (l *labService) UpsertLab(lab entity.LabType) (entity.LabType, error) {
 
 	l.NewLabThings(&lab)
 	l.AssignOwnerToOrphanLab(&lab)
+
+	// Ensure supporting document exists if its part of the lab.
+	if lab.SupportingDocumentId != "" {
+		if !l.DoesSupportingDocumentExist(context.TODO(), lab.SupportingDocumentId) {
+			slog.Error("Supporting document doesn't exist",
+				slog.String("SupportingDocumentId", lab.SupportingDocumentId),
+			)
+			return lab, errors.New("supporting document doesn't exist")
+		}
+	}
 
 	val, err := json.Marshal(lab)
 	if err != nil {
@@ -245,6 +286,26 @@ func (l *labService) DeleteProtectedLab(typeOfLab string, labId string) error {
 }
 
 func (l *labService) DeleteLab(typeOfLab string, labId string) error {
+	// Delete supporting document if any.
+	lab, err := l.labRepository.GetLab(context.TODO(), typeOfLab, labId)
+	if err != nil {
+		slog.Error("not able to get lab",
+			slog.String("labId", labId),
+		)
+		return err
+	}
+
+	if lab.SupportingDocumentId != "" {
+		if l.DoesSupportingDocumentExist(context.TODO(), lab.SupportingDocumentId) {
+			if err := l.DeleteSupportingDocument(context.TODO(), lab.SupportingDocumentId); err != nil {
+				slog.Error("not able to delete supporting document",
+					slog.String("error", err.Error()),
+				)
+				return err
+			}
+		}
+	}
+
 	if err := l.labRepository.DeleteLab(context.TODO(), typeOfLab, labId); err != nil {
 		slog.Error("not able to delete lab",
 			slog.String("error", err.Error()),
@@ -287,6 +348,57 @@ func (l *labService) GetLabVersions(typeOfLab string, labId string) ([]entity.La
 	}
 
 	return labs, nil
+}
+
+// Supporting Documents
+func (l *labService) UpsertSupportingDocument(ctx context.Context, supportingDocument multipart.File) (string, error) {
+	supportingDocumentId, err := l.labRepository.UpsertSupportingDocument(ctx, supportingDocument)
+	if err != nil {
+		slog.Error("not able to save supporting document",
+			slog.String("error", err.Error()),
+		)
+		return "", err
+	}
+
+	return supportingDocumentId, nil
+}
+
+func (l *labService) DeleteSupportingDocument(ctx context.Context, supportingDocumentId string) error {
+
+	if !l.DoesSupportingDocumentExist(ctx, supportingDocumentId) {
+		slog.Error("Supporting document doesn't exist",
+			slog.String("SupportingDocumentId", supportingDocumentId),
+		)
+
+		return nil
+	}
+
+	if err := l.labRepository.DeleteSupportingDocument(ctx, supportingDocumentId); err != nil {
+		slog.Error("not able to delete supporting document",
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	return nil
+}
+
+func (l *labService) GetSupportingDocument(ctx context.Context, supportingDocumentId string) (io.ReadCloser, error) {
+	supportingDocument, err := l.labRepository.GetSupportingDocument(ctx, supportingDocumentId)
+	if err != nil {
+		slog.Error("not able to get supporting document",
+			slog.String("error", err.Error()),
+		)
+		return nil, err
+	}
+
+	return supportingDocument, nil
+}
+
+func (l *labService) DoesSupportingDocumentExist(ctx context.Context, supportingDocumentId string) bool {
+	exists := l.labRepository.DoesSupportingDocumentExist(ctx, supportingDocumentId)
+	slog.Debug("Supporting document exists: " + supportingDocumentId + " " + fmt.Sprint(exists))
+	return exists
 }
 
 // Helper functions.
@@ -448,7 +560,7 @@ func (l *labService) IsDeleteAllowed(typeOfLab string, labId string, userId stri
 	return true, nil
 }
 
-func AddCategoryToLabIfMissing(lab *entity.LabType) {
+func AddCategoryToLabIfMissing(l *labService, lab *entity.LabType) {
 	if lab.Category == "" {
 		slog.Debug("Updating Category for " + lab.Name)
 		if lab.Type == "readinesslab" || lab.Type == "mockcase" {
@@ -460,5 +572,8 @@ func AddCategoryToLabIfMissing(lab *entity.LabType) {
 		if lab.Type == "publiclab" {
 			lab.Category = "public"
 		}
+
+		// Update lab so that this change is saved.
+		l.UpsertLab(*lab)
 	}
 }
