@@ -205,6 +205,22 @@ function create_storage_account() {
     fi
   fi
 
+  # Enable shared key access to the storage account
+  log "checking if shared key access is enabled for storage account ${STORAGE_ACCOUNT_NAME}"
+  SHARED_KEY_ACCESS=$(az storage account show --name ${STORAGE_ACCOUNT_NAME} -g "${RESOURCE_GROUP}" --query "allowSharedKeyAccess" --output tsv)
+  if [[ ${SHARED_KEY_ACCESS} == "false" ]]; then
+    log "enabling shared key access for storage account ${STORAGE_ACCOUNT_NAME}"
+    az storage account update --name ${STORAGE_ACCOUNT_NAME} -g "${RESOURCE_GROUP}" --allow-shared-key-access true
+    if [ $? -ne 0 ]; then
+      err "failed to enable shared key access for storage account ${STORAGE_ACCOUNT_NAME}"
+      exit 1
+    else
+      log "shared key access enabled for storage account ${STORAGE_ACCOUNT_NAME}"
+    fi
+  else
+    log "shared key access is already enabled for storage account ${STORAGE_ACCOUNT_NAME}"
+  fi
+
   # get storage account key
   STORAGE_ACCOUNT_KEY=$(az storage account keys list --resource-group "${RESOURCE_GROUP}" --account-name "${STORAGE_ACCOUNT_NAME}" --query "[0].value" -o tsv)
 
@@ -243,24 +259,6 @@ function create_storage_account() {
   fi
 
   return 0
-}
-
-function enable_shared_key_access() {
-  # Enable shared key access to storage account if not already enabled
-  log "checking if shared key access is enabled for storage account ${STORAGE_ACCOUNT_NAME}"
-  SHARED_KEY_ACCESS=$(az storage account show --name ${STORAGE_ACCOUNT_NAME} -g "${RESOURCE_GROUP}" --query "allowSharedKeyAccess" --output tsv)
-  if [[ ${SHARED_KEY_ACCESS} == "false" ]]; then
-    log "enabling shared key access for storage account ${STORAGE_ACCOUNT_NAME}"
-    az storage account update --name ${STORAGE_ACCOUNT_NAME} -g "${RESOURCE_GROUP}" --allow-shared-key-access true
-    if [ $? -ne 0 ]; then
-      err "failed to enable shared key access for storage account ${STORAGE_ACCOUNT_NAME}"
-      exit 1
-    else
-      log "shared key access enabled for storage account ${STORAGE_ACCOUNT_NAME}"
-    fi
-  else
-    log "shared key access is already enabled for storage account ${STORAGE_ACCOUNT_NAME}"
-  fi
 }
 
 # Function to check if managed identity is 'Contributor' on the subscription
@@ -419,7 +417,6 @@ if [[ "${is_owner}" == false ]]; then
 fi
 create_resource_group
 create_storage_account
-enable_shared_key_access
 if [[ "${is_owner}" == true ]]; then
   assign_contributor_role
   assign_user_access_administrator_role
