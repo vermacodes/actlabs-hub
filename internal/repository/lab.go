@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/config"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/exp/slog"
 )
@@ -322,6 +324,73 @@ func (l *labRepository) DeleteLab(ctx context.Context, typeOfLab string, labId s
 	l.rdb.Del(ctx, redisKey("lab", typeOfLab, appendDotJson(labId)))
 
 	return nil
+}
+
+func (l *labRepository) UpsertSupportingDocument(ctx context.Context, supportingDocument multipart.File) (string, error) {
+	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", l.appConfig.ActlabsHubStorageAccount)
+	client, err := azblob.NewClient(serviceURL, l.auth.Cred, nil)
+	if err != nil {
+		return "", err
+	}
+
+	containerName := "repro-project-supporting-documents"
+	blobName := uuid.New().String()
+
+	_, err = client.UploadStream(ctx, containerName, blobName, supportingDocument, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return blobName, nil
+}
+
+func (l *labRepository) GetSupportingDocument(ctx context.Context, supportingDocumentId string) (io.ReadCloser, error) {
+	containerUrl := fmt.Sprintf("https://%s.blob.core.windows.net/%s", l.appConfig.ActlabsHubStorageAccount, "repro-project-supporting-documents")
+	containerClient, err := container.NewClient(containerUrl, l.auth.Cred, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	blobClient := containerClient.NewBlobClient(supportingDocumentId)
+
+	downloadResponse, err := blobClient.DownloadStream(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return downloadResponse.Body, nil
+}
+
+func (l *labRepository) DeleteSupportingDocument(ctx context.Context, supportingDocumentId string) error {
+	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", l.appConfig.ActlabsHubStorageAccount)
+	client, err := azblob.NewClient(serviceURL, l.auth.Cred, nil)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.DeleteBlob(ctx, "repro-project-supporting-documents", supportingDocumentId, nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (l *labRepository) DoesSupportingDocumentExist(ctx context.Context, supportingDocumentId string) bool {
+	containerUrl := fmt.Sprintf("https://%s.blob.core.windows.net/%s", l.appConfig.ActlabsHubStorageAccount, "repro-project-supporting-documents")
+	containerClient, err := container.NewClient(containerUrl, l.auth.Cred, nil)
+	if err != nil {
+		return false
+	}
+
+	blobClient := containerClient.NewBlobClient(supportingDocumentId)
+
+	_, err = blobClient.GetProperties(ctx, nil)
+	if err != nil {
+		return false
+	}
+
+	return true
 }
 
 func appendDotJson(labId string) string {
