@@ -120,7 +120,12 @@ func (s *serverRepository) GetClientStorageAccount(server entity.Server) (armsto
 		return storageAccount, nil
 	}
 
-	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+	cred := s.auth.Cred
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+		cred = s.auth.FdpoCredential
+	}
+
+	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, cred, nil)
 	if err != nil {
 		slog.Debug("not able to create client factory to get storage account",
 			slog.String("userPrincipalName", server.UserPrincipalName),
@@ -179,7 +184,12 @@ func (s *serverRepository) GetClientStorageAccountKey(server entity.Server) (str
 		return "", err
 	}
 
-	client, err := armstorage.NewAccountsClient(server.SubscriptionId, s.auth.Cred, nil)
+	cred := s.auth.Cred
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+		cred = s.auth.FdpoCredential
+	}
+
+	client, err := armstorage.NewAccountsClient(server.SubscriptionId, cred, nil)
 	if err != nil {
 		return "", err
 	}
@@ -796,7 +806,7 @@ func (s *serverRepository) DestroyAzureContainerGroup(server entity.Server) erro
 	ctx := context.Background()
 
 	cred := s.auth.Cred
-	if server.Version == "V3" {
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
 		cred = s.auth.FdpoCredential
 	}
 
@@ -884,24 +894,21 @@ func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) 
 		return false, errors.New("subscriptionId is required")
 	}
 
-	clientFactory, err := armauthorization.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
-	if err != nil {
-		return false, err
-	}
-
 	userPrincipalId := server.UserPrincipalId
-
+	cred := s.auth.Cred
 	// Updates for FDPO Environments.
 	// The userPrincipalId is different for FDPO environments. This is the object ID in new tenant.
 	// The FDPO Credentials are different from the normal credentials.
 	if server.Version == "V3" {
 		userPrincipalId = server.FdpoUserPrincipalId
 		if !s.appConfig.ActlabsHubUseUserAuth {
-			clientFactory, err = armauthorization.NewClientFactory(server.SubscriptionId, s.auth.FdpoCredential, nil)
-			if err != nil {
-				return false, err
-			}
+			cred = s.auth.FdpoCredential
 		}
+	}
+
+	clientFactory, err := armauthorization.NewClientFactory(server.SubscriptionId, cred, nil)
+	if err != nil {
+		return false, err
 	}
 
 	filter := "assignedTo('" + userPrincipalId + "')"
@@ -950,7 +957,12 @@ func (s *serverRepository) IsActlabsAuthorized(server entity.Server) (bool, erro
 		return false, errors.New("subscriptionId is required")
 	}
 
-	clientFactory, err := armauthorization.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+	cred := s.auth.Cred
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+		cred = s.auth.FdpoCredential
+	}
+
+	clientFactory, err := armauthorization.NewClientFactory(server.SubscriptionId, cred, nil)
 	if err != nil {
 		return false, err
 	}
@@ -1067,7 +1079,12 @@ func (s *serverRepository) GetAllServersFromDatabase(ctx context.Context) ([]ent
 }
 
 func (s *serverRepository) GetResourceGroupRegion(ctx context.Context, server entity.Server) (string, error) {
-	clientFactory, err := armresources.NewClientFactory(server.SubscriptionId, s.auth.Cred, nil)
+	cred := s.auth.Cred
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+		cred = s.auth.FdpoCredential
+	}
+
+	clientFactory, err := armresources.NewClientFactory(server.SubscriptionId, cred, nil)
 	if err != nil {
 		slog.Debug("failed to create client factory to get resource group region",
 			slog.String("userPrincipalName", server.UserPrincipalName),
@@ -1103,13 +1120,24 @@ func (s *serverRepository) DisableStorageAccountAccessKeys(ctx context.Context, 
 func (s *serverRepository) UpdateStorageAccountAccessKeys(ctx context.Context, server entity.Server, status bool) error {
 
 	cred := s.auth.Cred
+
+	slog.Info("updating shared key access for storage account",
+		slog.String("userPrincipalName", server.UserPrincipalName),
+		slog.String("subscriptionId", server.SubscriptionId),
+		slog.String("resourceGroup", server.ResourceGroup),
+		slog.String("Access Key status", strconv.FormatBool(status)),
+		slog.String("Server Version", server.Version),
+		slog.String("ActlabsHubUseUserAuth", strconv.FormatBool(s.appConfig.ActlabsHubUseUserAuth)),
+	)
+
 	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+		slog.Info("using FDPO credentials for storage account access keys")
 		cred = s.auth.FdpoCredential
 	}
 
 	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, cred, nil)
 	if err != nil {
-		slog.Debug("not able to create client factory to get storage account",
+		slog.Error("not able to create client factory to get storage account",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("error", err.Error()),
@@ -1119,7 +1147,7 @@ func (s *serverRepository) UpdateStorageAccountAccessKeys(ctx context.Context, s
 
 	account, err := s.GetClientStorageAccount(server)
 	if err != nil {
-		slog.Debug("not able to get storage account",
+		slog.Error("not able to get storage account",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("error", err.Error()),
@@ -1134,7 +1162,7 @@ func (s *serverRepository) UpdateStorageAccountAccessKeys(ctx context.Context, s
 	}, nil)
 
 	if err != nil {
-		slog.Debug("not able to update shared key access for storage account",
+		slog.Error("not able to update shared key access for storage account",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("resourceGroup", server.ResourceGroup),
@@ -1150,7 +1178,7 @@ func (s *serverRepository) UpdateStorageAccountAccessKeys(ctx context.Context, s
 func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entity.Server) error {
 
 	cred := s.auth.Cred
-	if server.Version == "V3" {
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
 		cred = s.auth.FdpoCredential
 	}
 
@@ -1192,7 +1220,7 @@ func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entit
 func (s *serverRepository) DeleteStorageAccount(ctx context.Context, server entity.Server) error {
 
 	cred := s.auth.Cred
-	if server.Version == "V3" {
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
 		cred = s.auth.FdpoCredential
 	}
 
