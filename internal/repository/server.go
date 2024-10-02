@@ -896,9 +896,11 @@ func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) 
 	// The FDPO Credentials are different from the normal credentials.
 	if server.Version == "V3" {
 		userPrincipalId = server.FdpoUserPrincipalId
-		clientFactory, err = armauthorization.NewClientFactory(server.SubscriptionId, s.auth.FdpoCredential, nil)
-		if err != nil {
-			return false, err
+		if !s.appConfig.ActlabsHubUseUserAuth {
+			clientFactory, err = armauthorization.NewClientFactory(server.SubscriptionId, s.auth.FdpoCredential, nil)
+			if err != nil {
+				return false, err
+			}
 		}
 	}
 
@@ -1088,6 +1090,61 @@ func (s *serverRepository) GetResourceGroupRegion(ctx context.Context, server en
 	}
 
 	return *res.Location, nil
+}
+
+func (s *serverRepository) EnableStorageAccountAccessKeys(ctx context.Context, server entity.Server) error {
+	return s.UpdateStorageAccountAccessKeys(ctx, server, true)
+}
+
+func (s *serverRepository) DisableStorageAccountAccessKeys(ctx context.Context, server entity.Server) error {
+	return s.UpdateStorageAccountAccessKeys(ctx, server, false)
+}
+
+func (s *serverRepository) UpdateStorageAccountAccessKeys(ctx context.Context, server entity.Server, status bool) error {
+
+	cred := s.auth.Cred
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+		cred = s.auth.FdpoCredential
+	}
+
+	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, cred, nil)
+	if err != nil {
+		slog.Debug("not able to create client factory to get storage account",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	account, err := s.GetClientStorageAccount(server)
+	if err != nil {
+		slog.Debug("not able to get storage account",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	_, err = clientFactory.NewAccountsClient().Update(ctx, server.ResourceGroup, *account.Name, armstorage.AccountUpdateParameters{
+		Properties: &armstorage.AccountPropertiesUpdateParameters{
+			AllowSharedKeyAccess: to.Ptr(status),
+		},
+	}, nil)
+
+	if err != nil {
+		slog.Debug("not able to update shared key access for storage account",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("resourceGroup", server.ResourceGroup),
+			slog.String("storageAccount", *account.Name),
+			slog.String("Access Key status", strconv.FormatBool(status)),
+		)
+		return err
+	}
+
+	return nil
 }
 
 func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entity.Server) error {
