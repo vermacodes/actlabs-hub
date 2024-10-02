@@ -182,6 +182,21 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		return server, err
 	}
 
+	// When ready to deploy, enable shred access keys in a separate go routine.
+	go func() {
+		slog.Info("enabling shared access keys",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+		)
+		if err := s.serverRepository.EnableStorageAccountAccessKeys(context.TODO(), server); err != nil {
+			slog.Error("error enabling shred access keys",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("error", err.Error()),
+			)
+		}
+	}()
+
 	// Before deploying, update the status in db.
 	server.Status = entity.ServerStatusDeploying
 
@@ -328,6 +343,21 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 	}
 
 	s.ServerDefaults(&server)
+
+	// When ready to deploy, enable shared access keys in a separate go routine.
+	go func() {
+		slog.Info("disabling shared access keys",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+		)
+		if err := s.serverRepository.DisableStorageAccountAccessKeys(context.TODO(), server); err != nil {
+			slog.Error("error enabling shred access keys",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("error", err.Error()),
+			)
+		}
+	}()
 
 	// Retry 5 times.
 	for i := 0; i < 5; i++ {

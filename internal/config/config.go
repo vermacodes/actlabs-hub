@@ -59,6 +59,7 @@ type Config struct {
 	FdpoTenantID                                             string
 	ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL string
 	ActlabsHubUseMsi                                         bool
+	ActlabsHubUseUserAuth                                    bool
 	// Add other configuration fields as needed
 }
 
@@ -141,6 +142,11 @@ func NewConfig() (*Config, error) {
 	}
 
 	actlabsHubUseMsi, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_HUB_USE_MSI", "false"))
+	if err != nil {
+		return nil, err
+	}
+
+	actlabsHubUseUserAuth, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_HUB_USE_USER_AUTH", "false"))
 	if err != nil {
 		return nil, err
 	}
@@ -367,6 +373,7 @@ func NewConfig() (*Config, error) {
 		FdpoTenantID:                                             fdpoTenantID,
 		ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL: actlabsServerFdpoServicePrincipalClientSecretKeyvaultURL,
 		ActlabsHubUseMsi:                                         actlabsHubUseMsi,
+		ActlabsHubUseUserAuth:                                    actlabsHubUseUserAuth,
 		// Set other fields
 	}, nil
 }

@@ -95,6 +95,9 @@ type ServerRepository interface {
 	GetServerFromDatabase(partitionKey string, rowKey string) (Server, error)
 	GetAllServersFromDatabase(ctx context.Context) ([]Server, error)
 
+	EnableStorageAccountAccessKeys(ctx context.Context, server Server) error
+	DisableStorageAccountAccessKeys(ctx context.Context, server Server) error
+
 	DeleteResourceGroup(ctx context.Context, server Server) error
 	DeleteStorageAccount(ctx context.Context, server Server) error
 	DeleteServerFromDatabase(ctx context.Context, server Server) error
