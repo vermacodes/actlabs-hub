@@ -37,7 +37,7 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-docker build -t actlab.azurecr.io/actlabs-hub:${TAG} .
+docker build -t actlabs.azurecr.io/actlabs-hub:${TAG} .
 if [ $? -ne 0 ]; then
   echo "Failed to build docker image"
   exit 1
@@ -45,8 +45,8 @@ fi
 
 rm actlabs-hub
 
-az acr login --name actlab --subscription ACT-CSS-Readiness
-docker push actlab.azurecr.io/actlabs-hub:${TAG}
+az acr login --name actlabs --subscription ACT-CSS-Readiness-NPRD
+docker push actlabs.azurecr.io/actlabs-hub:${TAG}
 
-docker tag actlab.azurecr.io/actlabs-hub:${TAG} ashishvermapu/actlabs-hub:${TAG}
+docker tag actlabs.azurecr.io/actlabs-hub:${TAG} ashishvermapu/actlabs-hub:${TAG}
 docker push ashishvermapu/actlabs-hub:${TAG}
