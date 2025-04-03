@@ -1,19 +1,28 @@
 #!/bin/bash
 
-# Load environment variables from .env file
-export $(egrep -v '^#' .prod.containerapp.env | xargs)
+# This script deploys the ACT Labs Hub application to Azure Container Apps.
+# It will deploy to the dev environment by default. To deploy to prod, pass "prod" as an argument.
+# Usage: ./deploy.sh [dev|prod]
+
+# Check if the script is running for prod or dev and set the environment variables accordingly.
+if [ "$1" == "prod" ]; then
+  export $(egrep -v '^#' .prod.containerapp.env | xargs)
+
+else
+  export $(egrep -v '^#' .nprd.containerapp.env | xargs)
+fi
 
 env_status=$(az containerapp env show --name actlabs-hub-env-eastus \
-  --resource-group actlabs-app \
-  --subscription ACT-CSS-Readiness \
+  --resource-group $ACTLABS_HUB_RESOURCE_GROUP \
+  --subscription $ACTLABS_HUB_SUBSCRIPTION_NAME \
   --query properties.provisioningState \
   --output tsv)
 
 if [ "$env_status" != "Succeeded" ]; then
   # Create the environment
   az containerapp env create --name actlabs-hub-env-eastus \
-    --resource-group actlabs-app \
-    --subscription ACT-CSS-Readiness \
+    --resource-group $ACTLABS_HUB_RESOURCE_GROUP \
+    --subscription $ACTLABS_HUB_SUBSCRIPTION_NAME \
     --location eastus \
     --logs-destination none
 
@@ -25,30 +34,31 @@ else
   echo "Environment already exists"
 fi
 
-# Check if 'beta' argument is passed
-if [ "$1" == "beta" ]; then
-  APP_NAME="actlabs-hub-capp-beta"
-  IMAGE="ashishvermapu/actlabs-hub:beta"
-else
-  APP_NAME="actlabs-hub-capp"
-  IMAGE="ashishvermapu/actlabs-hub:latest"
+DEFAULT_DOMAIN=$(az containerapp env show --name actlabs-hub-env-eastus \
+  --resource-group $ACTLABS_HUB_RESOURCE_GROUP \
+  --subscription $ACTLABS_HUB_SUBSCRIPTION_NAME \
+  --query properties.defaultDomain \
+  --output tsv)
+if [ $? -ne 0 ]; then
+  echo "Failed to get defaultDomain of environment"
+  exit 1
 fi
 
 # Deploy the Container App
 az containerapp create \
-  --name $APP_NAME \
-  --resource-group actlabs-app \
-  --subscription ACT-CSS-Readiness \
+  --name $ACTLABS_HUB_APP_NAME \
+  --resource-group $ACTLABS_HUB_RESOURCE_GROUP \
+  --subscription $ACTLABS_HUB_SUBSCRIPTION_NAME \
   --environment actlabs-hub-env-eastus \
   --allow-insecure false \
-  --image $IMAGE \
+  --image $ACTLABS_HUB_IMAGE \
   --ingress 'external' \
   --min-replicas 1 \
   --max-replicas 1 \
   --target-port $ACTLABS_HUB_PORT \
   --user-assigned $ACTLABS_HUB_MANAGED_IDENTITY_RESOURCE_ID \
   --env-vars \
-  "ACTLABS_HUB_URL=$ACTLABS_HUB_URL" \
+  "ACTLABS_HUB_URL=https://$ACTLABS_HUB_APP_NAME.$DEFAULT_DOMAIN/" \
   "ACTLABS_HUB_LOG_LEVEL=$ACTLABS_HUB_LOG_LEVEL" \
   "ACTLABS_HUB_SUBSCRIPTION_ID=$ACTLABS_HUB_SUBSCRIPTION_ID" \
   "ACTLABS_HUB_RESOURCE_GROUP=$ACTLABS_HUB_RESOURCE_GROUP" \
