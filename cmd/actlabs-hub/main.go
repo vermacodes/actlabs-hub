@@ -102,9 +102,11 @@ func main() {
 	authService := service.NewAuthService(authRepository)
 	autoDestroyService := service.NewAutoDestroyService(appConfig, serverRepository, eventService)
 	deploymentService := service.NewDeploymentService(deploymentRepository, serverService, eventService, appConfig)
+	autoRemediateService := service.NewAutoRemediateService(appConfig, auth)
 
 	go autoDestroyService.MonitorAndDestroyInactiveServers(context.Background())
 	go deploymentService.MonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments(context.Background())
+	go autoRemediateService.MonitorAndRemediate(context.Background())
 
 	router := gin.Default()
 	router.SetTrustedProxies(nil)
