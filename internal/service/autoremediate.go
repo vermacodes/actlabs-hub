@@ -82,7 +82,10 @@ func (a *autoRemediateService) IsNetworkAccessDisabled(ctx context.Context) (boo
 
 	if account.Properties != nil && account.Properties.PublicNetworkAccess != nil {
 		if string(*account.Properties.PublicNetworkAccess) == "Enabled" {
-			slog.Info("PublicNetworkAccess is enabled")
+			slog.Info("PublicNetworkAccess is enabled",
+				slog.String("ResourceGroup", a.appConfig.ActlabsHubResourceGroup),
+				slog.String("StorageAccount", a.appConfig.ActlabsHubStorageAccount),
+			)
 			return false, nil
 		}
 	}
