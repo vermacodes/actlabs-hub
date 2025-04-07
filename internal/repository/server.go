@@ -298,6 +298,18 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 								Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
 							},
 							{
+								Name:  to.Ptr("ACTLABS_HUB_SUBSCRIPTION_ID"),
+								Value: to.Ptr(s.appConfig.ActlabsHubSubscriptionID),
+							},
+							{
+								Name:  to.Ptr("ACTLABS_HUB_RESOURCE_GROUP_NAME"),
+								Value: to.Ptr(s.appConfig.ActlabsHubResourceGroup),
+							},
+							{
+								Name:  to.Ptr("ACTLABS_HUB_STORAGE_ACCOUNT_NAME"),
+								Value: to.Ptr(s.appConfig.ActlabsHubStorageAccount),
+							},
+							{
 								Name:  to.Ptr("ACTLABS_HUB_URL"),
 								Value: to.Ptr(s.appConfig.ActlabsHubURL),
 							},
@@ -348,6 +360,10 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 							{
 								Name:  to.Ptr("AUTH_TOKEN_AUD"),
 								Value: to.Ptr(s.appConfig.AuthTokenAud),
+							},
+							{
+								Name:  to.Ptr("USER_ALIAS"),
+								Value: to.Ptr(server.UserAlias),
 							},
 						},
 					},
