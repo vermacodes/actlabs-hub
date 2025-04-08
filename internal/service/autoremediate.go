@@ -81,16 +81,11 @@ func (a *autoRemediateService) IsNetworkAccessDisabled(ctx context.Context) (boo
 	}
 
 	if account.Properties != nil && account.Properties.PublicNetworkAccess != nil {
-		if string(*account.Properties.PublicNetworkAccess) == "Enabled" {
-			slog.Info("PublicNetworkAccess is enabled",
-				slog.String("ResourceGroup", a.appConfig.ActlabsHubResourceGroup),
-				slog.String("StorageAccount", a.appConfig.ActlabsHubStorageAccount),
-			)
+		if string(*account.Properties.PublicNetworkAccess) == "Enabled" && string(*account.Properties.NetworkRuleSet.DefaultAction) == "Allow" {
 			return false, nil
 		}
 	}
 
-	slog.Info("PublicNetworkAccess is not enabled")
 	return true, nil
 }
 
@@ -106,12 +101,14 @@ func (a *autoRemediateService) EnablePublicNetworkAccess(ctx context.Context) er
 	_, err = client.Update(ctx, a.appConfig.ActlabsHubResourceGroup, a.appConfig.ActlabsHubStorageAccount, armstorage.AccountUpdateParameters{
 		Properties: &armstorage.AccountPropertiesUpdateParameters{
 			PublicNetworkAccess: to.Ptr(armstorage.PublicNetworkAccessEnabled),
+			NetworkRuleSet: &armstorage.NetworkRuleSet{
+				DefaultAction: to.Ptr(armstorage.DefaultActionAllow),
+			},
 		},
 	}, nil)
 	if err != nil {
 		return fmt.Errorf("failed to update storage account: %w", err)
 	}
 
-	slog.Info("PublicNetworkAccess is enabled")
 	return nil
 }
