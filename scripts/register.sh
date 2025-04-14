@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# This script registers a subscription with the lab.
+# It first verifies whether the user holds the owner role for the subscription.
+# If the user is the owner, the script assigns the necessary roles to both
+# the Actlabs service principal and the managed identity.
+# If the user is only a contributor, the script checks whether the subscription
+# has already been registered by an owner, allowing the user to proceed accordingly.
+# Finally, the script completes the registration process using the lab's register API.
+
+# Usage: ./register.sh
+
 ACTLABS_SP_APP_ID="00399ddd-434c-4b8a-84be-d096cff4f494"
 
 # If user is in fdpo tenant, then script will replace ACTLABS_SP_APP_ID with ACTLABS_FDPO_SP_APP_ID
