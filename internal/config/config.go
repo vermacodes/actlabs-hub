@@ -26,6 +26,7 @@ type Config struct {
 	ActlabsHubAutoDestroyPollingIntervalSeconds              int32
 	ActlabsHubAutoDestroyIdleTimeSeconds                     int32
 	ActlabsHubDeploymentsPollingIntervalSeconds              int32
+	ActlabsHubAutoRemediatePollingIntervalSeconds            int32
 	ActlabsServerCaddyCPU                                    float64
 	ActlabsServerCaddyMemory                                 float64
 	ActlabsServerCPU                                         float64
@@ -321,6 +322,11 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 
+	actlabsHubAutoRemediatePollingIntervalSeconds, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_HUB_AUTO_REMEDIATE_POLLING_INTERVAL_SECONDS", "300"), 10, 32)
+	if err != nil {
+		return nil, err
+	}
+
 	// Retrieve other environment variables and check them as needed
 
 	return &Config{
@@ -340,6 +346,7 @@ func NewConfig() (*Config, error) {
 		ActlabsHubAutoDestroyPollingIntervalSeconds:              int32(actlabsHubAutoDestroyPollingIntervalSeconds),
 		ActlabsHubAutoDestroyIdleTimeSeconds:                     int32(actlabsHubAutoDestroyIdleTimeSeconds),
 		ActlabsHubDeploymentsPollingIntervalSeconds:              int32(actlabsHubDeploymentsPollingIntervalSeconds),
+		ActlabsHubAutoRemediatePollingIntervalSeconds:            int32(actlabsHubAutoRemediatePollingIntervalSeconds),
 		ActlabsServerCaddyCPU:                                    actlabsServerCaddyCPUFloat,
 		ActlabsServerCaddyMemory:                                 actlabsServerCaddyMemoryFloat,
 		ActlabsServerCPU:                                         actlabsServerCPUFloat,
