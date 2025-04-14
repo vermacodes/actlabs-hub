@@ -1,4 +1,12 @@
 #!/bin/bash
+
+# This script unregister a subscription with the actlabs.
+# It first verifies whether the user holds the owner role for the subscription.
+# If the user is the owner, the script removes all roles to both
+# the Actlabs service principal and the managed identity.
+
+# Usage: ./unregister.sh
+
 ACTLABS_SP_APP_ID="00399ddd-434c-4b8a-84be-d096cff4f494"
 
 # If user is in fdpo tenant, then script will replace ACTLABS_SP_APP_ID with ACTLABS_FDPO_SP_APP_ID
