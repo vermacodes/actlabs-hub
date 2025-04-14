@@ -1,7 +1,17 @@
 #!/bin/bash
 
+# This script unregister a subscription with the actlabs.
+# It first verifies whether the user holds the owner role for the subscription.
+# If the user is the owner, the script removes all roles to both
+# the Actlabs service principal and the managed identity.
+
+# Usage: ./unregister.sh
+
 ACTLABS_SP_APP_ID="00399ddd-434c-4b8a-84be-d096cff4f494"
-ACTLABS_MSI_APP_ID="bee16ca1-a401-40ee-bb6a-34349ebd993e"
+
+# If user is in fdpo tenant, then script will replace ACTLABS_SP_APP_ID with ACTLABS_FDPO_SP_APP_ID
+ACTLABS_FDPO_SP_APP_ID="50cc6d33-3224-477f-b2bd-5c1c6595fdf5"
+ACTLABS_MSI_APP_ID="9735b762-ef8d-477b-af26-13c9b8d6f35c"
 RESOURCE_GROUP="repro-project"
 
 # Add some color
@@ -69,14 +79,22 @@ handle_error() {
 # Function to get upn of the logged in user
 get_upn() {
   UPN=$(az ad signed-in-user show --query userPrincipalName -o tsv)
+  USER_PRINCIPAL_ID=$(az ad signed-in-user show --query id -o tsv)
+  TENANT_ID=$(az account show --query tenantId -o tsv)
   log "UPN: $UPN"
 
   # drop the domain name from the upn
   if [[ "${UPN}" == *"fdpo.onmicrosoft.com"* ]]; then
-    # USER_ALIAS=${UPN%%_*}
-    handle_error "We currently do not support Microsoft Non-Prod Tenant. Please reach out to the team for support."
+    log "FDPO Tenant"
+    ACTLABS_SP_APP_ID=${ACTLABS_FDPO_SP_APP_ID}
+    USER_ALIAS=${UPN%%_*}
+    is_fdpo=true
+    ENV="fdpo"
+    # handle_error "We currently do not support Microsoft Non-Prod Tenant. Please reach out to the team for support."
   else
     USER_ALIAS=${UPN%%@*}
+    is_fdpo=false
+    ENV="prod"
   fi
   log "USER_ALIAS: $USER_ALIAS"
 
@@ -97,15 +115,67 @@ ensure_user_is_owner() {
 
   if [[ -n "${USER_ROLE}" ]]; then
     log "user ${UPN} is the owner of the subscription"
+    is_owner=true
   else
-    err "user ${UPN} is not the owner of the subscription."
-    exit 1
+    warn "user ${UPN} is not the owner of the subscription. only the owner can unregister the subscription."
+    is_owner=false
   fi
+
   return 0
+}
+
+# Function to delete a role assignment
+# Usage: delete_role <role_name> <scope> <assignee>
+# Example: delete_role "Storage Blob Data Contributor" "/subscriptions/<subscription_id>/resourceGroups/<resource_group>" "<user_principal_name>"
+function delete_role() {
+  local role_name=$1
+  # Check if the role name is provided
+  if [[ -z "${role_name}" ]]; then
+    err "Role name is required."
+    return 1
+  fi
+
+  local scope=$2
+  # Check if the scope is provided
+  if [[ -z "${scope}" ]]; then
+    err "Scope is required."
+    return 1
+  fi
+
+  local assignee=$3
+  # Check if the assignee is provided
+  if [[ -z "${assignee}" ]]; then
+    err "Assignee is required."
+    return 1
+  fi
+
+  # Check if the role assignment exists
+  ROLE_ASSIGNMENT_EXISTS=$(az role assignment list --assignee "${assignee}" --role "${role_name}" --scope "${scope}" --query "[?roleDefinitionName=='${role_name}'].roleDefinitionName" -o tsv)
+  if [[ -z "${ROLE_ASSIGNMENT_EXISTS}" ]]; then
+    log "Role assignment '${role_name}' for ${assignee} within ${scope} does not exist. No need to delete."
+    return 0
+  fi
+
+  # Delete the role assignment
+  az role assignment delete --assignee "${assignee}" --role "${role_name}" --scope "${scope}"
+
+  if [ $? -ne 0 ]; then
+    warn "Failed to delete the '${role_name}' role for ${assignee} within ${scope}. Please remove it manually."
+  else
+    log "The '${role_name}' role for ${assignee} has been successfully deleted from ${scope}."
+  fi
 }
 
 # Function to delete resource group
 function delete_resource_group() {
+  # Check if the resource group exists
+  RESOURCE_GROUP_EXISTS=$(az group exists --name "${RESOURCE_GROUP}")
+  if [ "${RESOURCE_GROUP_EXISTS}" == "false" ]; then
+    log "Resource group ${RESOURCE_GROUP} does not exist. No need to delete."
+    return 0
+  fi
+  # Delete the resource group
+  log "Deleting resource group ${RESOURCE_GROUP}..."
   az group delete --name "${RESOURCE_GROUP}" --yes
   if [ $? -ne 0 ]; then
     err "failed to delete resource group ${RESOURCE_GROUP}"
@@ -115,64 +185,25 @@ function delete_resource_group() {
   fi
 }
 
-# Function to delete 'Contributor' role from the subscription
-function delete_contributor_role() {
-  az role assignment delete --assignee "${ACTLABS_SP_APP_ID}" --role Contributor --scope "/subscriptions/${SUBSCRIPTION_ID}"
-  if [ $? -ne 0 ]; then
-    warn "failed to delete actlabs 'Contributor' role from the subscription. Please delete manually or contact support."
-  else
-    log "actlabs 'Contributor' role deleted from the subscription"
-  fi
-}
-
-# Function to delete 'User Access Administrator' role from the subscription
-function delete_user_access_administrator_role() {
-  az role assignment delete --assignee "${ACTLABS_SP_APP_ID}" --role "User Access Administrator" --scope "/subscriptions/${SUBSCRIPTION_ID}"
-  if [ $? -ne 0 ]; then
-    warn "failed to delete actlabs 'User Access Administrator' role from the subscription. Please delete manually or contact support."
-  else
-    log "actlabs 'User Access Administrator' role deleted from the subscription"
-  fi
-}
-
-# Function to delete 'Storage Blob Data Contributor' role from the resource group repro-project
-function delete_storage_blob_data_contributor_role() {
-  az role assignment delete --assignee "${ACTLABS_SP_APP_ID}" --role "Storage Blob Data Contributor" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
-  if [ $? -ne 0 ]; then
-    warn "failed to delete actlabs 'Storage Blob Data Contributor' role from the resource group. Please delete manually or contact support."
-  else
-    log "actlabs 'Storage Blob Data Contributor' role deleted from the resource group"
-  fi
-}
-
-# Function to delete actlabs msi Contributor role from resource group
-delete_actlabs_msi_contributor_role() {
-  az role assignment delete --assignee "${ACTLABS_MSI_APP_ID}" --role Contributor --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
-  if [ $? -ne 0 ]; then
-    warn "failed to delete actlabs msi Contributor role from resource group. Please delete manually or contact support."
-  else
-    log "actlabs msi Contributor role deleted from resource group"
-  fi
-}
-
-# Function to delete actlabs msi Reader role from subscription
-delete_actlabs_msi_reader_role() {
-  az role assignment delete --assignee "${ACTLABS_MSI_APP_ID}" --role Reader --scope "/subscriptions/${SUBSCRIPTION_ID}"
-  if [ $? -ne 0 ]; then
-    warn "failed to delete actlabs msi Reader role from subscription. Please delete manually or contact support."
-  else
-    log "actlabs msi Reader role deleted from subscription"
-  fi
-}
-
 # Call the functions
 get_upn
 get_subscription_id
 ensure_user_is_owner
-delete_actlabs_msi_reader_role
-delete_actlabs_msi_contributor_role
-delete_storage_blob_data_contributor_role
-delete_user_access_administrator_role
-delete_contributor_role
+delete_role "Storage Blob Data Contributor" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" "${ACTLABS_SP_APP_ID}"
+delete_role "Storage Blob Data Contributor" "/subscriptions/${SUBSCRIPTION_ID}" "${ACTLABS_SP_APP_ID}"
+delete_role "Storage Blob Data Contributor" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" "${ACTLABS_MSI_APP_ID}"
+delete_role "Storage Blob Data Contributor" "/subscriptions/${SUBSCRIPTION_ID}" "${ACTLABS_MSI_APP_ID}"
+delete_role "User Access Administrator" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" "${ACTLABS_SP_APP_ID}"
+delete_role "User Access Administrator" "/subscriptions/${SUBSCRIPTION_ID}" "${ACTLABS_SP_APP_ID}"
+delete_role "User Access Administrator" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" "${ACTLABS_MSI_APP_ID}"
+delete_role "User Access Administrator" "/subscriptions/${SUBSCRIPTION_ID}" "${ACTLABS_MSI_APP_ID}"
+delete_role "Contributor" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" "${ACTLABS_SP_APP_ID}"
+delete_role "Contributor" "/subscriptions/${SUBSCRIPTION_ID}" "${ACTLABS_SP_APP_ID}"
+delete_role "Contributor" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" "${ACTLABS_MSI_APP_ID}"
+delete_role "Contributor" "/subscriptions/${SUBSCRIPTION_ID}" "${ACTLABS_MSI_APP_ID}"
+delete_role "Reader" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" "${ACTLABS_SP_APP_ID}"
+delete_role "Reader" "/subscriptions/${SUBSCRIPTION_ID}" "${ACTLABS_SP_APP_ID}"
+delete_role "Reader" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" "${ACTLABS_MSI_APP_ID}"
+delete_role "Reader" "/subscriptions/${SUBSCRIPTION_ID}" "${ACTLABS_MSI_APP_ID}"
 delete_resource_group
-ok "Unregistration complete. Thank you for using the service."
+ok "Unregistering complete. Thank you for using the service."

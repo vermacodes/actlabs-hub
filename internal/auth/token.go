@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/lestrrat-go/jwx/jwa"
 	"github.com/lestrrat-go/jwx/jwk"
 	"golang.org/x/exp/slog"

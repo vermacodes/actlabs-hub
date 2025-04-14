@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# This script is used by air to run the actlabs-hub application locally.
+# Don't run the script directly, use air instead.
+# refer .air.toml for more details.
+
 source .env
 
 export ROOT_DIR=$(pwd)
