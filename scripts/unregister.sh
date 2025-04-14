@@ -109,7 +109,7 @@ ensure_user_is_owner() {
     log "user ${UPN} is the owner of the subscription"
     is_owner=true
   else
-    warn "user ${UPN} is not the owner of the subscription. Ensure that 'Owner' has already registered the subscription with the actlabs. If not, please ask the Owner the subscription with the actlabs"
+    warn "user ${UPN} is not the owner of the subscription. only the owner can unregister the subscription."
     is_owner=false
   fi
 
