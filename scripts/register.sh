@@ -10,12 +10,19 @@
 
 # Usage: ./register.sh
 
+# ACT Labs Service Principal App ID
 ACTLABS_SP_APP_ID="00399ddd-434c-4b8a-84be-d096cff4f494"
 
 # If user is in fdpo tenant, then script will replace ACTLABS_SP_APP_ID with ACTLABS_FDPO_SP_APP_ID
 ACTLABS_FDPO_SP_APP_ID="50cc6d33-3224-477f-b2bd-5c1c6595fdf5"
+
+# Prod Environment
 ACTLABS_MSI_APP_ID="9735b762-ef8d-477b-af26-13c9b8d6f35c"
-RESOURCE_GROUP="repro-project"
+ACTLABS_HUB_ENDPOINT="https://actlabs-hub-capp.purplegrass-7409b036.eastus.azurecontainerapps.io/arm/server/register"
+
+# Dev Environment
+ACTLABS_DEV_MSI_APP_ID="589f5c83-f27d-4a89-9dd2-75a11a0c7d6a"
+ACTLABS_DEV_HUB_ENDPOINT="https://actlabs-hub-capp.salmonmeadow-629f4891.eastus.azurecontainerapps.io/arm/server/register"
 
 # Add some color
 RED='\033[0;91m'
@@ -44,6 +51,13 @@ ok() {
 gap() {
   echo >&1
 }
+
+# if script was run with dev flag, then set the dev environment variables
+if [[ "$1" == "dev" ]]; then
+  warn "Running in dev environment"
+  ACTLABS_MSI_APP_ID=${ACTLABS_DEV_MSI_APP_ID}
+  ACTLABS_HUB_ENDPOINT=${ACTLABS_DEV_HUB_ENDPOINT}
+fi
 
 # Function that sleeps for a specified number of seconds
 function sleep_with_progress() {
@@ -238,7 +252,7 @@ function register_subscription() {
   log "registering subscription with the lab"
 
   OUTPUT=$(curl -X PUT \
-    https://actlabs-hub-capp.purplegrass-7409b036.eastus.azurecontainerapps.io/arm/server/register \
+    ${ACTLABS_HUB_ENDPOINT} \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer ${ACCESS_TOKEN}" \
     -d '{
