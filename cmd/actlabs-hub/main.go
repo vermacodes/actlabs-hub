@@ -6,10 +6,13 @@ import (
 	"actlabs-hub/internal/handler"
 	"actlabs-hub/internal/logger"
 	"actlabs-hub/internal/middleware"
+	"actlabs-hub/internal/mise"
+	"actlabs-hub/internal/miseadapter"
 	"actlabs-hub/internal/redis"
 	"actlabs-hub/internal/repository"
 	"actlabs-hub/internal/service"
 	"context"
+	"net/http"
 	"os"
 
 	"github.com/gin-contrib/cors"
@@ -41,6 +44,12 @@ func main() {
 			slog.String("error", err.Error()),
 		)
 		panic(err)
+	}
+
+	// mise
+	miseServer := mise.Server{
+		ContainerClient: miseadapter.NewMISEAdapter(http.DefaultClient, appConfig.MiseEndpoint),
+		VerboseLogging:  appConfig.MiseVerboseLogging,
 	}
 
 	eventRepository, err := repository.NewEventRepository(auth)
@@ -119,7 +128,7 @@ func main() {
 	router.Use(cors.New(config))
 
 	authRouter := router.Group("/")
-	authRouter.Use(middleware.Auth())
+	authRouter.Use(middleware.Auth(miseServer))
 
 	handler.NewHealthzHandler(authRouter.Group("/"))
 	handler.NewServerHandler(authRouter.Group("/"), serverService)

@@ -12,9 +12,10 @@ import (
 	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
+	"actlabs-hub/internal/mise"
 )
 
-func Auth() gin.HandlerFunc {
+func Auth(miseServer mise.Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		slog.Debug("Auth Middleware")
 
@@ -31,7 +32,7 @@ func Auth() gin.HandlerFunc {
 			return
 		}
 
-		err := verifyAccessToken(c, accessToken)
+		err := verifyAccessToken(miseServer, c, accessToken)
 		if err != nil {
 			return
 		}
@@ -175,7 +176,7 @@ func verifyProtectedLabSecretAndUserPrincipalName(c *gin.Context, appConfig *con
 	return nil
 }
 
-func verifyAccessToken(c *gin.Context, accessToken string) error {
+func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken string) error {
 	splitToken := strings.Split(accessToken, "Bearer ")
 	if len(splitToken) < 2 {
 		slog.Error("found something in the Authorization header, but it's not a bearer token")
@@ -185,6 +186,25 @@ func verifyAccessToken(c *gin.Context, accessToken string) error {
 		)
 	}
 
+	// MISE Implementation
+	result, err := miseServer.DelegateAuthToContainer(accessToken, c.Request.URL.String(), c.Request.Method, c.ClientIP())
+	if err != nil {
+		var validationErr *mise.ErrTokenValidation
+		if errors.As(err, &validationErr) {
+			// can access validationErr.ErrorDescription, validationErr.WWWAuthenticate, validationErr.StatusCode
+			slog.Error("token validation error", validationErr)
+		} else {
+			slog.Error("error while delegating auth to container", err)
+		}
+
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
+		return err
+	}
+
+	userName := result.SubjectClaims["Preferred_username"]
+	slog.Info("authenticated user", "user", userName)
+
+	// Keeping the custom auth validation in place, just in case MISE isn't working as expected.
 	ok, err := auth.VerifyToken(accessToken)
 	if err != nil || !ok {
 		slog.Error("token verification failed", slog.String("error", err.Error()))
