@@ -365,6 +365,26 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 								Name:  to.Ptr("USER_ALIAS"),
 								Value: to.Ptr(server.UserAlias),
 							},
+							{
+								Name:  to.Ptr("MISE_ENDPOINT"),
+								Value: to.Ptr(s.appConfig.MiseEndpoint),
+							},
+							{
+								Name:  to.Ptr("MISE_VERBOSE_LOGGING"),
+								Value: to.Ptr(strconv.FormatBool(s.appConfig.MiseVerboseLogging)),
+							},
+							{
+								Name:  to.Ptr("CORS_ALLOW_ORIGINS"),
+								Value: to.Ptr(s.appConfig.CorsAllowOrigins),
+							},
+							{
+								Name:  to.Ptr("CORS_ALLOW_METHODS"),
+								Value: to.Ptr(s.appConfig.CorsAllowMethods),
+							},
+							{
+								Name:  to.Ptr("CORS_ALLOW_HEADERS"),
+								Value: to.Ptr(s.appConfig.CorsAllowHeaders),
+							},
 						},
 					},
 				},
