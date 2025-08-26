@@ -201,16 +201,16 @@ func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken strin
 		return err
 	}
 
-	userName, ok := result.SubjectClaims["Preferred_username"]
+	userName, ok := result.SubjectClaims["preferred_username"]
 	if !ok {
-		slog.Error("Preferred_username claim missing in subject claims")
+		slog.Error("preferred_username claim missing in subject claims")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing preferred username claim"})
 		return errors.New("missing preferred username claim")
 	}
 	slog.Info("authenticated user", "user", userName)
 
 	// Keeping the custom auth validation in place, just in case MISE isn't working as expected.
-	ok, err := auth.VerifyToken(accessToken)
+	ok, err = auth.VerifyToken(accessToken)
 	if err != nil || !ok {
 		slog.Error("token verification failed", slog.String("error", err.Error()))
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
