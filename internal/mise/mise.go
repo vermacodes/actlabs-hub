@@ -48,7 +48,7 @@ func (s Server) DelegateAuthToContainer(authHeader, uri, method, ipAddr string) 
 		// Replace SubjectClaimsToReturn with ReturnAllSubjectClaims
 		// to return all claims in the subject token instead of just an allow list.
 		//ReturnAllSubjectClaims: true,
-		SubjectClaimsToReturn: []string{"Preferred_username"},
+		SubjectClaimsToReturn: []string{"preferred_username"},
 	})
 
 	end := time.Now()
