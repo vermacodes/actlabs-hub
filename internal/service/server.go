@@ -74,7 +74,7 @@ func (s *serverService) Unregister(ctx context.Context, userPrincipalName string
 		return err
 	}
 
-	if err := s.DestroyServer(userPrincipalName); err != nil {
+	if err := s.DestroyServer(userPrincipalName, false); err != nil {
 		return err
 	}
 
@@ -118,6 +118,7 @@ func (s *serverService) UpdateServer(server entity.Server) error {
 	}
 
 	// only update some properties
+	serverFromDB.Status = server.Status
 	serverFromDB.AutoCreate = server.AutoCreate
 	serverFromDB.AutoDestroy = server.AutoDestroy
 	serverFromDB.InactivityDurationInSeconds = server.InactivityDurationInSeconds
@@ -326,7 +327,7 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	return server, errors.New("server deployed, but not able to verify server is up and running")
 }
 
-func (s *serverService) DestroyServer(userPrincipalName string) error {
+func (s *serverService) DestroyServer(userPrincipalName string, adminInitiated bool) error {
 	slog.Info("destroying server",
 		slog.String("userPrincipalName", userPrincipalName),
 	)
@@ -407,6 +408,12 @@ func (s *serverService) DestroyServer(userPrincipalName string) error {
 	}
 
 	server.Status = entity.ServerStatusDestroyed
+
+	// If admin initiated destroy, set status to AutoDestroyed.
+	if adminInitiated {
+		server.Status = entity.ServerStatusAutoDestroyed
+	}
+
 	server.DestroyedAtTime = time.Now().Format(time.RFC3339)
 
 	if err := s.UpsertServerInDatabase(server); err != nil {
