@@ -61,6 +61,11 @@ type Config struct {
 	ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL string
 	ActlabsHubUseMsi                                         bool
 	ActlabsHubUseUserAuth                                    bool
+	MiseEndpoint                                             string
+	MiseVerboseLogging                                       bool
+	CorsAllowOrigins                                         string
+	CorsAllowMethods                                         string
+	CorsAllowHeaders                                         string
 	// Add other configuration fields as needed
 }
 
@@ -327,6 +332,31 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 
+	miseEndpoint := getEnv("MISE_ENDPOINT")
+	if miseEndpoint == "" {
+		return nil, fmt.Errorf("MISE_ENDPOINT not set")
+	}
+
+	miseVerboseLogging, err := strconv.ParseBool(getEnvWithDefault("MISE_VERBOSE_LOGGING", "false"))
+	if err != nil {
+		return nil, fmt.Errorf("MISE_VERBOSE_LOGGING not set or invalid: %w", err)
+	}
+
+	corsAllowOrigins := getEnv("CORS_ALLOW_ORIGINS")
+	if corsAllowOrigins == "" {
+		return nil, fmt.Errorf("CORS_ALLOW_ORIGINS not set")
+	}
+
+	corsAllowMethods := getEnv("CORS_ALLOW_METHODS")
+	if corsAllowMethods == "" {
+		return nil, fmt.Errorf("CORS_ALLOW_METHODS not set")
+	}
+
+	corsAllowHeaders := getEnv("CORS_ALLOW_HEADERS")
+	if corsAllowHeaders == "" {
+		return nil, fmt.Errorf("CORS_ALLOW_HEADERS not set")
+	}
+
 	// Retrieve other environment variables and check them as needed
 
 	return &Config{
@@ -381,6 +411,11 @@ func NewConfig() (*Config, error) {
 		ActlabsServerFdpoServicePrincipalClientSecretKeyvaultURL: actlabsServerFdpoServicePrincipalClientSecretKeyvaultURL,
 		ActlabsHubUseMsi:                                         actlabsHubUseMsi,
 		ActlabsHubUseUserAuth:                                    actlabsHubUseUserAuth,
+		MiseEndpoint:                                             miseEndpoint,
+		MiseVerboseLogging:                                       miseVerboseLogging,
+		CorsAllowOrigins:                                         corsAllowOrigins,
+		CorsAllowMethods:                                         corsAllowMethods,
+		CorsAllowHeaders:                                         corsAllowHeaders,
 		// Set other fields
 	}, nil
 }
