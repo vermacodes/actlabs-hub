@@ -62,7 +62,7 @@ type ServerService interface {
 
 	UpdateServer(server Server) error // just updates in db. used to set flags like autoDestroy, autoCreate, etc.
 	DeployServer(server Server) (Server, error)
-	DestroyServer(userPrincipalName string) error
+	DestroyServer(userPrincipalName string, adminInitiated bool) error
 	GetServer(userPrincipalName string) (Server, error)
 
 	GetAllServers(ctx context.Context) ([]Server, error)
