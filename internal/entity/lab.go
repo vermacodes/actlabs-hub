@@ -35,6 +35,10 @@ type TfvarKubernetesClusterType struct {
 	DefaultNodePool       TfvarDefaultNodePoolType `json:"defaultNodePool"`
 }
 
+type TfvarAroClusterType struct {
+	Version string `json:"version"`
+}
+
 type TfvarVirtualNetworkType struct {
 	AddressSpace []string
 }
@@ -67,6 +71,7 @@ type TfvarConfigType struct {
 	Jumpservers           []TfvarJumpserverType           `json:"jumpservers"`
 	NetworkSecurityGroups []TfvarNetworkSecurityGroupType `json:"networkSecurityGroups"`
 	KubernetesClusters    []TfvarKubernetesClusterType    `json:"kubernetesClusters"`
+	AroClusters           []TfvarAroClusterType           `json:"aroClusters"`
 	Firewalls             []TfvarFirewallType             `json:"firewalls"`
 	ContainerRegistries   []ContainerRegistryType         `json:"containerRegistries"`
 	AppGateways           []AppGatewayType                `json:"appGateways"`
