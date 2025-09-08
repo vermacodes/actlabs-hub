@@ -1,5 +1,5 @@
 #FROM ubuntu:22.04
-FROM actlabs.azurecr.io/repro_base
+FROM actlabs.azurecr.io/actlabs-base:latest
 
 WORKDIR /app
 
