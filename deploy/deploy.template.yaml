@@ -9,7 +9,7 @@ properties:
   containers:
     - name: caddy
       properties:
-        image: ashishvermapu/caddy:latest
+        image: actlabs.azurecr.io/caddy:latest
         ports:
           - protocol: TCP
             port: ${HTTP_PORT}
@@ -38,7 +38,7 @@ properties:
             mountPath: /data
     - name: actlabs-hub
       properties:
-        image: ashishvermapu/actlabs-hub:latest
+        image: actlabs.azurecr.io/actlabs-hub:latest
         ports:
         - port: ${ACTLABS_HUB_PORT}
           protocol: TCP

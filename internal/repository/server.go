@@ -121,7 +121,7 @@ func (s *serverRepository) GetClientStorageAccount(server entity.Server) (armsto
 	}
 
 	cred := s.auth.Cred
-	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
 		cred = s.auth.FdpoCredential
 	}
 
@@ -185,7 +185,7 @@ func (s *serverRepository) GetClientStorageAccountKey(server entity.Server) (str
 	}
 
 	cred := s.auth.Cred
-	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
 		cred = s.auth.FdpoCredential
 	}
 
@@ -385,6 +385,22 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 								Name:  to.Ptr("CORS_ALLOW_HEADERS"),
 								Value: to.Ptr(s.appConfig.CorsAllowHeaders),
 							},
+							{
+								Name:  to.Ptr("AZURE_RED_HAT_OPENSHIFT_RP_FIRST_PARTY_SP_ID"),
+								Value: to.Ptr(s.appConfig.ActlabsServerAroRpFirstPartySpID),
+							},
+							{
+								Name:  to.Ptr("APPSETTING_WEBSITE_SITE_NAME"),
+								Value: to.Ptr(s.appConfig.ActlabsServerAppSettingWebsiteSiteName),
+							},
+							{
+								Name:  to.Ptr("ARM_MSI_API_VERSION"),
+								Value: to.Ptr(s.appConfig.ActlabsServerArmMsiApiVersion),
+							},
+							{
+								Name:  to.Ptr("ARM_MSI_API_PROXY_PORT"),
+								Value: to.Ptr(s.appConfig.ActlabsServerArmMsiApiProxyPort),
+							},
 						},
 					},
 				},
@@ -489,7 +505,7 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 					{
 						Name: to.Ptr("caddy"),
 						Properties: &armcontainerinstance.ContainerProperties{
-							Image: to.Ptr("ashishvermapu/caddy:latest"),
+							Image: to.Ptr("actlabs.azurecr.io/caddy:latest"),
 							Ports: []*armcontainerinstance.ContainerPort{
 								{
 									Port:     to.Ptr[int32](s.appConfig.HttpPort),
@@ -529,7 +545,7 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 					{
 						Name: to.Ptr("actlabs"),
 						Properties: &armcontainerinstance.ContainerProperties{
-							Image: to.Ptr("ashishvermapu/repro:latest"),
+							Image: to.Ptr("actlabs.azurecr.io/repro:latest"),
 							Ports: []*armcontainerinstance.ContainerPort{
 								{
 									Port:     to.Ptr[int32](s.appConfig.ActlabsServerPort),
@@ -630,6 +646,22 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 								{
 									Name:  to.Ptr("CORS_ALLOW_HEADERS"),
 									Value: to.Ptr(s.appConfig.CorsAllowHeaders),
+								},
+								{
+									Name:  to.Ptr("AZURE_RED_HAT_OPENSHIFT_RP_FIRST_PARTY_SP_ID"),
+									Value: to.Ptr(s.appConfig.ActlabsServerAroRpFirstPartySpID),
+								},
+								{
+									Name:  to.Ptr("APPSETTING_WEBSITE_SITE_NAME"),
+									Value: to.Ptr(s.appConfig.ActlabsServerAppSettingWebsiteSiteName),
+								},
+								{
+									Name:  to.Ptr("ARM_MSI_API_VERSION"),
+									Value: to.Ptr(s.appConfig.ActlabsServerArmMsiApiVersion),
+								},
+								{
+									Name:  to.Ptr("ARM_MSI_API_PROXY_PORT"),
+									Value: to.Ptr(s.appConfig.ActlabsServerArmMsiApiProxyPort),
 								},
 							},
 							VolumeMounts: []*armcontainerinstance.VolumeMount{
@@ -862,7 +894,7 @@ func (s *serverRepository) DestroyAzureContainerGroup(server entity.Server) erro
 	ctx := context.Background()
 
 	cred := s.auth.Cred
-	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
 		cred = s.auth.FdpoCredential
 	}
 
@@ -957,7 +989,7 @@ func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) 
 	// The FDPO Credentials are different from the normal credentials.
 	if server.Version == "V3" {
 		userPrincipalId = server.FdpoUserPrincipalId
-		if !s.appConfig.ActlabsHubUseUserAuth {
+		if !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
 			cred = s.auth.FdpoCredential
 		}
 	}
@@ -1014,7 +1046,7 @@ func (s *serverRepository) IsActlabsAuthorized(server entity.Server) (bool, erro
 	}
 
 	cred := s.auth.Cred
-	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
 		cred = s.auth.FdpoCredential
 	}
 
@@ -1136,7 +1168,7 @@ func (s *serverRepository) GetAllServersFromDatabase(ctx context.Context) ([]ent
 
 func (s *serverRepository) GetResourceGroupRegion(ctx context.Context, server entity.Server) (string, error) {
 	cred := s.auth.Cred
-	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
 		cred = s.auth.FdpoCredential
 	}
 
@@ -1186,7 +1218,7 @@ func (s *serverRepository) UpdateStorageAccountAccessKeys(ctx context.Context, s
 		slog.String("ActlabsHubUseUserAuth", strconv.FormatBool(s.appConfig.ActlabsHubUseUserAuth)),
 	)
 
-	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
 		slog.Info("using FDPO credentials for storage account access keys")
 		cred = s.auth.FdpoCredential
 	}
@@ -1234,7 +1266,7 @@ func (s *serverRepository) UpdateStorageAccountAccessKeys(ctx context.Context, s
 func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entity.Server) error {
 
 	cred := s.auth.Cred
-	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
 		cred = s.auth.FdpoCredential
 	}
 
@@ -1276,7 +1308,7 @@ func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entit
 func (s *serverRepository) DeleteStorageAccount(ctx context.Context, server entity.Server) error {
 
 	cred := s.auth.Cred
-	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth {
+	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
 		cred = s.auth.FdpoCredential
 	}
 

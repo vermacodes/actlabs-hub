@@ -280,7 +280,7 @@ function deploy() {
     -e ACTLABS_HUB_RESOURCE_GROUP_NAME \
     -e ACTLABS_HUB_STORAGE_ACCOUNT_NAME \
     -e USER_ALIAS \
-    --name actlabs -p 8880:80 -v ${HOME}/.azure:/root/.azure ashishvermapu/repro:prod
+    --name actlabs -p 8880:80 -v ${HOME}/.azure:/root/.azure actlabs.azurecr.io/repro:prod
   if [ $? -ne 0 ]; then
     err "Failed to start docker container"
     exit 1

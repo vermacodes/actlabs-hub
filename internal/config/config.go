@@ -66,6 +66,10 @@ type Config struct {
 	CorsAllowOrigins                                         string
 	CorsAllowMethods                                         string
 	CorsAllowHeaders                                         string
+	ActlabsServerAroRpFirstPartySpID                         string
+	ActlabsServerAppSettingWebsiteSiteName                   string
+	ActlabsServerArmMsiApiVersion                            string
+	ActlabsServerArmMsiApiProxyPort                          string
 	// Add other configuration fields as needed
 }
 
@@ -177,7 +181,7 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_SERVER_PORT not set")
 	}
 
-	actlabsServerImage := getEnvWithDefault("ACTLABS_SERVER_IMAGE", "ashishvermapu/repro:latest")
+	actlabsServerImage := getEnvWithDefault("ACTLABS_SERVER_IMAGE", "actlabs.azurecr.io/repro:latest")
 	if actlabsServerImage == "" {
 		return nil, fmt.Errorf("ACTLABS_SERVER_IMAGE not set")
 	}
@@ -357,6 +361,26 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("CORS_ALLOW_HEADERS not set")
 	}
 
+	actlabsServerAroRpFirstPartySpID := getEnv("ACTLABS_SERVER_AZURE_RED_HAT_OPENSHIFT_RP_FIRST_PARTY_SP_ID")
+	if actlabsServerAroRpFirstPartySpID == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_AZURE_RED_HAT_OPENSHIFT_RP_FIRST_PARTY_SP_ID not set")
+	}
+
+	actlabsServerAppSettingWebsiteSiteName := getEnvWithDefault("ACTLABS_SERVER_APPSETTING_WEBSITE_SITE_NAME", "dummy")
+	if actlabsServerAppSettingWebsiteSiteName == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_APPSETTING_WEBSITE_SITE_NAME not set")
+	}
+
+	actlabsServerArmMsiApiVersion := getEnvWithDefault("ACTLABS_SERVER_ARM_MSI_API_VERSION", "2019-08-01")
+	if actlabsServerArmMsiApiVersion == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_ARM_MSI_API_VERSION not set")
+	}
+
+	actlabsServerArmMsiApiProxyPort := getEnvWithDefault("ACTLABS_SERVER_ARM_MSI_API_PROXY_PORT", "42300")
+	if actlabsServerArmMsiApiProxyPort == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_ARM_MSI_API_PROXY_PORT not set")
+	}
+
 	// Retrieve other environment variables and check them as needed
 
 	return &Config{
@@ -416,6 +440,10 @@ func NewConfig() (*Config, error) {
 		CorsAllowOrigins:                                         corsAllowOrigins,
 		CorsAllowMethods:                                         corsAllowMethods,
 		CorsAllowHeaders:                                         corsAllowHeaders,
+		ActlabsServerAroRpFirstPartySpID:                         actlabsServerAroRpFirstPartySpID,
+		ActlabsServerAppSettingWebsiteSiteName:                   actlabsServerAppSettingWebsiteSiteName,
+		ActlabsServerArmMsiApiVersion:                            actlabsServerArmMsiApiVersion,
+		ActlabsServerArmMsiApiProxyPort:                          actlabsServerArmMsiApiProxyPort,
 		// Set other fields
 	}, nil
 }

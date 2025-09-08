@@ -48,5 +48,5 @@ rm actlabs-hub
 az acr login --name actlabs --subscription ACT-CSS-Readiness-NPRD
 docker push actlabs.azurecr.io/actlabs-hub:${TAG}
 
-docker tag actlabs.azurecr.io/actlabs-hub:${TAG} ashishvermapu/actlabs-hub:${TAG}
-docker push ashishvermapu/actlabs-hub:${TAG}
+# docker tag actlabs.azurecr.io/actlabs-hub:${TAG} ashishvermapu/actlabs-hub:${TAG}
+# docker push ashishvermapu/actlabs-hub:${TAG}
