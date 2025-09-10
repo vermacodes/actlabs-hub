@@ -131,7 +131,7 @@ func main() {
 	authRouter := router.Group("/")
 	authRouter.Use(middleware.Auth(miseServer))
 
-	handler.NewHealthzHandler(authRouter.Group("/"))
+	handler.NewHealthzHandler(router.Group("/"))
 	handler.NewServerHandler(authRouter.Group("/"), serverService)
 	handler.NewAssignmentHandler(authRouter.Group("/"), assignmentService, appConfig)
 	handler.NewChallengeHandler(authRouter.Group("/"), challengeService, appConfig)
