@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
 	"actlabs-hub/internal/miseadapter"
+
+	"golang.org/x/exp/slog"
 )
 
 type Server struct {
@@ -28,11 +29,10 @@ func (e *ErrTokenValidation) Error() string {
 
 func (s Server) DelegateAuthToContainer(authHeader, uri, method, ipAddr string) (miseadapter.Result, error) {
 	if s.VerboseLogging {
-		log.Default().Printf(
-			"VERBOSE: Original request Information:\nURL:%s, method:%s, original IP address:%s",
-			uri,
-			method,
-			ipAddr,
+		slog.Debug("Original request Information",
+			slog.String("url", uri),
+			slog.String("method", method),
+			slog.String("ip", ipAddr),
 		)
 	}
 
@@ -54,18 +54,19 @@ func (s Server) DelegateAuthToContainer(authHeader, uri, method, ipAddr string) 
 	end := time.Now()
 	elapsed := end.Sub(start)
 
-	log.Default().Printf("time elapsed in mise container + adapter: %d", elapsed.Milliseconds())
+	slog.Debug("time elapsed in mise container + adapter", slog.Int64("ms", elapsed.Milliseconds()))
 
 	if err != nil {
+		slog.Error("error while validating token with mise adapter", slog.String("error", err.Error()))
 		return miseadapter.Result{}, fmt.Errorf("error while validating token: %w", err)
 	}
 
 	if s.VerboseLogging {
-		json, err := json.MarshalIndent(result, "", "   ")
-		if err != nil {
-			log.Default().Printf("error marshalling json of result object err=%v\n", err)
+		b, merr := json.MarshalIndent(result, "", "   ")
+		if merr != nil {
+			slog.Error("error marshalling json of result object", slog.String("error", merr.Error()))
 		} else {
-			log.Default().Printf("VERBOSE: result struct:\n%s", string(json))
+			slog.Debug("VERBOSE: result struct", slog.String("result", string(b)))
 		}
 	}
 

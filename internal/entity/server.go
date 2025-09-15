@@ -30,6 +30,7 @@ type Server struct {
 	PartitionKey                string       `json:"PartitionKey"`
 	RowKey                      string       `json:"RowKey"`
 	Endpoint                    string       `json:"endpoint"`
+	ContainerAppFqdn            string       `json:"containerAppFqdn"`
 	Status                      ServerStatus `json:"status"`
 	Region                      string       `json:"region"`
 	UserPrincipalId             string       `json:"userPrincipalId"`
@@ -74,19 +75,14 @@ type ServerRepository interface {
 	GetAzureContainerGroup(server Server) (Server, error)
 	GetUserAssignedManagedIdentity(server Server) (Server, error)
 
-	GetResourceGroupRegion(context context.Context, server Server) (string, error)
-
 	DeployServer(server Server) (Server, error)
-	//DeployAzureContainerApp(server Server) (Server, error)
-	//DeployAzureContainerGroup(server Server) (Server, error)
-	// CreateUserAssignedManagedIdentity(server Server) (Server, error)
+	AddApplicationGatewayConfigForUser(ctx context.Context, server Server) (Server, error)
 
 	EnsureServerUp(server Server) error
 	EnsureServerIdle(server Server) (bool, error)
 
 	DestroyServer(server Server) error
-	//DestroyAzureContainerApp(server Server) error
-	//DestroyAzureContainerGroup(server Server) error
+	DeleteApplicationGatewayConfigForUser(ctx context.Context, server Server) error
 
 	IsUserAuthorized(server Server) (bool, error)
 	IsActlabsAuthorized(server Server) (bool, error)
@@ -95,10 +91,5 @@ type ServerRepository interface {
 	GetServerFromDatabase(partitionKey string, rowKey string) (Server, error)
 	GetAllServersFromDatabase(ctx context.Context) ([]Server, error)
 
-	EnableStorageAccountAccessKeys(ctx context.Context, server Server) error
-	DisableStorageAccountAccessKeys(ctx context.Context, server Server) error
-
-	DeleteResourceGroup(ctx context.Context, server Server) error
-	DeleteStorageAccount(ctx context.Context, server Server) error
 	DeleteServerFromDatabase(ctx context.Context, server Server) error
 }

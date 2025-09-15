@@ -18,7 +18,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerinstance/armcontainerinstance"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v7"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/exp/slog"
@@ -217,13 +217,6 @@ func (s *serverRepository) GetClientStorageAccountKey(server entity.Server) (str
 }
 
 func (s *serverRepository) DeployServer(server entity.Server) (entity.Server, error) {
-	if server.Version == "V2" || server.Version == "V3" {
-		return s.DeployAzureContainerApp(server)
-	}
-	return s.DeployAzureContainerGroup(server)
-}
-
-func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity.Server, error) {
 
 	ctx := context.Background()
 
@@ -426,27 +419,15 @@ func (s *serverRepository) DeployAzureContainerApp(server entity.Server) (entity
 		return server, err
 	}
 
-	server.Endpoint = *resp.Properties.Configuration.Ingress.Fqdn
+	server.ContainerAppFqdn = *resp.Properties.Configuration.Ingress.Fqdn
 	server.Status = s.ParseServerStatus(string(*resp.Properties.ProvisioningState))
 
 	return server, nil
 }
 
-func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (entity.Server, error) {
+func (s *serverRepository) AddApplicationGatewayConfigForUser(ctx context.Context, server entity.Server) (entity.Server, error) {
 
-	ctx := context.Background()
-
-	storageAccount, err := s.GetClientStorageAccount(server)
-	if err != nil {
-		return server, err
-	}
-
-	storageAccountKey, err := s.GetClientStorageAccountKey(server)
-	if err != nil {
-		return server, err
-	}
-
-	clientFactory, err := armcontainerinstance.NewContainerGroupsClient(server.SubscriptionId, s.auth.Cred, nil)
+	clientFactory, err := armnetwork.NewClientFactory(s.appConfig.ActlabsHubSubscriptionID, s.auth.Cred, nil)
 	if err != nil {
 		slog.Debug("failed to create client:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
@@ -456,288 +437,10 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 		return server, err
 	}
 
-	poller, err := clientFactory.BeginCreateOrUpdate(ctx,
-		server.ResourceGroup,
-		server.UserAlias+"-aci", armcontainerinstance.ContainerGroup{
-			Location: to.Ptr(server.Region),
-			Identity: &armcontainerinstance.ContainerGroupIdentity{
-				Type: to.Ptr(armcontainerinstance.ResourceIdentityTypeUserAssigned),
-				UserAssignedIdentities: map[string]*armcontainerinstance.Components10Wh5UdSchemasContainergroupidentityPropertiesUserassignedidentitiesAdditionalproperties{
-					server.ManagedIdentityResourceId: {},
-				},
-			},
-			Properties: &armcontainerinstance.ContainerGroupProperties{
-				// https://learn.microsoft.com/en-us/azure/container-instances/container-instances-init-container
-				InitContainers: []*armcontainerinstance.InitContainerDefinition{
-					{
-						Name: to.Ptr("init"),
-						Properties: &armcontainerinstance.InitContainerPropertiesDefinition{
-							Image: to.Ptr("busybox"),
-							EnvironmentVariables: []*armcontainerinstance.EnvironmentVariable{
-								{
-									Name:  to.Ptr("USER_ALIAS"),
-									Value: to.Ptr(server.UserAlias),
-								},
-								{
-									Name:  to.Ptr("ACTLABS_SERVER_PORT"),
-									Value: to.Ptr(strconv.Itoa(int(s.appConfig.ActlabsServerPort))),
-								},
-								{
-									Name:  to.Ptr("ACTLABS_SERVER_REGION"),
-									Value: to.Ptr(server.Region),
-								},
-							},
-							VolumeMounts: []*armcontainerinstance.VolumeMount{
-								{
-									Name:      to.Ptr("proxy-caddyfile"),
-									MountPath: to.Ptr("/etc/caddy"),
-								},
-							},
-							Command: []*string{
-								to.Ptr("/bin/sh"),
-								to.Ptr("-c"),
-								to.Ptr("echo -e \"${USER_ALIAS}-actlabs-aci.${ACTLABS_SERVER_REGION}.azurecontainer.io {\n\treverse_proxy http://localhost:${ACTLABS_SERVER_PORT}\n}\" > /etc/caddy/Caddyfile"),
-							},
-						},
-					},
-				},
-				Containers: []*armcontainerinstance.Container{
-					{
-						Name: to.Ptr("caddy"),
-						Properties: &armcontainerinstance.ContainerProperties{
-							Image: to.Ptr("actlabs.azurecr.io/caddy:latest"),
-							Ports: []*armcontainerinstance.ContainerPort{
-								{
-									Port:     to.Ptr[int32](s.appConfig.HttpPort),
-									Protocol: to.Ptr(armcontainerinstance.ContainerNetworkProtocolTCP),
-								},
-								{
-									Port:     to.Ptr[int32](s.appConfig.HttpsPort),
-									Protocol: to.Ptr(armcontainerinstance.ContainerNetworkProtocolTCP),
-								},
-							},
-							Resources: &armcontainerinstance.ResourceRequirements{
-								Requests: &armcontainerinstance.ResourceRequests{
-									CPU:        to.Ptr[float64](s.appConfig.ActlabsServerCaddyCPU),
-									MemoryInGB: to.Ptr[float64](s.appConfig.ActlabsServerCaddyMemory),
-								},
-							},
-							VolumeMounts: []*armcontainerinstance.VolumeMount{
-								{
-									Name:      to.Ptr("emptydir"),
-									MountPath: to.Ptr("/mnt/emptydir"),
-								},
-								{
-									Name:      to.Ptr("proxy-caddyfile"),
-									MountPath: to.Ptr("/etc/caddy"),
-								},
-								{
-									Name:      to.Ptr("proxy-config"),
-									MountPath: to.Ptr("/config"),
-								},
-								{
-									Name:      to.Ptr("proxy-data"),
-									MountPath: to.Ptr("/data"),
-								},
-							},
-						},
-					},
-					{
-						Name: to.Ptr("actlabs"),
-						Properties: &armcontainerinstance.ContainerProperties{
-							Image: to.Ptr("actlabs.azurecr.io/repro:latest"),
-							Ports: []*armcontainerinstance.ContainerPort{
-								{
-									Port:     to.Ptr[int32](s.appConfig.ActlabsServerPort),
-									Protocol: to.Ptr(armcontainerinstance.ContainerNetworkProtocolTCP),
-								},
-							},
-							Resources: &armcontainerinstance.ResourceRequirements{
-								Requests: &armcontainerinstance.ResourceRequests{
-									CPU:        to.Ptr[float64](s.appConfig.ActlabsServerCPU),
-									MemoryInGB: to.Ptr[float64](s.appConfig.ActlabsServerMemory),
-								},
-							},
-							ReadinessProbe: &armcontainerinstance.ContainerProbe{
-								InitialDelaySeconds: to.Ptr[int32](s.appConfig.ActlabsServerReadinessProbeInitialDelaySeconds),
-								PeriodSeconds:       to.Ptr[int32](s.appConfig.ActlabsServerReadinessProbePeriodSeconds),
-								FailureThreshold:    to.Ptr[int32](s.appConfig.ActlabsServerReadinessProbeFailureThreshold),
-								SuccessThreshold:    to.Ptr[int32](s.appConfig.ActlabsServerReadinessProbeSuccessThreshold),
-								TimeoutSeconds:      to.Ptr[int32](s.appConfig.ActlabsServerReadinessProbeTimeoutSeconds),
-								HTTPGet: &armcontainerinstance.ContainerHTTPGet{
-									Path:   to.Ptr(s.appConfig.ActlabsServerReadinessProbePath),
-									Port:   to.Ptr[int32](s.appConfig.ActlabsServerPort),
-									Scheme: to.Ptr(armcontainerinstance.SchemeHTTP),
-								},
-							},
-							EnvironmentVariables: []*armcontainerinstance.EnvironmentVariable{
-								{
-									Name:  to.Ptr("ARM_USE_MSI"),
-									Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
-								},
-								{
-									Name:  to.Ptr("USE_SERVICE_PRINCIPAL"),
-									Value: to.Ptr("false"),
-								},
-								{
-									Name:  to.Ptr("USE_MSI"),
-									Value: to.Ptr(strconv.FormatBool(s.appConfig.ActlabsServerUseMsi)),
-								},
-								{
-									Name:  to.Ptr("ACTLABS_HUB_URL"),
-									Value: to.Ptr(s.appConfig.ActlabsHubURL),
-								},
-								{
-									Name:  to.Ptr("PORT"),
-									Value: to.Ptr(strconv.Itoa(int(s.appConfig.ActlabsServerPort))),
-								},
-								{
-									Name:  to.Ptr("ROOT_DIR"),
-									Value: to.Ptr(s.appConfig.ActlabsServerRootDir),
-								},
-								{
-									Name:  to.Ptr("AZURE_CLIENT_ID"), // https://github.com/microsoft/azure-container-apps/issues/442
-									Value: &server.ManagedIdentityClientId,
-								},
-								{
-									Name:  to.Ptr("ARM_SUBSCRIPTION_ID"),
-									Value: &server.SubscriptionId,
-								},
-								{
-									Name:  to.Ptr("AZURE_SUBSCRIPTION_ID"),
-									Value: &server.SubscriptionId,
-								},
-								{
-									Name:  to.Ptr("ARM_TENANT_ID"),
-									Value: to.Ptr(s.appConfig.TenantID),
-								},
-								{
-									Name:  to.Ptr("ARM_USER_PRINCIPAL_NAME"),
-									Value: to.Ptr(server.UserPrincipalName),
-								},
-								{
-									Name:  to.Ptr("LOG_LEVEL"),
-									Value: to.Ptr(server.LogLevel),
-								},
-								{
-									Name:  to.Ptr("AUTH_TOKEN_ISS"),
-									Value: to.Ptr(s.appConfig.AuthTokenIss),
-								},
-								{
-									Name:  to.Ptr("AUTH_TOKEN_AUD"),
-									Value: to.Ptr(s.appConfig.AuthTokenAud),
-								},
-								{
-									Name:  to.Ptr("MISE_ENDPOINT"),
-									Value: to.Ptr(s.appConfig.MiseEndpoint),
-								},
-								{
-									Name:  to.Ptr("MISE_VERBOSE_LOGGING"),
-									Value: to.Ptr(strconv.FormatBool(s.appConfig.MiseVerboseLogging)),
-								},
-								{
-									Name:  to.Ptr("CORS_ALLOW_ORIGINS"),
-									Value: to.Ptr(s.appConfig.CorsAllowOrigins),
-								},
-								{
-									Name:  to.Ptr("CORS_ALLOW_METHODS"),
-									Value: to.Ptr(s.appConfig.CorsAllowMethods),
-								},
-								{
-									Name:  to.Ptr("CORS_ALLOW_HEADERS"),
-									Value: to.Ptr(s.appConfig.CorsAllowHeaders),
-								},
-								{
-									Name:  to.Ptr("AZURE_RED_HAT_OPENSHIFT_RP_FIRST_PARTY_SP_ID"),
-									Value: to.Ptr(s.appConfig.ActlabsServerAroRpFirstPartySpID),
-								},
-								{
-									Name:  to.Ptr("APPSETTING_WEBSITE_SITE_NAME"),
-									Value: to.Ptr(s.appConfig.ActlabsServerAppSettingWebsiteSiteName),
-								},
-								{
-									Name:  to.Ptr("ARM_MSI_API_VERSION"),
-									Value: to.Ptr(s.appConfig.ActlabsServerArmMsiApiVersion),
-								},
-								{
-									Name:  to.Ptr("ARM_MSI_API_PROXY_PORT"),
-									Value: to.Ptr(s.appConfig.ActlabsServerArmMsiApiProxyPort),
-								},
-							},
-							VolumeMounts: []*armcontainerinstance.VolumeMount{
-								{
-									Name:      to.Ptr("emptydir"),
-									MountPath: to.Ptr("/mnt/emptydir"),
-								},
-								{
-									Name:      to.Ptr("proxy-caddyfile"),
-									MountPath: to.Ptr("/etc/caddy"),
-								},
-								{
-									Name:      to.Ptr("proxy-config"),
-									MountPath: to.Ptr("/config"),
-								},
-								{
-									Name:      to.Ptr("proxy-data"),
-									MountPath: to.Ptr("/data"),
-								},
-							},
-						},
-					},
-				},
-				OSType:        to.Ptr(armcontainerinstance.OperatingSystemTypesLinux),
-				RestartPolicy: to.Ptr(armcontainerinstance.ContainerGroupRestartPolicyAlways),
-				IPAddress: &armcontainerinstance.IPAddress{
-					Ports: []*armcontainerinstance.Port{
-						{
-							Port:     to.Ptr[int32](s.appConfig.HttpPort),
-							Protocol: to.Ptr(armcontainerinstance.ContainerGroupNetworkProtocolTCP),
-						},
-						{
-							Port:     to.Ptr[int32](s.appConfig.HttpsPort),
-							Protocol: to.Ptr(armcontainerinstance.ContainerGroupNetworkProtocolTCP),
-						},
-					},
-					Type:         to.Ptr(armcontainerinstance.ContainerGroupIPAddressTypePublic),
-					DNSNameLabel: to.Ptr(server.UserAlias + "-actlabs-aci"),
-				},
-				Volumes: []*armcontainerinstance.Volume{
-					{
-						Name:     to.Ptr("emptydir"),
-						EmptyDir: &struct{}{},
-					},
-					{
-						Name: to.Ptr("proxy-caddyfile"),
-						AzureFile: &armcontainerinstance.AzureFileVolume{
-							ShareName:          to.Ptr("proxy-caddyfile"),
-							ReadOnly:           to.Ptr(false),
-							StorageAccountName: storageAccount.Name,
-							StorageAccountKey:  to.Ptr(storageAccountKey),
-						},
-					},
-					{
-						Name: to.Ptr("proxy-config"),
-						AzureFile: &armcontainerinstance.AzureFileVolume{
-							ShareName:          to.Ptr("proxy-config"),
-							ReadOnly:           to.Ptr(false),
-							StorageAccountName: storageAccount.Name,
-							StorageAccountKey:  to.Ptr(storageAccountKey),
-						},
-					},
-					{
-						Name: to.Ptr("proxy-data"),
-						AzureFile: &armcontainerinstance.AzureFileVolume{
-							ShareName:          to.Ptr("proxy-data"),
-							ReadOnly:           to.Ptr(false),
-							StorageAccountName: storageAccount.Name,
-							StorageAccountKey:  to.Ptr(storageAccountKey),
-						},
-					},
-				},
-			},
-		}, nil)
+	agClient := clientFactory.NewApplicationGatewaysClient()
+	existing, err := agClient.Get(ctx, s.appConfig.ActlabsHubResourceGroup, s.appConfig.ActlabsAppGatewayName, nil)
 	if err != nil {
-		slog.Debug("failed to finish the request:",
+		slog.Debug("failed to get existing application gateway:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("error", err.Error()),
@@ -745,9 +448,133 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 		return server, err
 	}
 
-	resp, err := poller.PollUntilDone(ctx, nil)
+	if existing.Properties == nil {
+		existing.Properties = &armnetwork.ApplicationGatewayPropertiesFormat{}
+	}
+
+	// backend pool to add
+	pool := &armnetwork.ApplicationGatewayBackendAddressPool{
+		Name: to.Ptr("appgw-backend-pool-" + server.UserAlias),
+		Properties: &armnetwork.ApplicationGatewayBackendAddressPoolPropertiesFormat{
+			BackendAddresses: []*armnetwork.ApplicationGatewayBackendAddress{
+				{Fqdn: to.Ptr(server.ContainerAppFqdn)},
+			},
+		},
+	}
+	if !existsByName(existing.Properties.BackendAddressPools, *pool.Name, func(p *armnetwork.ApplicationGatewayBackendAddressPool) *string { return p.Name }) {
+		existing.Properties.BackendAddressPools = append(existing.Properties.BackendAddressPools, pool)
+	}
+
+	var poolRef *armnetwork.SubResource
+	if pool.ID != nil {
+		poolRef = &armnetwork.SubResource{ID: pool.ID}
+	} else if existing.ID != nil && pool.Name != nil {
+		poolRef = &armnetwork.SubResource{ID: to.Ptr(*existing.ID + "/backendAddressPools/" + *pool.Name)}
+	}
+
+	// probe
+	probe := &armnetwork.ApplicationGatewayProbe{
+		Name: to.Ptr("appgw-probe-" + server.UserAlias),
+		Properties: &armnetwork.ApplicationGatewayProbePropertiesFormat{
+			Protocol:                            to.Ptr(armnetwork.ApplicationGatewayProtocolHTTPS),
+			Path:                                to.Ptr("/status"),
+			Interval:                            to.Ptr[int32](30),
+			Timeout:                             to.Ptr(int32(20)),
+			Match:                               &armnetwork.ApplicationGatewayProbeHealthResponseMatch{StatusCodes: []*string{to.Ptr("200")}},
+			PickHostNameFromBackendHTTPSettings: to.Ptr(true),
+		},
+	}
+	if !existsByName(existing.Properties.Probes, *probe.Name, func(p *armnetwork.ApplicationGatewayProbe) *string { return p.Name }) {
+		existing.Properties.Probes = append(existing.Properties.Probes, probe)
+	}
+
+	var probeRef *armnetwork.SubResource
+	if probe.ID != nil {
+		probeRef = &armnetwork.SubResource{ID: probe.ID}
+	} else if existing.ID != nil && probe.Name != nil {
+		probeRef = &armnetwork.SubResource{ID: to.Ptr(*existing.ID + "/probes/" + *probe.Name)}
+	}
+
+	// http settings
+	httpSetting := &armnetwork.ApplicationGatewayBackendHTTPSettings{
+		Name: to.Ptr("appgw-backend-http-settings-" + server.UserAlias),
+		Properties: &armnetwork.ApplicationGatewayBackendHTTPSettingsPropertiesFormat{
+			Port:                           to.Ptr[int32](443),
+			Protocol:                       to.Ptr(armnetwork.ApplicationGatewayProtocolHTTPS),
+			RequestTimeout:                 to.Ptr[int32](60),
+			Probe:                          probeRef,
+			CookieBasedAffinity:            to.Ptr(armnetwork.ApplicationGatewayCookieBasedAffinityDisabled),
+			PickHostNameFromBackendAddress: to.Ptr(true),
+		},
+	}
+	if !existsByName(existing.Properties.BackendHTTPSettingsCollection, *httpSetting.Name, func(h *armnetwork.ApplicationGatewayBackendHTTPSettings) *string { return h.Name }) {
+		existing.Properties.BackendHTTPSettingsCollection = append(existing.Properties.BackendHTTPSettingsCollection, httpSetting)
+	}
+
+	var httpSettingRef *armnetwork.SubResource
+	if httpSetting.ID != nil {
+		httpSettingRef = &armnetwork.SubResource{ID: httpSetting.ID}
+	} else if existing.ID != nil && httpSetting.Name != nil {
+		httpSettingRef = &armnetwork.SubResource{ID: to.Ptr(*existing.ID + "/backendHttpSettingsCollection/" + *httpSetting.Name)}
+	}
+
+	// rewrite ruleset
+	rewrite := &armnetwork.ApplicationGatewayRewriteRuleSet{
+		Name: to.Ptr("appgw-rewrite-ruleset-" + server.UserAlias),
+		Properties: &armnetwork.ApplicationGatewayRewriteRuleSetPropertiesFormat{
+			RewriteRules: []*armnetwork.ApplicationGatewayRewriteRule{
+				{
+					Name:         to.Ptr("strip-path-rule-" + server.UserAlias),
+					RuleSequence: to.Ptr[int32](110),
+					Conditions: []*armnetwork.ApplicationGatewayRewriteRuleCondition{
+						{
+							Variable:   to.Ptr("var_uri_path"),
+							Pattern:    to.Ptr("/" + server.UserAlias + "(.*)"),
+							IgnoreCase: to.Ptr(true),
+						},
+					},
+					ActionSet: &armnetwork.ApplicationGatewayRewriteRuleActionSet{
+						URLConfiguration: &armnetwork.ApplicationGatewayURLConfiguration{ModifiedPath: to.Ptr("/{var_uri_path_1}")},
+					},
+				},
+			},
+		},
+	}
+	if !existsByName(existing.Properties.RewriteRuleSets, *rewrite.Name, func(r *armnetwork.ApplicationGatewayRewriteRuleSet) *string { return r.Name }) {
+		existing.Properties.RewriteRuleSets = append(existing.Properties.RewriteRuleSets, rewrite)
+	}
+
+	var rewriteRef *armnetwork.SubResource
+	if rewrite.ID != nil {
+		rewriteRef = &armnetwork.SubResource{ID: rewrite.ID}
+	} else if existing.ID != nil && rewrite.Name != nil {
+		rewriteRef = &armnetwork.SubResource{ID: to.Ptr(*existing.ID + "/rewriteRuleSets/" + *rewrite.Name)}
+	}
+
+	// path rule
+	pathRule := &armnetwork.ApplicationGatewayPathRule{
+		Name: to.Ptr("appgw-path-rule-" + server.UserAlias),
+		Properties: &armnetwork.ApplicationGatewayPathRulePropertiesFormat{
+			BackendAddressPool:  poolRef,
+			BackendHTTPSettings: httpSettingRef,
+			Paths:               []*string{to.Ptr("/" + server.UserAlias + "/*")},
+			RewriteRuleSet:      rewriteRef,
+		},
+	}
+	if !existsByName(existing.Properties.URLPathMaps[0].Properties.PathRules, *pathRule.Name, func(r *armnetwork.ApplicationGatewayPathRule) *string { return r.Name }) {
+		existing.Properties.URLPathMaps[0].Properties.PathRules = append(existing.Properties.URLPathMaps[0].Properties.PathRules, pathRule)
+	}
+
+	// update (reuse the full existing resource)
+	poller, err := agClient.BeginCreateOrUpdate(ctx, s.appConfig.ActlabsHubResourceGroup, s.appConfig.ActlabsAppGatewayName, armnetwork.ApplicationGateway{
+		Location:   existing.Location,
+		Tags:       existing.Tags,
+		Identity:   existing.Identity,
+		Properties: existing.Properties,
+	}, nil)
+
 	if err != nil {
-		slog.Debug("failed to pull the result:",
+		slog.Error("failed to create application gateway:",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("error", err.Error()),
@@ -755,10 +582,92 @@ func (s *serverRepository) DeployAzureContainerGroup(server entity.Server) (enti
 		return server, err
 	}
 
-	server.Endpoint = *resp.Properties.IPAddress.Fqdn
-	server.Status = s.ParseServerStatus(*resp.Properties.ProvisioningState)
+	_, err = poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		slog.Error("failed to pull the result:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return server, err
+	}
+
+	server.Endpoint = "dev.msftactlabs.com/" + server.UserAlias
 
 	return server, nil
+}
+
+func (s *serverRepository) DeleteApplicationGatewayConfigForUser(ctx context.Context, server entity.Server) error {
+	clientFactory, err := armnetwork.NewClientFactory(s.appConfig.ActlabsHubSubscriptionID, s.auth.Cred, nil)
+	if err != nil {
+		slog.Debug("failed to create client:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	agClient := clientFactory.NewApplicationGatewaysClient()
+	existing, err := agClient.Get(ctx, s.appConfig.ActlabsHubResourceGroup, s.appConfig.ActlabsAppGatewayName, nil)
+	if err != nil {
+		slog.Debug("failed to get existing application gateway:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	if existing.Properties == nil {
+		return nil
+	}
+
+	// Remove backend pool
+	existing.Properties.BackendAddressPools = removeByName(existing.Properties.BackendAddressPools, "appgw-backend-pool-"+server.UserAlias, func(p *armnetwork.ApplicationGatewayBackendAddressPool) *string { return p.Name })
+
+	// Remove probe
+	existing.Properties.Probes = removeByName(existing.Properties.Probes, "appgw-probe-"+server.UserAlias, func(p *armnetwork.ApplicationGatewayProbe) *string { return p.Name })
+
+	// Remove http settings
+	existing.Properties.BackendHTTPSettingsCollection = removeByName(existing.Properties.BackendHTTPSettingsCollection, "appgw-backend-http-settings-"+server.UserAlias, func(h *armnetwork.ApplicationGatewayBackendHTTPSettings) *string { return h.Name })
+
+	// Remove rewrite ruleset
+	existing.Properties.RewriteRuleSets = removeByName(existing.Properties.RewriteRuleSets, "appgw-rewrite-ruleset-"+server.UserAlias, func(r *armnetwork.ApplicationGatewayRewriteRuleSet) *string { return r.Name })
+
+	// Remove path rule
+	if len(existing.Properties.URLPathMaps) > 0 {
+		existing.Properties.URLPathMaps[0].Properties.PathRules = removeByName(existing.Properties.URLPathMaps[0].Properties.PathRules, "appgw-path-rule-"+server.UserAlias, func(r *armnetwork.ApplicationGatewayPathRule) *string { return r.Name })
+	}
+
+	// update (reuse the full existing resource)
+	poller, err := agClient.BeginCreateOrUpdate(ctx, s.appConfig.ActlabsHubResourceGroup, s.appConfig.ActlabsAppGatewayName, armnetwork.ApplicationGateway{
+		Location:   existing.Location,
+		Tags:       existing.Tags,
+		Identity:   existing.Identity,
+		Properties: existing.Properties,
+	}, nil)
+
+	if err != nil {
+		slog.Error("failed to update application gateway:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	_, err = poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		slog.Error("failed to pull the result:",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	return nil
 }
 
 func (s *serverRepository) EnsureServerUp(server entity.Server) error {
@@ -1166,187 +1075,6 @@ func (s *serverRepository) GetAllServersFromDatabase(ctx context.Context) ([]ent
 	return servers, nil
 }
 
-func (s *serverRepository) GetResourceGroupRegion(ctx context.Context, server entity.Server) (string, error) {
-	cred := s.auth.Cred
-	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
-		cred = s.auth.FdpoCredential
-	}
-
-	clientFactory, err := armresources.NewClientFactory(server.SubscriptionId, cred, nil)
-	if err != nil {
-		slog.Debug("failed to create client factory to get resource group region",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-
-		return "", err
-	}
-
-	res, err := clientFactory.NewResourceGroupsClient().Get(ctx, server.ResourceGroup, nil)
-	if err != nil {
-		slog.Debug("failed to finish the request to get resource group region",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("resourceGroup", server.ResourceGroup),
-			slog.String("error", err.Error()),
-		)
-		return "", err
-	}
-
-	return *res.Location, nil
-}
-
-func (s *serverRepository) EnableStorageAccountAccessKeys(ctx context.Context, server entity.Server) error {
-	return s.UpdateStorageAccountAccessKeys(ctx, server, true)
-}
-
-func (s *serverRepository) DisableStorageAccountAccessKeys(ctx context.Context, server entity.Server) error {
-	return s.UpdateStorageAccountAccessKeys(ctx, server, false)
-}
-
-func (s *serverRepository) UpdateStorageAccountAccessKeys(ctx context.Context, server entity.Server, status bool) error {
-
-	cred := s.auth.Cred
-
-	slog.Info("updating shared key access for storage account",
-		slog.String("userPrincipalName", server.UserPrincipalName),
-		slog.String("subscriptionId", server.SubscriptionId),
-		slog.String("resourceGroup", server.ResourceGroup),
-		slog.String("Access Key status", strconv.FormatBool(status)),
-		slog.String("Server Version", server.Version),
-		slog.String("ActlabsHubUseUserAuth", strconv.FormatBool(s.appConfig.ActlabsHubUseUserAuth)),
-	)
-
-	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
-		slog.Info("using FDPO credentials for storage account access keys")
-		cred = s.auth.FdpoCredential
-	}
-
-	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, cred, nil)
-	if err != nil {
-		slog.Error("not able to create client factory to get storage account",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-		return err
-	}
-
-	account, err := s.GetClientStorageAccount(server)
-	if err != nil {
-		slog.Error("not able to get storage account",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-		return err
-	}
-
-	_, err = clientFactory.NewAccountsClient().Update(ctx, server.ResourceGroup, *account.Name, armstorage.AccountUpdateParameters{
-		Properties: &armstorage.AccountPropertiesUpdateParameters{
-			AllowSharedKeyAccess: to.Ptr(status),
-		},
-	}, nil)
-
-	if err != nil {
-		slog.Error("not able to update shared key access for storage account",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("resourceGroup", server.ResourceGroup),
-			slog.String("storageAccount", *account.Name),
-			slog.String("Access Key status", strconv.FormatBool(status)),
-		)
-		return err
-	}
-
-	return nil
-}
-
-func (s *serverRepository) DeleteResourceGroup(ctx context.Context, server entity.Server) error {
-
-	cred := s.auth.Cred
-	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
-		cred = s.auth.FdpoCredential
-	}
-
-	clientFactory, err := armresources.NewClientFactory(server.SubscriptionId, cred, nil)
-	if err != nil {
-		slog.Debug("failed to create client factory to delete resource group",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-		return err
-	}
-
-	poller, err := clientFactory.NewResourceGroupsClient().BeginDelete(ctx, server.ResourceGroup, nil)
-	if err != nil {
-		slog.Debug("failed to finish the request to delete resource group",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("resourceGroup", server.ResourceGroup),
-			slog.String("error", err.Error()),
-		)
-		return err
-	}
-
-	_, err = poller.PollUntilDone(ctx, nil)
-	if err != nil {
-		slog.Debug("failed to pull the result to delete resource group",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("resourceGroup", server.ResourceGroup),
-			slog.String("error", err.Error()),
-		)
-		return err
-	}
-
-	return nil
-}
-
-func (s *serverRepository) DeleteStorageAccount(ctx context.Context, server entity.Server) error {
-
-	cred := s.auth.Cred
-	if server.Version == "V3" && !s.appConfig.ActlabsHubUseUserAuth && !s.appConfig.ActlabsServerUseMsi {
-		cred = s.auth.FdpoCredential
-	}
-
-	clientFactory, err := armstorage.NewClientFactory(server.SubscriptionId, cred, nil)
-	if err != nil {
-		slog.Debug("not able to create client factory to get storage account",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-		return err
-	}
-
-	account, err := s.GetClientStorageAccount(server)
-	if err != nil {
-		slog.Debug("not able to get storage account",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-		return err
-	}
-
-	_, err = clientFactory.NewAccountsClient().Delete(ctx, server.ResourceGroup, *account.Name, nil)
-	if err != nil {
-		slog.Debug("not able to delete storage account",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("resourceGroup", server.ResourceGroup),
-			slog.String("storageAccount", *account.Name),
-			slog.String("error", err.Error()),
-		)
-		return err
-	}
-
-	return nil
-}
-
 func (s *serverRepository) DeleteServerFromDatabase(ctx context.Context, server entity.Server) error {
 	_, err := s.auth.ActlabsServersTableClient.DeleteEntity(ctx, server.PartitionKey, server.RowKey, nil)
 	if err != nil {
@@ -1474,4 +1202,38 @@ func (s *serverRepository) ParseServerStatus(status string) entity.ServerStatus 
 	default:
 		return entity.ServerStatusUnknown
 	}
+}
+
+func existsByName[T any](list []*T, name string, getName func(*T) *string) bool {
+	// handle nil list safely
+	if len(list) == 0 {
+		return false
+	}
+	for _, v := range list {
+		if v == nil || getName(v) == nil {
+			continue
+		}
+		if *getName(v) == name {
+			return true
+		}
+	}
+	return false
+}
+
+func removeByName[T any](list []*T, name string, getName func(*T) *string) []*T {
+	// handle nil list safely
+	if len(list) == 0 {
+		return list
+	}
+	newList := []*T{}
+	for _, v := range list {
+		if v == nil || getName(v) == nil {
+			newList = append(newList, v)
+			continue
+		}
+		if *getName(v) != name {
+			newList = append(newList, v)
+		}
+	}
+	return newList
 }

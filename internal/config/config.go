@@ -70,6 +70,7 @@ type Config struct {
 	ActlabsServerAppSettingWebsiteSiteName                   string
 	ActlabsServerArmMsiApiVersion                            string
 	ActlabsServerArmMsiApiProxyPort                          string
+	ActlabsAppGatewayName                                    string
 	// Add other configuration fields as needed
 }
 
@@ -381,6 +382,11 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_SERVER_ARM_MSI_API_PROXY_PORT not set")
 	}
 
+	actlabsAppGatewayName := getEnv("ACTLABS_APP_GATEWAY_NAME")
+	if actlabsAppGatewayName == "" {
+		return nil, fmt.Errorf("ACTLABS_APP_GATEWAY_NAME not set")
+	}
+
 	// Retrieve other environment variables and check them as needed
 
 	return &Config{
@@ -444,6 +450,7 @@ func NewConfig() (*Config, error) {
 		ActlabsServerAppSettingWebsiteSiteName:                   actlabsServerAppSettingWebsiteSiteName,
 		ActlabsServerArmMsiApiVersion:                            actlabsServerArmMsiApiVersion,
 		ActlabsServerArmMsiApiProxyPort:                          actlabsServerArmMsiApiProxyPort,
+		ActlabsAppGatewayName:                                    actlabsAppGatewayName,
 		// Set other fields
 	}, nil
 }

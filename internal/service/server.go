@@ -78,19 +78,6 @@ func (s *serverService) Unregister(ctx context.Context, userPrincipalName string
 		return err
 	}
 
-	// delete resource group
-	if err := s.serverRepository.DeleteResourceGroup(ctx, server); err != nil {
-		slog.Error("error deleting resource group",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-
-		if !strings.Contains(err.Error(), "ERROR CODE: ResourceGroupNotFound") {
-			return fmt.Errorf("error deleting resource group")
-		}
-	}
-
 	// delete server from db.
 	if err := s.serverRepository.DeleteServerFromDatabase(ctx, server); err != nil {
 		slog.Error("error deleting server from db",
@@ -183,21 +170,6 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		return server, err
 	}
 
-	// When ready to deploy, enable shred access keys in a separate go routine.
-	go func() {
-		slog.Info("enabling shared access keys",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-		)
-		if err := s.serverRepository.EnableStorageAccountAccessKeys(context.TODO(), server); err != nil {
-			slog.Error("error enabling shred access keys",
-				slog.String("userPrincipalName", server.UserPrincipalName),
-				slog.String("subscriptionId", server.SubscriptionId),
-				slog.String("error", err.Error()),
-			)
-		}
-	}()
-
 	// Before deploying, update the status in db.
 	server.Status = entity.ServerStatusDeploying
 
@@ -230,6 +202,26 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 			time.Sleep(
 				time.Duration(sleepDuration) * time.Second,
 			) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 seconds
+		}
+	}
+
+	// if server deployed successfully, then update the app gateway config.
+	if err == nil {
+		slog.Info("server deployed successfully, adding application gateway config for user",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("status", string(server.Status)),
+		)
+		server, err = s.serverRepository.AddApplicationGatewayConfigForUser(context.Background(), server)
+		if err != nil {
+			slog.Error("error adding application gateway config for user",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("error", err.Error()),
+			)
+
+			// if error, destroy the server and return error.
+			s.DestroyServer(server.UserPrincipalName, false)
 		}
 	}
 
@@ -345,21 +337,6 @@ func (s *serverService) DestroyServer(userPrincipalName string, adminInitiated b
 
 	s.ServerDefaults(&server)
 
-	// When ready to deploy, enable shared access keys in a separate go routine.
-	go func() {
-		slog.Info("disabling shared access keys",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-		)
-		if err := s.serverRepository.DisableStorageAccountAccessKeys(context.TODO(), server); err != nil {
-			slog.Error("error enabling shred access keys",
-				slog.String("userPrincipalName", server.UserPrincipalName),
-				slog.String("subscriptionId", server.SubscriptionId),
-				slog.String("error", err.Error()),
-			)
-		}
-	}()
-
 	// Retry 5 times.
 	for i := 0; i < 5; i++ {
 		err = s.serverRepository.DestroyServer(server)
@@ -384,6 +361,22 @@ func (s *serverService) DestroyServer(userPrincipalName string, adminInitiated b
 			time.Sleep(
 				time.Duration(sleepDuration) * time.Second,
 			) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 waitTimeSeconds
+		}
+	}
+
+	// if no error then delete the app gateway config for user.
+	if err == nil {
+		slog.Info("server destroyed successfully, deleting application gateway config for user",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+		)
+
+		if err := s.serverRepository.DeleteApplicationGatewayConfigForUser(context.TODO(), server); err != nil {
+			slog.Error("failed to delete application gateway config for user",
+				slog.String("userPrincipalName", server.UserPrincipalName),
+				slog.String("subscriptionId", server.SubscriptionId),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
 
