@@ -4,7 +4,7 @@
 # Don't run the script directly, use air instead.
 # refer .air.toml for more details.
 
-source .env
+source .local.containerapp.env
 
 export ROOT_DIR=$(pwd)
 export LOG_LEVEL="-4"
