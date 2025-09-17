@@ -592,7 +592,7 @@ func (s *serverRepository) AddApplicationGatewayConfigForUser(ctx context.Contex
 		return server, err
 	}
 
-	server.Endpoint = "dev.msftactlabs.com/" + server.UserAlias
+	server.Endpoint = s.appConfig.ActlabsFQDN + "/" + server.UserAlias
 
 	return server, nil
 }
