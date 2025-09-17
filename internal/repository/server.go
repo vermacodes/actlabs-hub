@@ -561,8 +561,23 @@ func (s *serverRepository) AddApplicationGatewayConfigForUser(ctx context.Contex
 			RewriteRuleSet:      rewriteRef,
 		},
 	}
-	if !existsByName(existing.Properties.URLPathMaps[0].Properties.PathRules, *pathRule.Name, func(r *armnetwork.ApplicationGatewayPathRule) *string { return r.Name }) {
-		existing.Properties.URLPathMaps[0].Properties.PathRules = append(existing.Properties.URLPathMaps[0].Properties.PathRules, pathRule)
+
+	if len(existing.Properties.URLPathMaps) == 0 {
+		if !existsByName(existing.Properties.URLPathMaps[0].Properties.PathRules, *pathRule.Name, func(r *armnetwork.ApplicationGatewayPathRule) *string { return r.Name }) {
+			existing.Properties.URLPathMaps[0].Properties.PathRules = append(existing.Properties.URLPathMaps[0].Properties.PathRules, pathRule)
+		}
+	} else {
+		// If no path map exists, create one
+		existing.Properties.URLPathMaps = []*armnetwork.ApplicationGatewayURLPathMap{
+			{
+				Name: to.Ptr("appgw-url-path-map"),
+				Properties: &armnetwork.ApplicationGatewayURLPathMapPropertiesFormat{
+					PathRules: []*armnetwork.ApplicationGatewayPathRule{
+						pathRule,
+					},
+				},
+			},
+		}
 	}
 
 	// update (reuse the full existing resource)
