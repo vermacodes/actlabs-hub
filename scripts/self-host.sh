@@ -254,7 +254,7 @@ function deploy() {
   export AZURE_SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
   export AUTH_TOKEN_ISS="https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0" # The app used by ACTLabs is still in the prod tenant
   export AUTH_TOKEN_AUD="00399ddd-434c-4b8a-84be-d096cff4f494"
-  export ACTLABS_HUB_URL="https://actlabs-hub-capp.purplegrass-7409b036.eastus.azurecontainerapps.io/"
+  export ACTLABS_HUB_URL="https://dev.msftactlabs.com/hub/"
   export ACTLABS_HUB_SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
   export ACTLABS_HUB_RESOURCE_GROUP_NAME="${RESOURCE_GROUP}"
   export ACTLABS_HUB_STORAGE_ACCOUNT_NAME="${STORAGE_ACCOUNT_NAME}"

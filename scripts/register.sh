@@ -18,11 +18,11 @@ ACTLABS_FDPO_SP_APP_ID="50cc6d33-3224-477f-b2bd-5c1c6595fdf5"
 
 # Prod Environment
 ACTLABS_MSI_APP_ID="9735b762-ef8d-477b-af26-13c9b8d6f35c"
-ACTLABS_HUB_ENDPOINT="https://actlabs-hub-capp.purplegrass-7409b036.eastus.azurecontainerapps.io/arm/server/register"
+ACTLABS_HUB_ENDPOINT="https://app.msftactlabs.com/hub/arm/server/register"
 
 # Dev Environment
 ACTLABS_DEV_MSI_APP_ID="589f5c83-f27d-4a89-9dd2-75a11a0c7d6a"
-ACTLABS_DEV_HUB_ENDPOINT="https://actlabs-hub-capp.salmonmeadow-629f4891.eastus.azurecontainerapps.io/arm/server/register"
+ACTLABS_DEV_HUB_ENDPOINT="https://dev.msftactlabs.com/hub/arm/server/register"
 
 # Add some color
 RED='\033[0;91m'
