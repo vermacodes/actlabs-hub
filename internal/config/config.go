@@ -10,6 +10,9 @@ import (
 )
 
 type Config struct {
+	ActlabsAppGatewayName                                    string
+	ActlabsEnvironmentName                                   string
+	ActlabsFQDN                                              string
 	ActlabsHubClientID                                       string
 	ActlabsHubManagedServersTableName                        string
 	ActlabsHubReadinessAssignmentsTableName                  string
@@ -70,7 +73,6 @@ type Config struct {
 	ActlabsServerAppSettingWebsiteSiteName                   string
 	ActlabsServerArmMsiApiVersion                            string
 	ActlabsServerArmMsiApiProxyPort                          string
-	ActlabsAppGatewayName                                    string
 	// Add other configuration fields as needed
 }
 
@@ -80,6 +82,21 @@ func NewConfig() (*Config, error) {
 	err := godotenv.Load()
 	if err != nil {
 		slog.Error("Error loading .env file")
+	}
+
+	actlabsAppGatewayName := getEnv("ACTLABS_APP_GATEWAY_NAME")
+	if actlabsAppGatewayName == "" {
+		return nil, fmt.Errorf("ACTLABS_APP_GATEWAY_NAME not set")
+	}
+
+	actlabsEnvironmentName := getEnv("ACTLABS_ENVIRONMENT_NAME")
+	if actlabsEnvironmentName == "" {
+		return nil, fmt.Errorf("ACTLABS_ENVIRONMENT_NAME not set")
+	}
+
+	actlabsFQDN := getEnv("ACTLABS_FQDN")
+	if actlabsFQDN == "" {
+		return nil, fmt.Errorf("ACTLABS_FQDN not set")
 	}
 
 	authTokenAud := getEnv("AUTH_TOKEN_AUD")
@@ -382,14 +399,12 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_SERVER_ARM_MSI_API_PROXY_PORT not set")
 	}
 
-	actlabsAppGatewayName := getEnv("ACTLABS_APP_GATEWAY_NAME")
-	if actlabsAppGatewayName == "" {
-		return nil, fmt.Errorf("ACTLABS_APP_GATEWAY_NAME not set")
-	}
-
 	// Retrieve other environment variables and check them as needed
 
 	return &Config{
+		ActlabsAppGatewayName:                                    actlabsAppGatewayName,
+		ActlabsEnvironmentName:                                   actlabsEnvironmentName,
+		ActlabsFQDN:                                              actlabsFQDN,
 		ActlabsHubClientID:                                       actlabsHubClientID,
 		ActlabsHubManagedServersTableName:                        actlabsHubManagedServersTableName,
 		ActlabsHubReadinessAssignmentsTableName:                  actlabsHubReadinessAssignmentsTableName,
@@ -450,7 +465,6 @@ func NewConfig() (*Config, error) {
 		ActlabsServerAppSettingWebsiteSiteName:                   actlabsServerAppSettingWebsiteSiteName,
 		ActlabsServerArmMsiApiVersion:                            actlabsServerArmMsiApiVersion,
 		ActlabsServerArmMsiApiProxyPort:                          actlabsServerArmMsiApiProxyPort,
-		ActlabsAppGatewayName:                                    actlabsAppGatewayName,
 		// Set other fields
 	}, nil
 }
