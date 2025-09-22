@@ -562,7 +562,11 @@ func (s *serverRepository) AddApplicationGatewayConfigForUser(ctx context.Contex
 		},
 	}
 
-	if len(existing.Properties.URLPathMaps) == 0 {
+	if len(existing.Properties.URLPathMaps) > 0 {
+		// ensure Properties is non-nil before using PathRules
+		if existing.Properties.URLPathMaps[0].Properties == nil {
+			existing.Properties.URLPathMaps[0].Properties = &armnetwork.ApplicationGatewayURLPathMapPropertiesFormat{}
+		}
 		if !existsByName(existing.Properties.URLPathMaps[0].Properties.PathRules, *pathRule.Name, func(r *armnetwork.ApplicationGatewayPathRule) *string { return r.Name }) {
 			existing.Properties.URLPathMaps[0].Properties.PathRules = append(existing.Properties.URLPathMaps[0].Properties.PathRules, pathRule)
 		}
@@ -574,6 +578,14 @@ func (s *serverRepository) AddApplicationGatewayConfigForUser(ctx context.Contex
 				Properties: &armnetwork.ApplicationGatewayURLPathMapPropertiesFormat{
 					PathRules: []*armnetwork.ApplicationGatewayPathRule{
 						pathRule,
+					},
+					// default backend pool and http settings to avoid validation errors
+					// find the default pool with name appgw-backend-pool-not-found-api
+					DefaultBackendAddressPool: &armnetwork.SubResource{
+						ID: to.Ptr(*existing.ID + "/backendAddressPools/appgw-backend-pool-not-found-api"),
+					},
+					DefaultBackendHTTPSettings: &armnetwork.SubResource{
+						ID: to.Ptr(*existing.ID + "/backendHttpSettingsCollection/appgw-backend-http-setting-not-found-api"),
 					},
 				},
 			},
