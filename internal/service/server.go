@@ -205,27 +205,22 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		}
 	}
 
-	// if server deployed successfully, then update the app gateway config.
-	if err == nil {
-		slog.Info("server deployed successfully, adding application gateway config for user",
+	slog.Info("server deployed successfully, adding application gateway config for user",
+		slog.String("userPrincipalName", server.UserPrincipalName),
+		slog.String("subscriptionId", server.SubscriptionId),
+		slog.String("status", string(server.Status)),
+	)
+	server, err = s.serverRepository.AddApplicationGatewayConfigForUser(context.Background(), server)
+	if err != nil {
+		slog.Error("error adding application gateway config for user",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("status", string(server.Status)),
+			slog.String("error", err.Error()),
 		)
-		server, err = s.serverRepository.AddApplicationGatewayConfigForUser(context.Background(), server)
-		if err != nil {
-			slog.Error("error adding application gateway config for user",
-				slog.String("userPrincipalName", server.UserPrincipalName),
-				slog.String("subscriptionId", server.SubscriptionId),
-				slog.String("error", err.Error()),
-			)
 
-			// if error, destroy the server and return error.
-			s.DestroyServer(server.UserPrincipalName, false)
-		}
-	}
+		// if error, destroy the server and return error.
+		s.DestroyServer(server.UserPrincipalName, false)
 
-	if err != nil {
 		// Server Deployment Failed, Reset Status and Update database.
 		// Makes no sense to handle error here.
 		server.Status = entity.ServerStatusFailed
@@ -242,6 +237,26 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 
 		return server, err
 	}
+
+	// At this point, the deployment API call has succeeded, so we consider the server deployed.
+	// To avoid UI timeouts, we do not block the response waiting for the server to be fully up.
+	// Instead, we start background readiness checks and update the status to 'Running' once confirmed.
+	// This approach ensures fast feedback to the user, while keeping status accurate via later updates.
+	s.UpsertServerInDatabase(server) // Ignore error.
+	s.eventService.CreateEvent(context.TODO(), entity.Event{
+		Type:      "Normal",
+		Reason:    "ServerDeployed",
+		Message:   "server deployed for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
+		Reporter:  "actlabs-hub",
+		Object:    server.UserPrincipalName,
+		TimeStamp: time.Now().Format(time.RFC3339),
+	})
+
+	slog.Info("waiting for server to be up and running",
+		slog.String("userPrincipalName", server.UserPrincipalName),
+		slog.String("subscriptionId", server.SubscriptionId),
+		slog.String("status", string(server.Status)),
+	)
 
 	// convert to int
 	waitTimeSeconds, err := strconv.Atoi(s.appConfig.ActlabsServerUPWaitTimeSeconds)
@@ -262,6 +277,12 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 
 	// Ensure server is up and running. check every 5 seconds for 3 minutes.
 	for i := 0; i < waitTimeSeconds/5; i++ {
+		slog.Info("checking if server is up and running",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("endpoint", server.Endpoint),
+			slog.String("attempt", strconv.Itoa(i+1)),
+		)
 		if err := s.serverRepository.EnsureServerUp(server); err == nil {
 			slog.Info("server is up and running",
 				slog.String("userPrincipalName", server.UserPrincipalName),
