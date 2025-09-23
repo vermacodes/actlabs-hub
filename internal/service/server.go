@@ -129,15 +129,11 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 		slog.String("subscriptionId", server.SubscriptionId),
 	)
 
-	// get server from db.
 	serverFromDB, err := s.GetServerFromDatabase(server.UserPrincipalName)
 	if err != nil {
-		// if not able to get server from db, that means server is not registered.
-		// return error.
 		return server, err
 	}
 
-	// if server is already deployed or deploying, return.
 	if serverFromDB.Status == entity.ServerStatusDeploying ||
 		serverFromDB.Status == entity.ServerStatusRunning {
 		slog.Info("server is already deployed or deploying",
@@ -179,36 +175,19 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 	}
 
 	// Deploy server. Retry 5 times.
-	for i := 0; i < 5; i++ {
-		server, err = s.serverRepository.DeployServer(server)
-		if err == nil {
-			break
-		}
-
-		slog.Error(
-			"deploying server failed",
-			slog.String(
-				"backoff",
-				strconv.FormatFloat(math.Min(math.Pow(2, float64(i))*10, 120.0), 'f', -1, 64)+"s",
-			),
+	server, err = s.deployWithRetries(server)
+	if err != nil {
+		slog.Error("deploying server failed after retries",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("attempt", strconv.Itoa(i+1)),
 			slog.String("error", err.Error()),
 		)
-
-		if i < 4 { // Don't sleep after the last attempt
-			sleepDuration := math.Min(math.Pow(2, float64(i))*10, 120.0)
-			time.Sleep(
-				time.Duration(sleepDuration) * time.Second,
-			) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 seconds
-		}
+		return s.handleDeploymentFailure(server, err)
 	}
 
 	slog.Info("server deployed successfully, adding application gateway config for user",
 		slog.String("userPrincipalName", server.UserPrincipalName),
 		slog.String("subscriptionId", server.SubscriptionId),
-		slog.String("status", string(server.Status)),
 	)
 	server, err = s.serverRepository.AddApplicationGatewayConfigForUser(context.Background(), server)
 	if err != nil {
@@ -217,127 +196,97 @@ func (s *serverService) DeployServer(server entity.Server) (entity.Server, error
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("error", err.Error()),
 		)
-
-		// if error, destroy the server and return error.
 		s.DestroyServer(server.UserPrincipalName, false)
-
-		// Server Deployment Failed, Reset Status and Update database.
-		// Makes no sense to handle error here.
-		server.Status = entity.ServerStatusFailed
-		s.UpsertServerInDatabase(server)
-
-		s.eventService.CreateEvent(context.TODO(), entity.Event{
-			Type:      "Warning",
-			Reason:    "ServerDeploymentFailed",
-			Message:   "server deployment for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version + " failed" + " with error " + err.Error(),
-			Reporter:  "actlabs-hub",
-			Object:    server.UserPrincipalName,
-			TimeStamp: time.Now().Format(time.RFC3339),
-		})
-
-		return server, err
+		return s.handleDeploymentFailure(server, err)
 	}
 
-	// At this point, the deployment API call has succeeded, so we consider the server deployed.
-	// To avoid UI timeouts, we do not block the response waiting for the server to be fully up.
-	// Instead, we start background readiness checks and update the status to 'Running' once confirmed.
-	// This approach ensures fast feedback to the user, while keeping status accurate via later updates.
-	s.UpsertServerInDatabase(server) // Ignore error.
+	s.UpsertServerInDatabase(server)
+	s.createEvent(server, "Normal", "ServerDeployed", "server deployed for user "+server.UserPrincipalName+" in subscription "+server.SubscriptionId+" with version "+server.Version)
+
+	go s.backgroundReadinessCheck(server)
+
+	return server, nil
+}
+
+func (s *serverService) deployWithRetries(server entity.Server) (entity.Server, error) {
+	var err error
+	for i := 0; i < 5; i++ {
+		server, err = s.serverRepository.DeployServer(server)
+		if err == nil {
+			return server, nil
+		}
+		slog.Error("deploying server failed",
+			slog.String("backoff", strconv.FormatFloat(math.Min(math.Pow(2, float64(i))*10, 120.0), 'f', -1, 64)+"s"),
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("attempt", strconv.Itoa(i+1)),
+			slog.String("error", err.Error()),
+		)
+		if i < 4 {
+			sleepDuration := math.Min(math.Pow(2, float64(i))*10, 120.0)
+			time.Sleep(time.Duration(sleepDuration) * time.Second)
+		}
+	}
+	return server, err
+}
+
+func (s *serverService) handleDeploymentFailure(server entity.Server, err error) (entity.Server, error) {
+	server.Status = entity.ServerStatusFailed
+	s.UpsertServerInDatabase(server)
+	s.createEvent(server, "Warning", "ServerDeploymentFailed", "server deployment for user "+server.UserPrincipalName+" in subscription "+server.SubscriptionId+" with version "+server.Version+" failed with error "+err.Error())
+	return server, err
+}
+
+func (s *serverService) createEvent(server entity.Server, eventType, reason, message string) {
 	s.eventService.CreateEvent(context.TODO(), entity.Event{
-		Type:      "Normal",
-		Reason:    "ServerDeployed",
-		Message:   "server deployed for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
+		Type:      eventType,
+		Reason:    reason,
+		Message:   message,
 		Reporter:  "actlabs-hub",
 		Object:    server.UserPrincipalName,
 		TimeStamp: time.Now().Format(time.RFC3339),
 	})
+}
 
-	slog.Info("waiting for server to be up and running",
-		slog.String("userPrincipalName", server.UserPrincipalName),
-		slog.String("subscriptionId", server.SubscriptionId),
-		slog.String("status", string(server.Status)),
-	)
-
-	// convert to int
+func (s *serverService) backgroundReadinessCheck(server entity.Server) {
 	waitTimeSeconds, err := strconv.Atoi(s.appConfig.ActlabsServerUPWaitTimeSeconds)
 	if err != nil {
-		slog.Error(
-			"error converting ACTLABS_SERVER_UP_WAIT_TIME_SECONDS to int",
+		slog.Error("error converting ACTLABS_SERVER_UP_WAIT_TIME_SECONDS to int",
 			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String(
-				"ACTLABS_SERVER_UP_WAIT_TIME_SECONDS",
-				s.appConfig.ActlabsServerUPWaitTimeSeconds,
-			),
+			slog.String("ACTLABS_SERVER_UP_WAIT_TIME_SECONDS", s.appConfig.ActlabsServerUPWaitTimeSeconds),
 			slog.String("error", err.Error()),
 		)
-		return server, fmt.Errorf(
-			"server deployment started, but not able to verify server is up and running",
-		)
+		return
 	}
-
-	// Ensure server is up and running. check every 5 seconds for 3 minutes.
 	for i := 0; i < waitTimeSeconds/5; i++ {
-		slog.Info("checking if server is up and running",
+		slog.Info("checking if server is up and running (background)",
 			slog.String("userPrincipalName", server.UserPrincipalName),
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("endpoint", server.Endpoint),
 			slog.String("attempt", strconv.Itoa(i+1)),
 		)
 		if err := s.serverRepository.EnsureServerUp(server); err == nil {
-			slog.Info("server is up and running",
+			slog.Info("server is up and running (background)",
 				slog.String("userPrincipalName", server.UserPrincipalName),
 				slog.String("subscriptionId", server.SubscriptionId),
 				slog.String("status", string(server.Status)),
 			)
-
 			server.Status = entity.ServerStatusRunning
 			server.LastUserActivityTime = time.Now().Format(time.RFC3339)
 			server.DeployedAtTime = time.Now().Format(time.RFC3339)
-
-			// Update server in database.
-			if err := s.UpsertServerInDatabase(server); err != nil {
-				return server, err
-			}
-
-			// Create Event
-			s.eventService.CreateEvent(context.TODO(), entity.Event{
-				Type:      "Normal",
-				Reason:    "ServerDeployed",
-				Message:   "server deployed for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
-				Reporter:  "actlabs-hub",
-				Object:    server.UserPrincipalName,
-				TimeStamp: time.Now().Format(time.RFC3339),
-			})
-
-			// return server. this is the success case.
-			return server, nil
+			s.UpsertServerInDatabase(server)
+			s.createEvent(server, "Normal", "ServerDeployed", "server deployed for user "+server.UserPrincipalName+" in subscription "+server.SubscriptionId+" with version "+server.Version)
+			return
 		}
 		time.Sleep(5 * time.Second)
 	}
-
-	slog.Error("server deployed, but not able to verify server is up and running",
+	slog.Error("server deployed, but not able to verify server is up and running (background)",
 		slog.String("userPrincipalName", server.UserPrincipalName),
 		slog.String("subscriptionId", server.SubscriptionId),
 	)
-
 	server.Status = entity.ServerStatusUnknown
-
-	// Update server in database.
-	if err := s.UpsertServerInDatabase(server); err != nil {
-		return server, err
-	}
-
-	// Create Event
-	s.eventService.CreateEvent(context.TODO(), entity.Event{
-		Type:      "Warning",
-		Reason:    "ServerUnknown",
-		Message:   "server deployed for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version + " but not able to verify server is up and running",
-		Reporter:  "actlabs-hub",
-		Object:    server.UserPrincipalName,
-		TimeStamp: time.Now().Format(time.RFC3339),
-	})
-
-	return server, errors.New("server deployed, but not able to verify server is up and running")
+	s.UpsertServerInDatabase(server)
+	s.createEvent(server, "Warning", "ServerUnknown", "server deployed for user "+server.UserPrincipalName+" in subscription "+server.SubscriptionId+" with version "+server.Version+" but not able to verify server is up and running")
 }
 
 func (s *serverService) DestroyServer(userPrincipalName string, adminInitiated bool) error {
