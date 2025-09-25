@@ -7,7 +7,6 @@
 *.dll
 *.so
 *.dylib
-*.env
 *.deploy.yaml
 
 # Test binary, built with `go test -c`
