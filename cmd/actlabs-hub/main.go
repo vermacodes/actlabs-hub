@@ -114,8 +114,14 @@ func main() {
 	deploymentService := service.NewDeploymentService(deploymentRepository, serverService, eventService, appConfig)
 	// autoRemediateService := service.NewAutoRemediateService(appConfig, auth)
 
-	go autoDestroyService.MonitorAndDestroyInactiveServers(context.Background())
-	go deploymentService.MonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments(context.Background())
+	if appConfig.ActlabsHubMonitorAndDestroyInactiveServers {
+		slog.Info("Auto destroy of inactive servers is ENABLED")
+		go autoDestroyService.MonitorAndDestroyInactiveServers(context.Background())
+	}
+	if appConfig.ActlabsHubMonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments {
+		slog.Info("Auto deploy of auto-destroyed servers to destroy pending deployments is ENABLED")
+		go deploymentService.MonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments(context.Background())
+	}
 	// go autoRemediateService.MonitorAndRemediate(context.Background())
 
 	router := gin.Default()

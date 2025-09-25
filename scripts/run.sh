@@ -4,8 +4,8 @@
 # Don't run the script directly, use air instead.
 # refer .air.toml for more details.
 
-source .env
-source .env.local
+export $(egrep -v '^#' .env | xargs)
+export $(egrep -v '^#' .env.local | xargs)
 
 export ROOT_DIR=$(pwd)
 export LOG_LEVEL="-4"
