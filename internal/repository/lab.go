@@ -65,6 +65,12 @@ func (l *labRepository) ListBlobs(
 
 	// URL of the container to list the blobs
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", l.appConfig.ActlabsHubStorageAccount)
+
+	// Use this for local emulator
+	if l.appConfig.ActlabsHubStorageAccount == "devstoreaccount1" {
+		serviceURL = "https://localhost:10000/devstoreaccount1/"
+	}
+
 	client, err := azblob.NewClient(serviceURL, l.auth.Cred, nil)
 	if err != nil {
 		return nil, err
@@ -126,12 +132,23 @@ func (l *labRepository) GetLabWithVersions(ctx context.Context, typeOfLab string
 
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", l.appConfig.ActlabsHubStorageAccount)
 
+	// Use this for local emulator
+	if l.appConfig.ActlabsHubStorageAccount == "devstoreaccount1" {
+		serviceURL = "https://localhost:10000/devstoreaccount1/"
+	}
+
 	client, err := azblob.NewClient(serviceURL, l.auth.Cred, nil)
 	if err != nil {
 		return labs, err
 	}
 
 	containerURL := fmt.Sprintf("https://%s.blob.core.windows.net/%s", l.appConfig.ActlabsHubStorageAccount, ReproProjectPrefix+typeOfLab)
+
+	// Use this for local emulator
+	if l.appConfig.ActlabsHubStorageAccount == "devstoreaccount1" {
+		containerURL = "https://localhost:10000/devstoreaccount1/" + ReproProjectPrefix + typeOfLab
+	}
+
 	containerClient, err := container.NewClient(containerURL, l.auth.Cred, nil)
 	if err != nil {
 		return labs, err
@@ -245,6 +262,11 @@ func (l *labRepository) GetLab(
 	}
 
 	containerURL := fmt.Sprintf("https://%s.blob.core.windows.net/%s", l.appConfig.ActlabsHubStorageAccount, ReproProjectPrefix+typeOfLab)
+
+	if l.appConfig.ActlabsHubStorageAccount == "devstoreaccount1" {
+		containerURL = "https://localhost:10000/devstoreaccount1/" + ReproProjectPrefix + typeOfLab
+	}
+
 	containerClient, err := container.NewClient(containerURL, l.auth.Cred, nil)
 	if err != nil {
 		return lab, err
@@ -277,6 +299,11 @@ func (l *labRepository) GetLab(
 
 func (l *labRepository) UpsertLab(ctx context.Context, labId string, lab string, typeOfLab string) error {
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", l.appConfig.ActlabsHubStorageAccount)
+
+	if l.appConfig.ActlabsHubStorageAccount == "devstoreaccount1" {
+		serviceURL = "https://localhost:10000/devstoreaccount1/"
+	}
+
 	client, err := azblob.NewClient(serviceURL, l.auth.Cred, nil)
 	if err != nil {
 		return err
@@ -308,6 +335,10 @@ func (l *labRepository) UpsertLab(ctx context.Context, labId string, lab string,
 func (l *labRepository) DeleteLab(ctx context.Context, typeOfLab string, labId string) error {
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", l.appConfig.ActlabsHubStorageAccount)
 
+	if l.appConfig.ActlabsHubStorageAccount == "devstoreaccount1" {
+		serviceURL = "https://localhost:10000/devstoreaccount1/"
+	}
+
 	client, err := azblob.NewClient(serviceURL, l.auth.Cred, nil)
 	if err != nil {
 		return err
@@ -328,6 +359,12 @@ func (l *labRepository) DeleteLab(ctx context.Context, typeOfLab string, labId s
 
 func (l *labRepository) UpsertSupportingDocument(ctx context.Context, supportingDocument multipart.File) (string, error) {
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", l.appConfig.ActlabsHubStorageAccount)
+
+	// Use this for local emulator
+	if l.appConfig.ActlabsHubStorageAccount == "devstoreaccount1" {
+		serviceURL = "https://localhost:10000/devstoreaccount1/"
+	}
+
 	client, err := azblob.NewClient(serviceURL, l.auth.Cred, nil)
 	if err != nil {
 		return "", err
@@ -346,6 +383,11 @@ func (l *labRepository) UpsertSupportingDocument(ctx context.Context, supporting
 
 func (l *labRepository) GetSupportingDocument(ctx context.Context, supportingDocumentId string) (io.ReadCloser, error) {
 	containerUrl := fmt.Sprintf("https://%s.blob.core.windows.net/%s", l.appConfig.ActlabsHubStorageAccount, "repro-project-supporting-documents")
+
+	if l.appConfig.ActlabsHubStorageAccount == "devstoreaccount1" {
+		containerUrl = "https://localhost:10000/devstoreaccount1/repro-project-supporting-documents"
+	}
+
 	containerClient, err := container.NewClient(containerUrl, l.auth.Cred, nil)
 	if err != nil {
 		return nil, err
@@ -363,6 +405,11 @@ func (l *labRepository) GetSupportingDocument(ctx context.Context, supportingDoc
 
 func (l *labRepository) DeleteSupportingDocument(ctx context.Context, supportingDocumentId string) error {
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", l.appConfig.ActlabsHubStorageAccount)
+
+	if l.appConfig.ActlabsHubStorageAccount == "devstoreaccount1" {
+		serviceURL = "https://localhost:10000/devstoreaccount1/"
+	}
+
 	client, err := azblob.NewClient(serviceURL, l.auth.Cred, nil)
 	if err != nil {
 		return err
@@ -378,6 +425,11 @@ func (l *labRepository) DeleteSupportingDocument(ctx context.Context, supporting
 
 func (l *labRepository) DoesSupportingDocumentExist(ctx context.Context, supportingDocumentId string) bool {
 	containerUrl := fmt.Sprintf("https://%s.blob.core.windows.net/%s", l.appConfig.ActlabsHubStorageAccount, "repro-project-supporting-documents")
+
+	if l.appConfig.ActlabsHubStorageAccount == "devstoreaccount1" {
+		containerUrl = "https://localhost:10000/devstoreaccount1/repro-project-supporting-documents"
+	}
+
 	containerClient, err := container.NewClient(containerUrl, l.auth.Cred, nil)
 	if err != nil {
 		return false
