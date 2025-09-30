@@ -1,0 +1,183 @@
+Script started on 2025-09-30 11:06:13-04:00 [COMMAND="az containerapp exec --name actlabs-app-hub-ca --resource-group actlabs-app --subscription ACT-CSS-Readiness-NPRD --command '/bin/bash'" TERM="xterm-256color" TTY="/dev/pts/5" COLUMNS="156" LINES="38"]
+INFO: Connecting to the container 'actlabs-app-hub-ca'...
+[93mUse ctrl + D to exit.[0m
+INFO: Successfully connected to container: 'actlabs-app-hub-ca'. [ Revision: 'actlabs-app-hub-ca--2aaip7i', Replica: 'actlabs-app-hub-ca--2aaip7i-79bd59947f-mrhfg'].
+root@actlabs-app-hub-ca--2aaip7i-79bd59947f-mrhfg:/app# curl -v https://ashisverma-app.wittywater-bd25731e.eastus.azurecontainerapps.io/status
+*   Trying 10.0.1.8:443...
+* Connected to ashisverma-app.wittywater-bd25731e.eastus.azurecontainerapps.io (10.0.1.8) port 443 (#0)
+* ALPN, offering h2
+* ALPN, offering http/1.1
+*  CAfile: /etc/ssl/certs/ca-certificates.crt
+*  CApath: /etc/ssl/certs
+* TLSv1.0 (OUT), TLS header, Certificate Status (22):
+* TLSv1.3 (OUT), TLS handshake, Client hello (1):
+* TLSv1.2 (IN), TLS header, Certificate Status (22):
+* TLSv1.3 (IN), TLS handshake, Server hello (2):
+* TLSv1.2 (IN), TLS header, Finished (20):
+* TLSv1.2 (IN), TLS header, Supplemental data (23):
+* TLSv1.3 (IN), TLS handshake, Encrypted Extensions (8):
+* TLSv1.3 (IN), TLS handshake, Certificate (11):
+* TLSv1.3 (IN), TLS handshake, CERT verify (15):
+* TLSv1.3 (IN), TLS handshake, Finished (20):
+* TLSv1.2 (OUT), TLS header, Finished (20):
+* TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
+* TLSv1.2 (OUT), TLS header, Supplemental data (23):
+* TLSv1.3 (OUT), TLS handshake, Finished (20):
+* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
+* ALPN, server accepted to use h2
+* Server certificate:
+*  subject: C=US; ST=WA; L=Redmond; O=Microsoft Corporation; CN=wittywater-bd25731e.eastus.azurecontainerapps.io
+*  start date: Sep 23 08:10:13 2025 GMT
+*  expire date: Mar 22 08:10:13 2026 GMT
+*  subjectAltName: host "ashisverma-app.wittywater-bd25731e.eastus.azurecontainerapps.io" matched cert's "*.wittywater-bd25731e.eastus.azurecontainerapps.io"
+*  issuer: C=US; O=Microsoft Corporation; CN=Microsoft Azure RSA TLS Issuing CA 07
+*  SSL certificate verify ok.
+* Using HTTP2, server supports multiplexing
+* Connection state changed (HTTP/2 confirmed)
+* Copying HTTP/2 data in stream buffer to connection buffer after upgrade: len=0
+* TLSv1.2 (OUT), TLS header, Supplemental data (23):
+* TLSv1.2 (OUT), TLS header, Supplemental data (23):
+* TLSv1.2 (OUT), TLS header, Supplemental data (23):
+* Using Stream ID: 1 (easy handle 0x61232f9ac9f0)
+* TLSv1.2 (OUT), TLS header, Supplemental data (23):
+> GET /status HTTP/2
+> Host: ashisverma-app.wittywater-bd25731e.eastus.azurecontainerapps.io
+> user-agent: curl/7.81.0
+> accept: */*
+> 
+* TLSv1.2 (IN), TLS header, Supplemental data (23):
+* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+* old SSL session ID is stale, removing
+* TLSv1.2 (IN), TLS header, Supplemental data (23):
+* TLSv1.2 (OUT), TLS header, Supplemental data (23):
+* TLSv1.2 (IN), TLS header, Supplemental data (23):
+< HTTP/2 200 
+< content-type: application/json; charset=utf-8
+< date: Tue, 30 Sep 2025 15:07:06 GMT
+< content-length: 49
+< 
+{
+    "status": "OK",
+    "version": "20250923"
+* Connection #0 to host ashisverma-app.wittywater-bd25731e.eastus.azurecontainerapps.io left intact
+}root@actlabs-app-hub-ca--2aaip7i-79bd59947f-mrhfg:/app# curl -v https://ashisverma-app.wittywater-bd25731e.eastus.azurecontainerapps.io/statusrma-app.wittywater-bd25731e.eastus.azurecontainerapps.io/status 
+*   Trying 10.0.1.8:443...
+* Connected to ashisverm-app.wittywater-bd25731e.eastus.azurecontainerapps.io (10.0.1.8) port 443 (#0)
+* ALPN, offering h2
+* ALPN, offering http/1.1
+*  CAfile: /etc/ssl/certs/ca-certificates.crt
+*  CApath: /etc/ssl/certs
+* TLSv1.0 (OUT), TLS header, Certificate Status (22):
+* TLSv1.3 (OUT), TLS handshake, Client hello (1):
+* TLSv1.2 (IN), TLS header, Certificate Status (22):
+* TLSv1.3 (IN), TLS handshake, Server hello (2):
+* TLSv1.2 (IN), TLS header, Finished (20):
+* TLSv1.2 (IN), TLS header, Supplemental data (23):
+* TLSv1.3 (IN), TLS handshake, Encrypted Extensions (8):
+* TLSv1.3 (IN), TLS handshake, Certificate (11):
+* TLSv1.3 (IN), TLS handshake, CERT verify (15):
+* TLSv1.3 (IN), TLS handshake, Finished (20):
+* TLSv1.2 (OUT), TLS header, Finished (20):
+* TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
+* TLSv1.2 (OUT), TLS header, Supplemental data (23):
+* TLSv1.3 (OUT), TLS handshake, Finished (20):
+* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
+* ALPN, server accepted to use h2
+* Server certificate:
+*  subject: C=US; ST=WA; L=Redmond; O=Microsoft Corporation; CN=wittywater-bd25731e.eastus.azurecontainerapps.io
+*  start date: Sep 23 08:10:13 2025 GMT
+*  expire date: Mar 22 08:10:13 2026 GMT
+*  subjectAltName: host "ashisverm-app.wittywater-bd25731e.eastus.azurecontainerapps.io" matched cert's "*.wittywater-bd25731e.eastus.azurecontainerapps.io"
+*  issuer: C=US; O=Microsoft Corporation; CN=Microsoft Azure RSA TLS Issuing CA 07
+*  SSL certificate verify ok.
+* Using HTTP2, server supports multiplexing
+* Connection state changed (HTTP/2 confirmed)
+* Copying HTTP/2 data in stream buffer to connection buffer after upgrade: len=0
+* TLSv1.2 (OUT), TLS header, Supplemental data (23):
+* TLSv1.2 (OUT), TLS header, Supplemental data (23):
+* TLSv1.2 (OUT), TLS header, Supplemental data (23):
+* Using Stream ID: 1 (easy handle 0x61f277ae29f0)
+* TLSv1.2 (OUT), TLS header, Supplemental data (23):
+> GET /status HTTP/2
+> Host: ashisverm-app.wittywater-bd25731e.eastus.azurecontainerapps.io
+> user-agent: curl/7.81.0
+> accept: */*
+> 
+* TLSv1.2 (IN), TLS header, Supplemental data (23):
+* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+* old SSL session ID is stale, removing
+* TLSv1.2 (IN), TLS header, Supplemental data (23):
+* TLSv1.2 (OUT), TLS header, Supplemental data (23):
+* TLSv1.2 (IN), TLS header, Supplemental data (23):
+< HTTP/2 404 
+< content-type: text/html; charset=utf-8
+< content-length: 1946
+< date: Tue, 30 Sep 2025 15:08:59 GMT
+< 
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Azure Container App - Unavailable</title>
+    <style type="text/css">
+        html {
+            height: 100%;
+            width: 100%;
+        }
+
+        #feature {
+            width: 960px;
+            margin: 95px auto 0 auto;
+            overflow: auto;
+        }
+
+        #content {
+            font-family: "Segoe UI";
+            font-weight: normal;
+            font-size: 22px;
+            color: #ffffff;
+            float: left;
+            width: 460px;
+            margin-top: 68px;
+            margin-left: 0px;
+            vertical-align: middle;
+        }
+
+        #content h1 {
+            font-family: "Segoe UI Light";
+            color: #ffffff;
+            font-weight: normal;
+            font-size: 60px;
+            line-height: 48pt;
+            width: 800px;
+        }
+
+        p a, p a:visited, p a:active, p a:hover {
+            color: #ffffff;
+        }
+
+        #content a.button {
+            background: #0DBCF2;
+            border: 1px solid #FFFFFF;
+            color: #FFFFFF;
+            display: inline-block;
+            font-family: Segoe UI;
+            font-size: 24px;
+            line-height: 46px;
+            margin-top: 10px;
+            padding: 0 15px 3px;
+            text-decoration: none;
+        }
+
+        #content a.button img {
+            float: right;
+            padding: 10px 0 0 15px;
+        }
+
+        #content a.button:hover {
+            background: #1C75BC;
+        }
+    </style>
+</head>
+<body bgcolor="#00abec">
