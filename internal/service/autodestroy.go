@@ -179,5 +179,19 @@ func (s *AutoDestroyService) DestroyServer(server entity.Server) error {
 		TimeStamp: time.Now().Format(time.RFC3339),
 	})
 
+	// Delete application gateway config for user
+	slog.Info("server destroyed successfully, deleting application gateway config for user",
+		slog.String("userPrincipalName", server.UserPrincipalName),
+		slog.String("subscriptionId", server.SubscriptionId),
+	)
+
+	if err := s.serverRepository.DeleteApplicationGatewayConfigForUser(context.TODO(), server); err != nil {
+		slog.Error("failed to delete application gateway config for user",
+			slog.String("userPrincipalName", server.UserPrincipalName),
+			slog.String("subscriptionId", server.SubscriptionId),
+			slog.String("error", err.Error()),
+		)
+	}
+
 	return nil
 }
