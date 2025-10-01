@@ -699,7 +699,7 @@ func (s *serverRepository) DeleteApplicationGatewayConfigForUser(ctx context.Con
 
 func (s *serverRepository) EnsureServerUp(server entity.Server) error {
 	// Call the server endpoint to check if it is up
-	serverEndpoint := "https://" + server.Endpoint + s.appConfig.ActlabsServerReadinessProbePath
+	serverEndpoint := "https://" + server.ContainerAppFqdn + s.appConfig.ActlabsServerReadinessProbePath
 	slog.Debug("Checking if server is up: " + serverEndpoint)
 
 	resp, err := http.Get(serverEndpoint)
@@ -723,7 +723,7 @@ func (s *serverRepository) EnsureServerUp(server entity.Server) error {
 
 func (s *serverRepository) EnsureServerIdle(server entity.Server) (bool, error) {
 	// Call the server endpoint to check if it is up
-	serverEndpoint := "https://" + server.Endpoint + "/actionstatus"
+	serverEndpoint := "https://" + server.ContainerAppFqdn + "/actionstatus"
 	slog.Debug("Checking if server is busy: " + serverEndpoint)
 
 	resp, err := http.Get(serverEndpoint)
@@ -733,7 +733,9 @@ func (s *serverRepository) EnsureServerIdle(server entity.Server) (bool, error) 
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("error", err.Error()),
 		)
-		return false, err
+
+		// if we are not able to reach the server, we assume its toasted. Return true to allow deletion.
+		return true, err
 	}
 
 	defer resp.Body.Close()
@@ -750,7 +752,9 @@ func (s *serverRepository) EnsureServerIdle(server entity.Server) (bool, error) 
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("error", err.Error()),
 		)
-		return false, err
+
+		// if we are not able to reach the server, we assume its toasted. Return true to allow deletion.
+		return true, err
 	}
 
 	managedServerActionStatus := entity.ManagedServerActionStatus{}
@@ -760,12 +764,15 @@ func (s *serverRepository) EnsureServerIdle(server entity.Server) (bool, error) 
 			slog.String("subscriptionId", server.SubscriptionId),
 			slog.String("error", err.Error()),
 		)
-		return false, err
+
+		// if we are not able to reach the server, we assume its toasted. Return true to allow deletion.
+		return true, err
 	}
 
 	if managedServerActionStatus.InProgress {
 		return false, nil
 	}
+
 	return true, nil
 }
 

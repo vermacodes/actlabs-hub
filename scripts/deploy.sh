@@ -7,10 +7,12 @@
 # Check if the script is running for prod or dev and set the environment variables accordingly.
 if [ "$1" == "prod" ]; then
   echo "Deploying to production environment"
-  export $(egrep -v '^#' .prod.containerapp.env | xargs)
+  export $(egrep -v '^#' .env.production | xargs)
+  export $(egrep -v '^#' .env.production.local | xargs)
 else
-  echo "Deploying to non-production environment"
-  export $(egrep -v '^#' .nprd.containerapp.env | xargs)
+  echo "Deploying to development environment"
+  export $(egrep -v '^#' .env.development | xargs)
+  export $(egrep -v '^#' .env.development.local | xargs)
 fi
 
 env_status=$(az containerapp env show --name actlabs-hub-env-eastus \

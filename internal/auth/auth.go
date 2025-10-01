@@ -2,13 +2,11 @@ package auth
 
 import (
 	"actlabs-hub/internal/config"
-	"context"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 )
 
 type Auth struct {
@@ -21,7 +19,6 @@ type Auth struct {
 	ActlabsDeploymentsTableClient          *aztables.Client
 	ActlabsEventsTableClient               *aztables.Client
 	ActlabSDeploymentOperationsTableClient *aztables.Client
-	StorageAccountKey                      string
 }
 
 func NewAuth(appConfig *config.Config) (*Auth, error) {
@@ -45,16 +42,6 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 	fdpoCredential, err := azidentity.NewClientSecretCredential(appConfig.FdpoTenantID, appConfig.ActlabsServerFdpoServicePrincipalClientId, appConfig.ActlabsServerFdpoServicePrincipalSecret, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize fdpo auth: %v", err)
-	}
-
-	accountKey, err := GetStorageAccountKey(
-		appConfig.ActlabsHubSubscriptionID,
-		cred,
-		appConfig.ActlabsHubResourceGroup,
-		appConfig.ActlabsHubStorageAccount,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("not able to get storage account key %w", err)
 	}
 
 	actlabsServersTableClient, err := GetTableClient(
@@ -121,9 +108,9 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 	}
 
 	return &Auth{
-		Cred:                                   cred,
-		FdpoCredential:                         fdpoCredential,
-		StorageAccountKey:                      accountKey,
+		Cred:           cred,
+		FdpoCredential: fdpoCredential,
+		// StorageAccountKey:                      accountKey,
 		ActlabsServersTableClient:              actlabsServersTableClient,
 		ActlabsReadinessTableClient:            actlabsReadinessTableClient,
 		ActlabsChallengesTableClient:           actlabsChallengesTableClient,
@@ -134,26 +121,13 @@ func NewAuth(appConfig *config.Config) (*Auth, error) {
 	}, nil
 }
 
-func GetStorageAccountKey(subscriptionId string, cred azcore.TokenCredential, resourceGroup string, storageAccountName string) (string, error) {
-	client, err := armstorage.NewAccountsClient(subscriptionId, cred, nil)
-	if err != nil {
-		return "", err
-	}
-
-	resp, err := client.ListKeys(context.Background(), resourceGroup, storageAccountName, nil)
-	if err != nil {
-		return "", err
-	}
-
-	if len(resp.Keys) == 0 {
-		return "", fmt.Errorf("no storage account key found")
-	}
-
-	return *resp.Keys[0].Value, nil
-}
-
 func GetTableClient(cred azcore.TokenCredential, storageAccountName string, tableName string) (*aztables.Client, error) {
 	tableUrl := "https://" + storageAccountName + ".table.core.windows.net/" + tableName
+
+	// Use this for local emulator
+	if storageAccountName == "devstoreaccount1" {
+		tableUrl = "https://127.0.0.1:10002/" + storageAccountName + "/" + tableName
+	}
 
 	return aztables.NewClient(tableUrl, cred, nil)
 }
