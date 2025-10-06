@@ -48,6 +48,7 @@ func NewServerHandlerArmToken(r *gin.RouterGroup, serverService entity.ServerSer
 	}
 
 	r.PUT("/arm/server/register", handler.RegisterSubscription)
+	r.GET("/arm/server/:userPrincipalName", handler.ArmGetServer)
 }
 
 func (h *serverHandler) RegisterSubscription(c *gin.Context) {
@@ -104,6 +105,23 @@ func (h *serverHandler) GetServer(c *gin.Context) {
 	}
 
 	c.JSON(200, server)
+}
+
+func (h *serverHandler) ArmGetServer(c *gin.Context) {
+
+	userPrincipalName := c.Param("userPrincipalName")
+	if userPrincipalName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "userPrincipalName is required"})
+		return
+	}
+
+	server, err := h.serverService.GetServer(userPrincipalName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"id": server.SubscriptionId})
 }
 
 func (h *serverHandler) AdminGetAllServers(c *gin.Context) {
