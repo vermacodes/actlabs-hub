@@ -1051,6 +1051,7 @@ func (s *serverRepository) UpsertServerInDatabase(server entity.Server) error {
 
 	return nil
 }
+
 func (s *serverRepository) GetServerFromDatabase(partitionKey string, rowKey string) (entity.Server, error) {
 	response, err := s.auth.ActlabsServersTableClient.GetEntity(context.Background(), partitionKey, rowKey, nil)
 	if err != nil {
