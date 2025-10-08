@@ -44,8 +44,8 @@ done
 
 # get storage account key
 export STORAGE_ACCOUNT_KEY=$(az storage account keys list \
-  --account-name ${ACTLABS_HUB_STORAGE_ACCOUNT} \
-  --resource-group ${ACTLABS_HUB_RESOURCE_GROUP} \
+  --account-name ${ACTLABS_HUB_STORAGE_ACCOUNT_NAME} \
+  --resource-group ${ACTLABS_HUB_RESOURCE_GROUP_NAME} \
   --subscription ${ACTLABS_HUB_SUBSCRIPTION_ID} \
   --query "[0].value" \
   --output tsv)

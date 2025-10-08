@@ -16,7 +16,7 @@ else
 fi
 
 env_status=$(az containerapp env show --name actlabs-hub-env-eastus \
-  --resource-group $ACTLABS_HUB_RESOURCE_GROUP \
+  --resource-group $ACTLABS_HUB_RESOURCE_GROUP_NAME \
   --subscription $ACTLABS_HUB_SUBSCRIPTION_NAME \
   --query properties.provisioningState \
   --output tsv)
@@ -24,7 +24,7 @@ env_status=$(az containerapp env show --name actlabs-hub-env-eastus \
 if [ "$env_status" != "Succeeded" ]; then
   # Create the environment
   az containerapp env create --name actlabs-hub-env-eastus \
-    --resource-group $ACTLABS_HUB_RESOURCE_GROUP \
+    --resource-group $ACTLABS_HUB_RESOURCE_GROUP_NAME \
     --subscription $ACTLABS_HUB_SUBSCRIPTION_NAME \
     --location eastus \
     --logs-destination none
@@ -38,7 +38,7 @@ else
 fi
 
 DEFAULT_DOMAIN=$(az containerapp env show --name actlabs-hub-env-eastus \
-  --resource-group $ACTLABS_HUB_RESOURCE_GROUP \
+  --resource-group $ACTLABS_HUB_RESOURCE_GROUP_NAME \
   --subscription $ACTLABS_HUB_SUBSCRIPTION_NAME \
   --query properties.defaultDomain \
   --output tsv)
@@ -50,7 +50,7 @@ fi
 # Deploy the Container App
 az containerapp create \
   --name $ACTLABS_HUB_APP_NAME \
-  --resource-group $ACTLABS_HUB_RESOURCE_GROUP \
+  --resource-group $ACTLABS_HUB_RESOURCE_GROUP_NAME \
   --subscription $ACTLABS_HUB_SUBSCRIPTION_NAME \
   --environment actlabs-hub-env-eastus \
   --allow-insecure false \
@@ -64,8 +64,8 @@ az containerapp create \
   "ACTLABS_HUB_URL=https://$ACTLABS_HUB_APP_NAME.$DEFAULT_DOMAIN/" \
   "ACTLABS_HUB_LOG_LEVEL=$ACTLABS_HUB_LOG_LEVEL" \
   "ACTLABS_HUB_SUBSCRIPTION_ID=$ACTLABS_HUB_SUBSCRIPTION_ID" \
-  "ACTLABS_HUB_RESOURCE_GROUP=$ACTLABS_HUB_RESOURCE_GROUP" \
-  "ACTLABS_HUB_STORAGE_ACCOUNT=$ACTLABS_HUB_STORAGE_ACCOUNT" \
+  "ACTLABS_HUB_RESOURCE_GROUP_NAME=$ACTLABS_HUB_RESOURCE_GROUP_NAME" \
+  "ACTLABS_HUB_STORAGE_ACCOUNT_NAME=$ACTLABS_HUB_STORAGE_ACCOUNT_NAME" \
   "ACTLABS_HUB_MANAGED_IDENTITY_RESOURCE_ID=$ACTLABS_HUB_MANAGED_IDENTITY_RESOURCE_ID" \
   "ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME=$ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME" \
   "ACTLABS_HUB_READINESS_ASSIGNMENTS_TABLE_NAME=$ACTLABS_HUB_READINESS_ASSIGNMENTS_TABLE_NAME" \

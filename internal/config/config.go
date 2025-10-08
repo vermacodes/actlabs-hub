@@ -286,14 +286,14 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_HUB_SUBSCRIPTION_ID not set")
 	}
 
-	actlabsHubResourceGroup := getEnv("ACTLABS_HUB_RESOURCE_GROUP")
+	actlabsHubResourceGroup := getEnv("ACTLABS_HUB_RESOURCE_GROUP_NAME")
 	if actlabsHubResourceGroup == "" {
-		return nil, fmt.Errorf("ACTLABS_HUB_RESOURCE_GROUP not set")
+		return nil, fmt.Errorf("ACTLABS_HUB_RESOURCE_GROUP_NAME not set")
 	}
 
-	actlabsHubStorageAccount := getEnv("ACTLABS_HUB_STORAGE_ACCOUNT")
+	actlabsHubStorageAccount := getEnv("ACTLABS_HUB_STORAGE_ACCOUNT_NAME")
 	if actlabsHubStorageAccount == "" {
-		return nil, fmt.Errorf("ACTLABS_HUB_STORAGE_ACCOUNT not set")
+		return nil, fmt.Errorf("ACTLABS_HUB_STORAGE_ACCOUNT_NAME not set")
 	}
 
 	actlabsHubManagedServersTableName := getEnv("ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME")

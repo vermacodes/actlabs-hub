@@ -40,20 +40,20 @@ properties:
       properties:
         image: actlabs.azurecr.io/actlabs-hub:latest
         ports:
-        - port: ${ACTLABS_HUB_PORT}
-          protocol: TCP
+          - port: ${ACTLABS_HUB_PORT}
+            protocol: TCP
         environmentVariables:
-        # Hub
+          # Hub
           - name: ACTLABS_HUB_URL
             value: ${ACTLABS_HUB_URL}
           - name: ACTLABS_HUB_LOG_LEVEL
             value: ${ACTLABS_HUB_LOG_LEVEL}
           - name: ACTLABS_HUB_SUBSCRIPTION_ID
             value: ${ACTLABS_HUB_SUBSCRIPTION_ID}
-          - name: ACTLABS_HUB_RESOURCE_GROUP
-            value: ${ACTLABS_HUB_RESOURCE_GROUP}
-          - name: ACTLABS_HUB_STORAGE_ACCOUNT
-            value: ${ACTLABS_HUB_STORAGE_ACCOUNT}
+          - name: ACTLABS_HUB_RESOURCE_GROUP_NAME
+            value: ${ACTLABS_HUB_RESOURCE_GROUP_NAME}
+          - name: ACTLABS_HUB_STORAGE_ACCOUNT_NAME
+            value: ${ACTLABS_HUB_STORAGE_ACCOUNT_NAME}
           - name: ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME
             value: ${ACTLABS_HUB_MANAGED_SERVERS_TABLE_NAME}
           - name: ACTLABS_HUB_READINESS_ASSIGNMENTS_TABLE_NAME
@@ -79,7 +79,7 @@ properties:
           - name: ACTLABS_HUB_DEPLOYMENTS_POLLING_INTERVAL_SECONDS
             value: ${ACTLABS_HUB_DEPLOYMENTS_POLLING_INTERVAL_SECONDS}
 
-        # Server
+          # Server
           - name: ACTLABS_SERVER_PORT
             value: ${ACTLABS_SERVER_PORT}
           - name: ACTLABS_SERVER_READINESS_PROBE_PATH
@@ -91,7 +91,7 @@ properties:
           - name: ACTLABS_SERVER_USE_MSI
             value: ${ACTLABS_SERVER_USE_MSI}
 
-        # Other
+          # Other
           - name: AUTH_TOKEN_AUD
             value: ${AUTH_TOKEN_AUD}
           - name: AUTH_TOKEN_ISS
@@ -142,7 +142,7 @@ properties:
         port: 80
       - protocol: TCP
         port: 443
-    type: Public        
+    type: Public
     dnsNameLabel: actlabs-hub
   osType: Linux
   volumes:
