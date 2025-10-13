@@ -135,9 +135,9 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_SERVER_API_KEY not set")
 	}
 
-	actlabsServerEndpoint := getEnv("ACTLABS_SERVER_HOSTNAME")
+	actlabsServerEndpoint := getEnv("ACTLABS_SERVER_ENDPOINT")
 	if actlabsServerEndpoint == "" {
-		return nil, fmt.Errorf("ACTLABS_SERVER_HOSTNAME not set")
+		return nil, fmt.Errorf("ACTLABS_SERVER_ENDPOINT not set")
 	}
 
 	actlabsServerUseMsi, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_SERVER_USE_MSI", "false"))
