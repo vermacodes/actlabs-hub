@@ -54,6 +54,8 @@ type Config struct {
 	HttpsPort                                                int32
 	ProtectedLabSecret                                       string
 	TenantID                                                 string
+	ActlabsServerApiKey                                      string
+	ActlabsServerEndpoint                                    string
 	ActlabsServerUseMsi                                      bool
 	ActlabsServerUseServicePrincipal                         bool
 	ActlabsServerServicePrincipalClientId                    string
@@ -126,6 +128,16 @@ func NewConfig() (*Config, error) {
 	protectedLabSecret := getEnv("PROTECTED_LAB_SECRET")
 	if protectedLabSecret == "" {
 		return nil, fmt.Errorf("PROTECTED_LAB_SECRET not set")
+	}
+
+	actlabsServerApiKey := getEnv("ACTLABS_SERVER_API_KEY")
+	if actlabsServerApiKey == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_API_KEY not set")
+	}
+
+	actlabsServerEndpoint := getEnv("ACTLABS_SERVER_HOSTNAME")
+	if actlabsServerEndpoint == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_HOSTNAME not set")
 	}
 
 	actlabsServerUseMsi, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_SERVER_USE_MSI", "false"))
@@ -461,6 +473,8 @@ func NewConfig() (*Config, error) {
 		HttpsPort:                                                int32(httpsPort),
 		ProtectedLabSecret:                                       protectedLabSecret,
 		TenantID:                                                 tenantID,
+		ActlabsServerApiKey:                                      actlabsServerApiKey,
+		ActlabsServerEndpoint:                                    actlabsServerEndpoint,
 		ActlabsServerUseMsi:                                      actlabsServerUseMsi,
 		ActlabsServerUseServicePrincipal:                         actlabsServerUseServicePrincipal,
 		ActlabsServerServicePrincipalClientId:                    actlabsServerServicePrincipalClientId,
