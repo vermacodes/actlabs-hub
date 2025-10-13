@@ -421,7 +421,7 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 
-	actlabsHubMonitorAndAutoDestroyDeployments, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_HUB_MONITOR_AND_DEPLOY_AUTO_DESTROYED_SERVERS_TO_DESTROY_PENDING_DEPLOYMENTS", "true"))
+	actlabsHubMonitorAndAutoDestroyDeployments, err := strconv.ParseBool(getEnvWithDefault("ACTLABS_HUB_MONITOR_AUTO_DESTROY_DEPLOYMENTS", "true"))
 	if err != nil {
 		return nil, err
 	}
