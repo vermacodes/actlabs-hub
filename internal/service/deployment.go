@@ -323,21 +323,3 @@ func (d *DeploymentService) RedeployServer(ctx context.Context, deployment entit
 		}
 	}
 }
-
-func (d *DeploymentService) GetUserPrincipalNameByMSIPrincipalID(ctx context.Context, msiPrincipalID string) (string, error) {
-	slog.Info("getting user principal name by msi principal id",
-		slog.String("msiPrincipalID", msiPrincipalID),
-	)
-
-	userPrincipalName, err := d.deploymentRepository.GetUserPrincipalNameByMSIPrincipalID(ctx, msiPrincipalID)
-	if err != nil {
-		slog.Error("not able to get user principal name by msi principal id",
-			slog.String("msiPrincipalID", msiPrincipalID),
-			slog.String("error", err.Error()),
-		)
-
-		return "", err
-	}
-
-	return userPrincipalName, nil
-}

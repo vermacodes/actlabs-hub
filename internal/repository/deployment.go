@@ -3,13 +3,11 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/exp/slog"
@@ -416,49 +414,4 @@ func (d *deploymentRepository) DeleteDeployment(ctx context.Context, userId stri
 	}
 
 	return nil
-}
-
-func (d *deploymentRepository) GetUserPrincipalNameByMSIPrincipalID(ctx context.Context, msiPrincipalID string) (string, error) {
-	// check the cache first
-	userPrincipalName, err := d.rdb.Get(ctx, msiPrincipalID+"-owner").Result()
-	if err == nil && userPrincipalName != "" {
-		return userPrincipalName, nil
-	}
-
-	slog.Debug("not able to find user principal name for msi principal id in redis, continue to get from table storage")
-
-	pager := d.auth.ActlabsServersTableClient.NewListEntitiesPager(&aztables.ListEntitiesOptions{
-		Filter: to.Ptr("managedIdentityPrincipalId eq '" + msiPrincipalID + "'"),
-	})
-
-	for pager.More() {
-		resp, err := pager.NextPage(ctx)
-		if err != nil {
-			slog.Debug("not able to get next page", slog.String("error", err.Error()))
-			return "", err
-		}
-
-		for _, entity := range resp.Entities {
-			var myEntity aztables.EDMEntity
-			err := json.Unmarshal(entity, &myEntity)
-			if err != nil {
-				slog.Debug("not able to unmarshal entity", slog.String("error", err.Error()))
-				return "", err
-			}
-
-			userPrincipalName := myEntity.Properties["userPrincipalName"].(string)
-			return userPrincipalName, nil
-		}
-	}
-
-	// save user principal name to redis
-	if err := d.rdb.Set(ctx, msiPrincipalID+"-owner", userPrincipalName, 0).Err(); err != nil {
-		slog.Debug("error occurred saving the user principal name record to redis.",
-			slog.String("msiPrincipalID", msiPrincipalID),
-			slog.String("userPrincipalName", userPrincipalName),
-			slog.String("error", err.Error()),
-		)
-	}
-
-	return userPrincipalName, errors.New("not able to find user principal name for msi principal id " + msiPrincipalID)
 }
