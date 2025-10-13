@@ -1,27 +1,34 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 
 	"actlabs-hub/internal/auth"
+	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/exp/slog"
+
+	"github.com/google/uuid"
 )
 
 type deploymentRepository struct {
-	auth *auth.Auth
-	rdb  *redis.Client
+	auth   *auth.Auth
+	rdb    *redis.Client
+	config *config.Config
 }
 
-func NewDeploymentRepository(auth *auth.Auth, rdb *redis.Client) (entity.DeploymentRepository, error) {
+func NewDeploymentRepository(auth *auth.Auth, rdb *redis.Client, config *config.Config) (entity.DeploymentRepository, error) {
 	return &deploymentRepository{
-		auth: auth,
-		rdb:  rdb,
+		auth:   auth,
+		rdb:    rdb,
+		config: config,
 	}, nil
 }
 
@@ -410,6 +417,56 @@ func (d *deploymentRepository) DeleteDeployment(ctx context.Context, userId stri
 			slog.String("error", err.Error()),
 		)
 
+		return err
+	}
+
+	return nil
+}
+
+func (d *deploymentRepository) AutoDestroyDeployment(ctx context.Context, userPrincipalName string, deployment entity.Deployment) error {
+
+	// http://actlabsserver.com/api/terraform/destroy/operationId
+	autoDestroyServiceEndpoint := d.config.ActlabsServerEndpoint + "/api/terraform/destroy/" + uuid.New().String()
+
+	// Marshal deployment to JSON for request body
+	deploymentJSON, err := json.Marshal(deployment)
+	if err != nil {
+		slog.Debug("error occurred marshalling deployment for request body",
+			slog.String("userId", userPrincipalName),
+			slog.String("workspace", deployment.DeploymentWorkspace),
+			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	req, err := http.NewRequest("POST", autoDestroyServiceEndpoint, bytes.NewBuffer(deploymentJSON))
+	if err != nil {
+		slog.Debug("error occurred creating the HTTP request",
+			slog.String("userId", userPrincipalName),
+			slog.String("workspace", deployment.DeploymentWorkspace),
+			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
+	req.Header.Set("x-api-key", d.config.ActlabsServerApiKey)
+	req.Header.Set("x-user-id", userPrincipalName)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		slog.Error("not able to make HTTP Request")
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		slog.Error("not able to make http call successfully")
 		return err
 	}
 

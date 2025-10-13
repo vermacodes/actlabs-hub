@@ -71,4 +71,6 @@ type DeploymentRepository interface {
 	UpsertDeployment(ctx context.Context, deployment Deployment) error
 	DeploymentOperationEntry(ctx context.Context, deployment Deployment) error
 	DeleteDeployment(ctx context.Context, userPrincipalName string, subscriptionId string, workspace string) error
+
+	AutoDestroyDeployment(ctx context.Context, userPrincipalName string, deployment Deployment) error
 }

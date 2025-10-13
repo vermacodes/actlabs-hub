@@ -264,13 +264,13 @@ func (d *DeploymentService) PollDeploymentsToBeAutoDestroyed(ctx context.Context
 			(deployment.DeploymentStatus == entity.DeploymentCompleted ||
 				deployment.DeploymentStatus == entity.DeploymentFailed) {
 
-			slog.Info("redeploying server to destroy pending deployment",
+			slog.Info("destroying deployment ready to be auto destroyed",
 				slog.String("userPrincipalName", deployment.DeploymentUserId),
 				slog.String("workspace", deployment.DeploymentWorkspace),
 				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
 			)
 
-			go d.RedeployServer(ctx, deployment)
+			d.deploymentRepository.AutoDestroyDeployment(ctx, deployment.DeploymentUserId, deployment)
 		}
 
 	}
@@ -278,48 +278,48 @@ func (d *DeploymentService) PollDeploymentsToBeAutoDestroyed(ctx context.Context
 	return nil
 }
 
-func (d *DeploymentService) RedeployServer(ctx context.Context, deployment entity.Deployment) {
+// func (d *DeploymentService) RedeployServer(ctx context.Context, deployment entity.Deployment) {
 
-	server, err := d.serverService.GetServer(deployment.DeploymentUserId)
-	if err != nil {
-		slog.Error("not able to get server",
-			slog.String("userPrincipalName", deployment.DeploymentUserId),
-		)
-		return
-	}
+// 	server, err := d.serverService.GetServer(deployment.DeploymentUserId)
+// 	if err != nil {
+// 		slog.Error("not able to get server",
+// 			slog.String("userPrincipalName", deployment.DeploymentUserId),
+// 		)
+// 		return
+// 	}
 
-	if server.Status == entity.ServerStatusAutoDestroyed &&
-		server.SubscriptionId == deployment.DeploymentSubscriptionId {
-		// deploy server again.
-		server, err := d.serverService.DeployServer(server)
-		if err != nil {
-			slog.Error("not able to deploy server",
-				slog.String("userPrincipalName", deployment.DeploymentUserId),
-				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-				slog.String("error", err.Error()),
-			)
+// 	if server.Status == entity.ServerStatusAutoDestroyed &&
+// 		server.SubscriptionId == deployment.DeploymentSubscriptionId {
+// 		// deploy server again.
+// 		server, err := d.serverService.DeployServer(server)
+// 		if err != nil {
+// 			slog.Error("not able to deploy server",
+// 				slog.String("userPrincipalName", deployment.DeploymentUserId),
+// 				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
+// 				slog.String("error", err.Error()),
+// 			)
 
-			return
-		}
+// 			return
+// 		}
 
-		// ensure server status is running.
-		if server.Status != entity.ServerStatusRunning {
-			slog.Error("not able to deploy server",
-				slog.String("userPrincipalName", deployment.DeploymentUserId),
-				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-				slog.String("error", err.Error()),
-			)
+// 		// ensure server status is running.
+// 		if server.Status != entity.ServerStatusRunning {
+// 			slog.Error("not able to deploy server",
+// 				slog.String("userPrincipalName", deployment.DeploymentUserId),
+// 				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
+// 				slog.String("error", err.Error()),
+// 			)
 
-			return
-		}
+// 			return
+// 		}
 
-		// update activity so that server stays alive for at least 15 minutes.
-		if err := d.serverService.UpdateActivityStatus(server.UserPrincipalName); err != nil {
-			slog.Error("not able to update activity status",
-				slog.String("userPrincipalName", deployment.DeploymentUserId),
-				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-				slog.String("error", err.Error()),
-			)
-		}
-	}
-}
+// 		// update activity so that server stays alive for at least 15 minutes.
+// 		if err := d.serverService.UpdateActivityStatus(server.UserPrincipalName); err != nil {
+// 			slog.Error("not able to update activity status",
+// 				slog.String("userPrincipalName", deployment.DeploymentUserId),
+// 				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
+// 				slog.String("error", err.Error()),
+// 			)
+// 		}
+// 	}
+// }
