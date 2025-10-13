@@ -68,6 +68,7 @@ type Config struct {
 	ActlabsHubUseUserAuth                                                     bool
 	MiseEndpoint                                                              string
 	MiseVerboseLogging                                                        bool
+	AuthVerifyMode                                                            string
 	CorsAllowOrigins                                                          string
 	CorsAllowMethods                                                          string
 	CorsAllowHeaders                                                          string
@@ -217,14 +218,8 @@ func NewConfig() (*Config, error) {
 	}
 
 	httpsPort, err := strconv.Atoi(getEnvWithDefault("HTTPS_PORT", "443"))
-	if err != nil {
-		return nil, fmt.Errorf("HTTPS_PORT not set")
-	}
 
 	actlabsServerReadinessProbePath := getEnvWithDefault("ACTLABS_SERVER_READINESS_PROBE_PATH", "/status")
-	if actlabsServerReadinessProbePath == "" {
-		return nil, fmt.Errorf("ACTLABS_SERVER_READINESS_PROBE_PATH not set")
-	}
 
 	tenantID := getEnv("TENANT_ID")
 	if tenantID == "" {
@@ -366,6 +361,8 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("MISE_VERBOSE_LOGGING not set or invalid: %w", err)
 	}
 
+	authVerifyMode := getEnvWithDefault("AUTH_VERIFY_MODE", "Custom")
+
 	corsAllowOrigins := getEnv("CORS_ALLOW_ORIGINS")
 	if corsAllowOrigins == "" {
 		return nil, fmt.Errorf("CORS_ALLOW_ORIGINS not set")
@@ -472,6 +469,7 @@ func NewConfig() (*Config, error) {
 		ActlabsHubUseUserAuth:                                    actlabsHubUseUserAuth,
 		MiseEndpoint:                                             miseEndpoint,
 		MiseVerboseLogging:                                       miseVerboseLogging,
+		AuthVerifyMode:                                           authVerifyMode,
 		CorsAllowOrigins:                                         corsAllowOrigins,
 		CorsAllowMethods:                                         corsAllowMethods,
 		CorsAllowHeaders:                                         corsAllowHeaders,
