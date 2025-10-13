@@ -87,6 +87,12 @@ func NewConfig() (*Config, error) {
 		slog.Error("Error loading .env file")
 	}
 
+	// Load environment variables from .env.local file (overrides .env)
+	err = godotenv.Load(".env.local")
+	if err != nil {
+		slog.Info("No .env.local file found or error loading it")
+	}
+
 	actlabsAppGatewayName := getEnv("ACTLABS_APP_GATEWAY_NAME")
 	if actlabsAppGatewayName == "" {
 		return nil, fmt.Errorf("ACTLABS_APP_GATEWAY_NAME not set")
