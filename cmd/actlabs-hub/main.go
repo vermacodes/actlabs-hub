@@ -96,7 +96,7 @@ func main() {
 		)
 		panic(err)
 	}
-	deploymentRepository, err := repository.NewDeploymentRepository(auth, rdb)
+	deploymentRepository, err := repository.NewDeploymentRepository(auth, rdb, appConfig)
 	if err != nil {
 		slog.Error("Error initializing deployment repository",
 			slog.String("error", err.Error()),
