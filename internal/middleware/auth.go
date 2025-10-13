@@ -15,7 +15,7 @@ import (
 	"actlabs-hub/internal/mise"
 )
 
-func Auth(miseServer mise.Server) gin.HandlerFunc {
+func Auth(miseServer mise.Server, config config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		slog.Debug("Auth Middleware")
 
@@ -32,7 +32,7 @@ func Auth(miseServer mise.Server) gin.HandlerFunc {
 			return
 		}
 
-		err := verifyAccessToken(miseServer, c, accessToken)
+		err := verifyAccessToken(miseServer, c, accessToken, config)
 		if err != nil {
 			return
 		}
@@ -176,7 +176,7 @@ func verifyProtectedLabSecretAndUserPrincipalName(c *gin.Context, appConfig *con
 	return nil
 }
 
-func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken string) error {
+func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken string, config config.Config) error {
 	splitToken := strings.Split(accessToken, "Bearer ")
 	if len(splitToken) < 2 {
 		slog.Error("found something in the Authorization header, but it's not a bearer token")
@@ -186,31 +186,37 @@ func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken strin
 		)
 	}
 
-	// MISE Implementation
-	result, err := miseServer.DelegateAuthToContainer(accessToken, c.Request.URL.String(), c.Request.Method, c.ClientIP())
-	if err != nil {
-		var validationErr *mise.ErrTokenValidation
-		if errors.As(err, &validationErr) {
-			// can access validationErr.ErrorDescription, validationErr.WWWAuthenticate, validationErr.StatusCode
-			slog.Error("token validation error", validationErr)
-		} else {
-			slog.Error("error while delegating auth to container", err)
+	if config.AuthVerifyMode == "MISE" {
+
+		// MISE Implementation
+		result, err := miseServer.DelegateAuthToContainer(accessToken, c.Request.URL.String(), c.Request.Method, c.ClientIP())
+		if err != nil {
+			var validationErr *mise.ErrTokenValidation
+			if errors.As(err, &validationErr) {
+				// can access validationErr.ErrorDescription, validationErr.WWWAuthenticate, validationErr.StatusCode
+				slog.Error("token validation error", validationErr)
+			} else {
+				slog.Error("error while delegating auth to container", err)
+			}
+
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
+			return err
 		}
 
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
-		return err
-	}
+		userName, ok := result.SubjectClaims["preferred_username"]
+		if !ok {
+			slog.Error("preferred_username claim missing in subject claims")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing preferred username claim"})
+			return errors.New("missing preferred username claim")
+		}
+		slog.Debug("authenticated user", "user", userName)
 
-	userName, ok := result.SubjectClaims["preferred_username"]
-	if !ok {
-		slog.Error("preferred_username claim missing in subject claims")
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing preferred username claim"})
-		return errors.New("missing preferred username claim")
+		return nil
 	}
-	slog.Debug("authenticated user", "user", userName)
 
 	// Keeping the custom auth validation in place, just in case MISE isn't working as expected.
-	ok, err = auth.VerifyToken(accessToken)
+	// Always defaults to Custom
+	ok, err := auth.VerifyToken(accessToken)
 	if err != nil || !ok {
 		slog.Error("token verification failed", slog.String("error", err.Error()))
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})

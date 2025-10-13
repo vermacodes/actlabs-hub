@@ -135,7 +135,7 @@ func main() {
 	router.Use(cors.New(config))
 
 	authRouter := router.Group("/")
-	authRouter.Use(middleware.Auth(miseServer))
+	authRouter.Use(middleware.Auth(miseServer, *appConfig))
 
 	handler.NewHealthzHandler(router.Group("/"))
 	handler.NewServerHandler(authRouter.Group("/"), serverService)
