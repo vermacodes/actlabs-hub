@@ -220,8 +220,8 @@ func (d *DeploymentService) DeleteDeployment(ctx context.Context, userPrincipalN
 	return nil
 }
 
-func (d *DeploymentService) MonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments(ctx context.Context) {
-	helper.Recoverer(100, "MonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments", func() {
+func (d *DeploymentService) MonitorAndAutoDestroyDeployments(ctx context.Context) {
+	helper.Recoverer(100, "MonitorAndAutoDestroyDeployments", func() {
 		ticker := time.NewTicker(time.Duration(d.appConfig.ActlabsHubDeploymentsPollingIntervalSeconds) * time.Second)
 		defer ticker.Stop()
 

@@ -118,9 +118,9 @@ func main() {
 		slog.Info("Auto destroy of inactive servers is ENABLED")
 		go autoDestroyService.MonitorAndDestroyInactiveServers(context.Background())
 	}
-	if appConfig.ActlabsHubMonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments {
+	if appConfig.ActlabsHubMonitorAndAutoDestroyDeployments {
 		slog.Info("Auto deploy of auto-destroyed servers to destroy pending deployments is ENABLED")
-		go deploymentService.MonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments(context.Background())
+		go deploymentService.MonitorAndAutoDestroyDeployments(context.Background())
 	}
 	// go autoRemediateService.MonitorAndRemediate(context.Background())
 
