@@ -82,16 +82,16 @@ func (s *serverService) Unregister(ctx context.Context, userPrincipalName string
 	return nil
 }
 
-func (s *serverService) createEvent(server entity.Server, eventType, reason, message string) {
-	s.eventService.CreateEvent(context.TODO(), entity.Event{
-		Type:      eventType,
-		Reason:    reason,
-		Message:   message,
-		Reporter:  "actlabs-hub",
-		Object:    server.UserPrincipalName,
-		TimeStamp: time.Now().Format(time.RFC3339),
-	})
-}
+// func (s *serverService) createEvent(server entity.Server, eventType, reason, message string) {
+// 	s.eventService.CreateEvent(context.TODO(), entity.Event{
+// 		Type:      eventType,
+// 		Reason:    reason,
+// 		Message:   message,
+// 		Reporter:  "actlabs-hub",
+// 		Object:    server.UserPrincipalName,
+// 		TimeStamp: time.Now().Format(time.RFC3339),
+// 	})
+// }
 
 func (s *serverService) GetServer(ctx context.Context, userPrincipalName string) (entity.Server, error) {
 	// get server from db.
@@ -234,4 +234,6 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 	if server.Status == "" {
 		server.Status = entity.ServerStatusRegistered
 	}
+
+	server.Endpoint = s.appConfig.ActlabsFQDN + "/server/"
 }
