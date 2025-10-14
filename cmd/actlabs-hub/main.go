@@ -15,7 +15,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -23,6 +26,13 @@ import (
 )
 
 func main() {
+	// Create root application context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Setup graceful shutdown
+	setupGracefulShutdown(cancel)
+
 	// Load environment variables from .env file
 	err := godotenv.Load()
 	if err != nil {
@@ -38,19 +48,19 @@ func main() {
 	logger.SetupLogger()
 	appConfig, err := config.NewConfig()
 	if err != nil {
-		logger.LogError(context.Background(), "Error initializing config", "error", err.Error())
+		logger.LogError(ctx, "error initializing config", "error", err)
 		panic(err)
 	}
 
 	rdb, err := redis.NewRedisClient()
 	if err != nil {
-		logger.LogError(context.Background(), "Error initializing redis", "error", err.Error())
+		logger.LogError(ctx, "error initializing redis", "error", err)
 		panic(err)
 	}
 
 	auth, err := auth.NewAuth(appConfig)
 	if err != nil {
-		logger.LogError(context.Background(), "Error initializing auth", "error", err.Error())
+		logger.LogError(ctx, "error initializing auth", "error", err)
 		panic(err)
 	}
 
@@ -62,38 +72,38 @@ func main() {
 
 	eventRepository, err := repository.NewEventRepository(auth)
 	if err != nil {
-		logger.LogError(context.Background(), "Error initializing event repository", "error", err.Error())
+		logger.LogError(ctx, "error initializing event repository", "error", err)
 		panic(err)
 	}
 
 	serverRepository, err := repository.NewServerRepository(appConfig, auth, rdb)
 	if err != nil {
-		logger.LogError(context.Background(), "Error initializing server repository", "error", err.Error())
+		logger.LogError(ctx, "error initializing server repository", "error", err)
 		panic(err)
 	}
 	labRepository, err := repository.NewLabRepository(auth, appConfig, rdb)
 	if err != nil {
-		logger.LogError(context.Background(), "Error initializing lab repository", "error", err.Error())
+		logger.LogError(ctx, "error initializing lab repository", "error", err)
 		panic(err)
 	}
 	assignmentRepository, err := repository.NewAssignmentRepository(auth, appConfig, rdb)
 	if err != nil {
-		logger.LogError(context.Background(), "Error initializing assignment repository", "error", err.Error())
+		logger.LogError(ctx, "error initializing assignment repository", "error", err)
 		panic(err)
 	}
 	challengeRepository, err := repository.NewChallengeRepository(auth, appConfig, rdb)
 	if err != nil {
-		logger.LogError(context.Background(), "Error initializing challenge repository", "error", err.Error())
+		logger.LogError(ctx, "error initializing challenge repository", "error", err)
 		panic(err)
 	}
 	authRepository, err := repository.NewAuthRepository(auth, appConfig, rdb)
 	if err != nil {
-		logger.LogError(context.Background(), "Error initializing auth repository", "error", err.Error())
+		logger.LogError(ctx, "error initializing auth repository", "error", err)
 		panic(err)
 	}
 	deploymentRepository, err := repository.NewDeploymentRepository(auth, rdb, appConfig)
 	if err != nil {
-		logger.LogError(context.Background(), "Error initializing deployment repository", "error", err.Error())
+		logger.LogError(ctx, "error initializing deployment repository", "error", err)
 		panic(err)
 	}
 
@@ -106,8 +116,8 @@ func main() {
 	deploymentService := service.NewDeploymentService(deploymentRepository, serverService, eventService, appConfig)
 
 	if appConfig.ActlabsHubMonitorAndAutoDestroyDeployments {
-		logger.LogInfo(context.Background(), "Auto deploy of auto-destroyed servers to destroy pending deployments is ENABLED")
-		go deploymentService.MonitorAndAutoDestroyDeployments(context.Background())
+		logger.LogInfo(ctx, "auto deploy of auto-destroyed servers to destroy pending deployments is enabled")
+		go deploymentService.MonitorAndAutoDestroyDeployments(ctx)
 	}
 
 	// Disable Gin's default logging since we use structured logging
@@ -174,4 +184,20 @@ func main() {
 		port = "8883"
 	}
 	router.Run(":" + port)
+}
+
+// setupGracefulShutdown sets up signal handling for graceful shutdown
+func setupGracefulShutdown(cancel context.CancelFunc) {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		sig := <-sigCh
+		logger.LogInfo(context.Background(), "received shutdown signal, initiating graceful shutdown", "signal", sig.String())
+		cancel() // Cancel the root context to stop all background services
+
+		// Give background services time to shut down gracefully
+		time.Sleep(5 * time.Second)
+		os.Exit(0)
+	}()
 }
