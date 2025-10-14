@@ -12,15 +12,29 @@ import (
 	"actlabs-hub/internal/repository"
 	"actlabs-hub/internal/service"
 	"context"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load environment variables from .env file
+	err := godotenv.Load()
+	if err != nil {
+		slog.Error("Error loading .env file")
+	}
+
+	// Load environment variables from .env.local file (overrides .env)
+	err = godotenv.Load(".env.local")
+	if err != nil {
+		slog.Info("No .env.local file found or error loading it")
+	}
+
 	logger.SetupLogger()
 	appConfig, err := config.NewConfig()
 	if err != nil {

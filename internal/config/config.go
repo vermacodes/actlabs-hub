@@ -5,7 +5,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/joho/godotenv"
 	"golang.org/x/exp/slog"
 )
 
@@ -81,18 +80,6 @@ type Config struct {
 }
 
 func NewConfig() (*Config, error) {
-
-	// Load environment variables from .env file
-	err := godotenv.Load()
-	if err != nil {
-		slog.Error("Error loading .env file")
-	}
-
-	// Load environment variables from .env.local file (overrides .env)
-	err = godotenv.Load(".env.local")
-	if err != nil {
-		slog.Info("No .env.local file found or error loading it")
-	}
 
 	actlabsAppGatewayName := getEnv("ACTLABS_APP_GATEWAY_NAME")
 	if actlabsAppGatewayName == "" {
