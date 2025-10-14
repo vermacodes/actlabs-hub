@@ -7,9 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"actlabs-hub/internal/logger"
 	"actlabs-hub/internal/miseadapter"
-
-	"golang.org/x/exp/slog"
 )
 
 type Server struct {
@@ -27,18 +26,22 @@ func (e *ErrTokenValidation) Error() string {
 	return fmt.Sprintf("StatusCode: %d, ErrorDescription: %v, WWWAuthenticate: %v", e.StatusCode, e.ErrorDescription, e.WWWAuthenticate)
 }
 
-func (s Server) DelegateAuthToContainer(authHeader, uri, method, ipAddr string) (miseadapter.Result, error) {
+func (s Server) DelegateAuthToContainer(ctx context.Context, authHeader, uri, method, ipAddr string) (miseadapter.Result, error) {
 	if s.VerboseLogging {
-		slog.Debug("Original request Information",
-			slog.String("url", uri),
-			slog.String("method", method),
-			slog.String("ip", ipAddr),
+		logger.LogDebug(ctx, "delegating auth to mise container",
+			"url", uri,
+			"method", method,
+			"ip", ipAddr,
 		)
 	}
 
 	start := time.Now()
 
-	result, err := s.ContainerClient.ValidateRequest(context.Background(), miseadapter.Input{
+	// Create a background context from the request context for the external service call
+	// This ensures the external call can complete even if the request is cancelled
+	bgCtx := context.WithoutCancel(ctx)
+
+	result, err := s.ContainerClient.ValidateRequest(bgCtx, miseadapter.Input{
 		OriginalUri:    uri,
 		OriginalMethod: method,
 
@@ -54,19 +57,21 @@ func (s Server) DelegateAuthToContainer(authHeader, uri, method, ipAddr string) 
 	end := time.Now()
 	elapsed := end.Sub(start)
 
-	slog.Debug("time elapsed in mise container + adapter", slog.Int64("ms", elapsed.Milliseconds()))
+	if s.VerboseLogging {
+		logger.LogDebug(ctx, "time elapsed in mise container validation", "duration_ms", elapsed.Milliseconds())
+	}
 
 	if err != nil {
-		slog.Error("error while validating token with mise adapter", slog.String("error", err.Error()))
+		logger.LogError(ctx, "failed to validate token with mise adapter", "error", err)
 		return miseadapter.Result{}, fmt.Errorf("error while validating token: %w", err)
 	}
 
 	if s.VerboseLogging {
 		b, merr := json.MarshalIndent(result, "", "   ")
 		if merr != nil {
-			slog.Error("error marshalling json of result object", slog.String("error", merr.Error()))
+			logger.LogError(ctx, "failed to marshal mise result for verbose logging", "error", merr)
 		} else {
-			slog.Debug("VERBOSE: result struct", slog.String("result", string(b)))
+			logger.LogDebug(ctx, "mise validation result", "result", string(b))
 		}
 	}
 

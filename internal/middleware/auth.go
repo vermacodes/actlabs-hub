@@ -195,7 +195,7 @@ func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken strin
 
 	if config.AuthVerifyMode == "MISE" {
 		// MISE Implementation
-		result, err := miseServer.DelegateAuthToContainer(accessToken, c.Request.URL.String(), c.Request.Method, c.ClientIP())
+		result, err := miseServer.DelegateAuthToContainer(ctx, accessToken, c.Request.URL.String(), c.Request.Method, c.ClientIP())
 		if err != nil {
 			var validationErr *mise.ErrTokenValidation
 			if errors.As(err, &validationErr) {
