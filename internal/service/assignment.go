@@ -312,22 +312,6 @@ func (a *assignmentService) UpdateAssignment(ctx context.Context, userId string,
 	return nil
 }
 
-// func (a *assignmentService) DeleteAssignments(assignmentIds []string) error {
-// 	slog.Info("deleting assignments",
-// 		slog.String("assignmentIds", strings.Join(assignmentIds, ",")),
-// 	)
-// 	for _, assignmentId := range assignmentIds {
-// 		if err := a.assignmentRepository.DeleteAssignment(assignmentId); err != nil {
-// 			slog.Error("not able to delete assignment",
-// 				slog.String("assignmentId", assignmentId),
-// 				slog.String("error", err),
-// 			)
-// 			continue
-// 		}
-// 	}
-// 	return nil
-// }
-
 func (a *assignmentService) DeleteAssignments(ctx context.Context, assignmentIds []string, userPrincipal string) error {
 	logger.LogInfo(ctx, "Starting delete assignments operation",
 		"operation", "delete_assignments",
