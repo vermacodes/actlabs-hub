@@ -18,32 +18,25 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/exp/slog"
 )
 
 func main() {
 	logger.SetupLogger()
 	appConfig, err := config.NewConfig()
 	if err != nil {
-		slog.Error("Error initializing config",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(context.Background(), "Error initializing config", "error", err.Error())
 		panic(err)
 	}
 
 	rdb, err := redis.NewRedisClient()
 	if err != nil {
-		slog.Error("Error initializing redis",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(context.Background(), "Error initializing redis", "error", err.Error())
 		panic(err)
 	}
 
 	auth, err := auth.NewAuth(appConfig)
 	if err != nil {
-		slog.Error("Error initializing auth",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(context.Background(), "Error initializing auth", "error", err.Error())
 		panic(err)
 	}
 
@@ -55,52 +48,38 @@ func main() {
 
 	eventRepository, err := repository.NewEventRepository(auth)
 	if err != nil {
-		slog.Error("Error initializing event repository",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(context.Background(), "Error initializing event repository", "error", err.Error())
 		panic(err)
 	}
 
 	serverRepository, err := repository.NewServerRepository(appConfig, auth, rdb)
 	if err != nil {
-		slog.Error("Error initializing server repository",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(context.Background(), "Error initializing server repository", "error", err.Error())
 		panic(err)
 	}
 	labRepository, err := repository.NewLabRepository(auth, appConfig, rdb)
 	if err != nil {
-		slog.Error("Error initializing lab repository",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(context.Background(), "Error initializing lab repository", "error", err.Error())
 		panic(err)
 	}
 	assignmentRepository, err := repository.NewAssignmentRepository(auth, appConfig, rdb)
 	if err != nil {
-		slog.Error("Error initializing assignment repository",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(context.Background(), "Error initializing assignment repository", "error", err.Error())
 		panic(err)
 	}
 	challengeRepository, err := repository.NewChallengeRepository(auth, appConfig, rdb)
 	if err != nil {
-		slog.Error("Error initializing challenge repository",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(context.Background(), "Error initializing challenge repository", "error", err.Error())
 		panic(err)
 	}
 	authRepository, err := repository.NewAuthRepository(auth, appConfig, rdb)
 	if err != nil {
-		slog.Error("Error initializing auth repository",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(context.Background(), "Error initializing auth repository", "error", err.Error())
 		panic(err)
 	}
 	deploymentRepository, err := repository.NewDeploymentRepository(auth, rdb, appConfig)
 	if err != nil {
-		slog.Error("Error initializing deployment repository",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(context.Background(), "Error initializing deployment repository", "error", err.Error())
 		panic(err)
 	}
 
@@ -114,12 +93,19 @@ func main() {
 	// autoRemediateService := service.NewAutoRemediateService(appConfig, auth)
 
 	if appConfig.ActlabsHubMonitorAndAutoDestroyDeployments {
-		slog.Info("Auto deploy of auto-destroyed servers to destroy pending deployments is ENABLED")
+		logger.LogInfo(context.Background(), "Auto deploy of auto-destroyed servers to destroy pending deployments is ENABLED")
 		go deploymentService.MonitorAndAutoDestroyDeployments(context.Background())
 	}
 	// go autoRemediateService.MonitorAndRemediate(context.Background())
 
-	router := gin.Default()
+	// Disable Gin's default logging since we use structured logging
+	middleware.DisableGinDefaultLogging()
+
+	router := gin.New()
+
+	// Add recovery middleware (since we're using gin.New() instead of gin.Default())
+	router.Use(gin.Recovery())
+
 	router.SetTrustedProxies(nil)
 
 	config := cors.DefaultConfig()
@@ -128,6 +114,12 @@ func main() {
 	config.AllowHeaders = strings.Split(appConfig.CorsAllowHeaders, ",")
 
 	router.Use(cors.New(config))
+
+	// Add context middleware to generate trace IDs and manage context
+	router.Use(middleware.ContextMiddleware())
+
+	// Add structured logging middleware
+	router.Use(middleware.GinLoggerWithTraceID())
 
 	authRouter := router.Group("/")
 	authRouter.Use(middleware.Auth(miseServer, *appConfig))

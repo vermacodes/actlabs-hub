@@ -6,18 +6,19 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/exp/slog"
 
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
+	"actlabs-hub/internal/logger"
 	"actlabs-hub/internal/mise"
 )
 
 func Auth(miseServer mise.Server, config config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		slog.Debug("Auth Middleware")
+		ctx := GetContextFromGin(c)
+		logger.LogDebug(ctx, "Auth Middleware")
 
 		// if request is for the health check endpoint, skip auth
 		if c.Request.URL.Path == "/healthz" {
@@ -27,7 +28,7 @@ func Auth(miseServer mise.Server, config config.Config) gin.HandlerFunc {
 
 		accessToken := c.GetHeader("Authorization")
 		if accessToken == "" {
-			slog.Error("no auth token provided")
+			logger.LogError(ctx, "no auth token provided")
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -44,7 +45,8 @@ func Auth(miseServer mise.Server, config config.Config) gin.HandlerFunc {
 // ProtectedLabSecret and x-ms-client-principal-name headers.
 func ARMTokenAuth(appConfig *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		slog.Debug("ARMTokenAuth Middleware")
+		ctx := GetContextFromGin(c)
+		logger.LogDebug(ctx, "ARMTokenAuth Middleware")
 
 		// If request path includes /arm/server/register/ then skip verifyProtectedLabSecretAndUserPrincipalName
 		if !strings.Contains(c.Request.URL.Path, "/arm/server/register") {
@@ -56,7 +58,7 @@ func ARMTokenAuth(appConfig *config.Config) gin.HandlerFunc {
 
 		accessToken := c.GetHeader("Authorization")
 		if accessToken == "" {
-			slog.Error("no auth token provided")
+			logger.LogError(ctx, "no auth token provided")
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -72,7 +74,8 @@ func ARMTokenAuth(appConfig *config.Config) gin.HandlerFunc {
 
 func AdminRequired(authService entity.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		slog.Debug("Middleware: AdminRequired")
+		ctx := GetContextFromGin(c)
+		logger.LogDebug(ctx, "Middleware: AdminRequired")
 
 		authToken := c.GetHeader("Authorization")
 
@@ -101,7 +104,8 @@ func AdminRequired(authService entity.AuthService) gin.HandlerFunc {
 
 func MentorRequired(authService entity.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		slog.Debug("Middleware: MentorRequired")
+		ctx := GetContextFromGin(c)
+		logger.LogDebug(ctx, "Middleware: MentorRequired")
 
 		authToken := c.GetHeader("Authorization")
 
@@ -130,7 +134,8 @@ func MentorRequired(authService entity.AuthService) gin.HandlerFunc {
 
 func ContributorRequired(authService entity.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		slog.Debug("Middleware: contributorRequired")
+		ctx := GetContextFromGin(c)
+		logger.LogDebug(ctx, "Middleware: contributorRequired")
 
 		authToken := c.GetHeader("Authorization")
 
@@ -161,14 +166,15 @@ func ContributorRequired(authService entity.AuthService) gin.HandlerFunc {
 }
 
 func verifyProtectedLabSecretAndUserPrincipalName(c *gin.Context, appConfig *config.Config) error {
+	ctx := GetContextFromGin(c)
 	if c.GetHeader("ProtectedLabSecret") != appConfig.ProtectedLabSecret {
-		slog.Error("ProtectedLabSecret header is missing or invalid")
+		logger.LogError(ctx, "ProtectedLabSecret header is missing or invalid")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return errors.New("ProtectedLabSecret header is missing or invalid")
 	}
 
 	if c.GetHeader("x-ms-client-principal-name") == "" {
-		slog.Error("x-ms-client-principal-name header is missing")
+		logger.LogError(ctx, "x-ms-client-principal-name header is missing")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return errors.New("x-ms-client-principal-name header is missing")
 	}
@@ -177,9 +183,10 @@ func verifyProtectedLabSecretAndUserPrincipalName(c *gin.Context, appConfig *con
 }
 
 func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken string, config config.Config) error {
+	ctx := GetContextFromGin(c)
 	splitToken := strings.Split(accessToken, "Bearer ")
 	if len(splitToken) < 2 {
-		slog.Error("found something in the Authorization header, but it's not a bearer token")
+		logger.LogError(ctx, "found something in the Authorization header, but it's not a bearer token")
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return errors.New(
 			"found something in the Authorization header, but it's not a bearer token",
@@ -187,16 +194,15 @@ func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken strin
 	}
 
 	if config.AuthVerifyMode == "MISE" {
-
 		// MISE Implementation
 		result, err := miseServer.DelegateAuthToContainer(accessToken, c.Request.URL.String(), c.Request.Method, c.ClientIP())
 		if err != nil {
 			var validationErr *mise.ErrTokenValidation
 			if errors.As(err, &validationErr) {
 				// can access validationErr.ErrorDescription, validationErr.WWWAuthenticate, validationErr.StatusCode
-				slog.Error("token validation error", validationErr)
+				logger.LogError(ctx, "token validation error", "error", validationErr)
 			} else {
-				slog.Error("error while delegating auth to container", err)
+				logger.LogError(ctx, "error while delegating auth to container", "error", err)
 			}
 
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
@@ -205,11 +211,28 @@ func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken strin
 
 		userName, ok := result.SubjectClaims["preferred_username"]
 		if !ok {
-			slog.Error("preferred_username claim missing in subject claims")
+			logger.LogError(ctx, "preferred_username claim missing in subject claims")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing preferred username claim"})
 			return errors.New("missing preferred username claim")
 		}
-		slog.Debug("authenticated user", "user", userName)
+
+		// Extract user principal from the slice
+		var userPrincipal string
+		if len(userName) > 0 {
+			userPrincipal = userName[0] // take the first one
+		}
+
+		if userPrincipal == "" {
+			logger.LogError(ctx, "preferred_username claim is empty")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "preferred_username claim is empty"})
+			return errors.New("preferred_username claim is empty")
+		}
+
+		// Set user ID in context for tracing and user-specific operations
+		SetUserIDInGin(c, userPrincipal)
+		ctx = GetContextFromGin(c) // Get updated context with user ID
+
+		logger.LogDebug(ctx, "authenticated user", "user", userPrincipal)
 
 		return nil
 	}
@@ -218,15 +241,31 @@ func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken strin
 	// Always defaults to Custom
 	ok, err := auth.VerifyToken(accessToken)
 	if err != nil || !ok {
-		slog.Error("token verification failed", slog.String("error", err.Error()))
+		logger.LogError(ctx, "token verification failed", "error", err.Error())
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return err
 	}
+
+	// For custom auth, extract user principal from token
+	token := splitToken[1]
+	userPrincipal, err := auth.GetUserPrincipalFromToken(token)
+	if err != nil {
+		logger.LogError(ctx, "failed to get user principal from token", "error", err.Error())
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return err
+	}
+
+	// Set user ID in context for tracing and user-specific operations
+	SetUserIDInGin(c, userPrincipal)
+	ctx = GetContextFromGin(c) // Get updated context with user ID
+
+	logger.LogDebug(ctx, "authenticated user using custom auth", "user", userPrincipal)
 
 	return nil
 }
 
 func verifyArmAccessToken(c *gin.Context, accessToken string) error {
+	ctx := GetContextFromGin(c)
 	splitToken := strings.Split(accessToken, "Bearer ")
 	if len(splitToken) < 2 {
 		c.AbortWithStatus(http.StatusUnauthorized)
@@ -237,10 +276,15 @@ func verifyArmAccessToken(c *gin.Context, accessToken string) error {
 
 	ok, err := auth.VerifyArmToken(accessToken)
 	if err != nil || !ok {
-		slog.Error("token verification failed", slog.String("error", err.Error()))
+		logger.LogError(ctx, "token verification failed", "error", err.Error())
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return err
 	}
+
+	SetUserIDInGin(c, c.GetHeader("x-ms-client-principal-name"))
+	ctx = GetContextFromGin(c)
+
+	logger.LogDebug(ctx, "authenticated user using arm token auth", "user", c.GetHeader("x-ms-client-principal-name"))
 
 	return nil
 }
