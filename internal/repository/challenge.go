@@ -4,13 +4,13 @@ import (
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
+	"actlabs-hub/internal/logger"
 	"context"
 	"encoding/json"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/exp/slog"
 )
 
 type challengeRepository struct {
@@ -31,18 +31,46 @@ func NewChallengeRepository(
 	}, nil
 }
 
-func (c *challengeRepository) GetAllChallenges() ([]entity.Challenge, error) {
-	slog.Debug("getting all challenges")
-
+func (c *challengeRepository) GetAllChallenges(ctx context.Context) ([]entity.Challenge, error) {
 	challenge := entity.Challenge{}
 	challenges := []entity.Challenge{}
 
 	pager := c.auth.ActlabsChallengesTableClient.NewListEntitiesPager(nil)
 	for pager.More() {
-		response, err := pager.NextPage(context.Background())
+		page, err := pager.NextPage(ctx)
 		if err != nil {
-			slog.Debug("error getting entities",
-				slog.String("error", err.Error()),
+			logger.LogError(ctx, "failed to get entities from table storage",
+				"error", err,
+			)
+			return challenges, err
+		}
+
+		for _, entity := range page.Entities {
+			data, _ := json.Marshal(entity)
+			if err := json.Unmarshal(data, &challenge); err != nil {
+				logger.LogError(ctx, "failed to unmarshal entity",
+					"error", err,
+				)
+				continue
+			}
+			challenges = append(challenges, challenge)
+		}
+	}
+
+	return challenges, nil
+}
+
+func (c *challengeRepository) GetChallengesByLabId(ctx context.Context, labId string) ([]entity.Challenge, error) {
+	challenge := entity.Challenge{}
+	challenges := []entity.Challenge{}
+
+	pager := c.auth.ActlabsChallengesTableClient.NewListEntitiesPager(nil)
+	for pager.More() {
+		response, err := pager.NextPage(ctx)
+		if err != nil {
+			logger.LogError(ctx, "failed to get entities from table storage",
+				"lab_id", labId,
+				"error", err,
 			)
 			return challenges, err
 		}
@@ -50,8 +78,9 @@ func (c *challengeRepository) GetAllChallenges() ([]entity.Challenge, error) {
 		for _, element := range response.Entities {
 			//var myEntity aztables.EDMEntity
 			if err := json.Unmarshal(element, &challenge); err != nil {
-				slog.Debug("error unmarshal entity",
-					slog.String("error", err.Error()),
+				logger.LogError(ctx, "failed to unmarshal entity",
+					"lab_id", labId,
+					"error", err,
 				)
 				return challenges, err
 			}
@@ -62,21 +91,17 @@ func (c *challengeRepository) GetAllChallenges() ([]entity.Challenge, error) {
 	return challenges, nil
 }
 
-func (c *challengeRepository) GetChallengesByLabId(labId string) ([]entity.Challenge, error) {
-	slog.Debug("getting challenges by lab id",
-		slog.String("labId", labId),
-	)
-
+func (c *challengeRepository) GetChallengesByUserId(ctx context.Context, userId string) ([]entity.Challenge, error) {
 	challenge := entity.Challenge{}
 	challenges := []entity.Challenge{}
 
 	pager := c.auth.ActlabsChallengesTableClient.NewListEntitiesPager(nil)
 	for pager.More() {
-		response, err := pager.NextPage(context.Background())
+		response, err := pager.NextPage(ctx)
 		if err != nil {
-			slog.Debug("error getting entities",
-				slog.String("labId", labId),
-				slog.String("error", err.Error()),
+			logger.LogError(ctx, "failed to get entities from table storage",
+				"user_id", userId,
+				"error", err,
 			)
 			return challenges, err
 		}
@@ -84,42 +109,9 @@ func (c *challengeRepository) GetChallengesByLabId(labId string) ([]entity.Chall
 		for _, element := range response.Entities {
 			//var myEntity aztables.EDMEntity
 			if err := json.Unmarshal(element, &challenge); err != nil {
-				slog.Debug("error unmarshal entity",
-					slog.String("labId", labId),
-					slog.String("error", err.Error()),
-				)
-				return challenges, err
-			}
-			challenges = append(challenges, challenge)
-		}
-	}
-
-	return challenges, nil
-}
-
-func (c *challengeRepository) GetChallengesByUserId(userId string) ([]entity.Challenge, error) {
-	slog.Debug("getting challenges by user id",
-		slog.String("userId", userId),
-	)
-
-	challenge := entity.Challenge{}
-	challenges := []entity.Challenge{}
-
-	pager := c.auth.ActlabsChallengesTableClient.NewListEntitiesPager(nil)
-	for pager.More() {
-		response, err := pager.NextPage(context.Background())
-		if err != nil {
-			slog.Debug("error getting entities: ",
-				slog.String("userId", userId),
-			)
-			return challenges, err
-		}
-
-		for _, element := range response.Entities {
-			//var myEntity aztables.EDMEntity
-			if err := json.Unmarshal(element, &challenge); err != nil {
-				slog.Debug("error unmarshal entity: ",
-					slog.String("userId", userId),
+				logger.LogError(ctx, "failed to unmarshal entity",
+					"user_id", userId,
+					"error", err,
 				)
 				return challenges, err
 			}
@@ -133,18 +125,14 @@ func (c *challengeRepository) GetChallengesByUserId(userId string) ([]entity.Cha
 	return challenges, nil
 }
 
-func (c *challengeRepository) DeleteChallenge(challengeId string) error {
-	slog.Debug("deleting challenge",
-		slog.String("challengeId", challengeId),
-	)
-
+func (c *challengeRepository) DeleteChallenge(ctx context.Context, challengeId string) error {
 	userId := strings.SplitN(challengeId, "+", 2)[1]
 
-	_, err := c.auth.ActlabsChallengesTableClient.DeleteEntity(context.Background(), userId, challengeId, nil)
+	_, err := c.auth.ActlabsChallengesTableClient.DeleteEntity(ctx, userId, challengeId, nil)
 	if err != nil {
-		slog.Debug("error deleting challenge",
-			slog.String("challengeId", challengeId),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to delete challenge from table storage",
+			"challenge_id", challengeId,
+			"error", err,
 		)
 		return err
 	}
@@ -152,13 +140,7 @@ func (c *challengeRepository) DeleteChallenge(challengeId string) error {
 	return nil
 }
 
-func (c *challengeRepository) UpsertChallenge(challenge entity.Challenge) error {
-	slog.Debug("upserting challenge",
-		slog.String("challengeId", challenge.ChallengeId),
-		slog.String("userId", challenge.UserId),
-		slog.String("labId", challenge.LabId),
-	)
-
+func (c *challengeRepository) UpsertChallenge(ctx context.Context, challenge entity.Challenge) error {
 	if challenge.ChallengeId == "" {
 		challenge.ChallengeId = uuid.NewString()
 	}
@@ -168,22 +150,22 @@ func (c *challengeRepository) UpsertChallenge(challenge entity.Challenge) error 
 
 	val, err := json.Marshal(challenge)
 	if err != nil {
-		slog.Debug("error marshalling challenge",
-			slog.String("challengeId", challenge.ChallengeId),
-			slog.String("userId", challenge.UserId),
-			slog.String("labId", challenge.LabId),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to marshal challenge",
+			"challenge_id", challenge.ChallengeId,
+			"user_id", challenge.UserId,
+			"lab_id", challenge.LabId,
+			"error", err,
 		)
 		return err
 	}
 
-	_, err = c.auth.ActlabsChallengesTableClient.UpsertEntity(context.Background(), val, nil)
+	_, err = c.auth.ActlabsChallengesTableClient.UpsertEntity(ctx, val, nil)
 	if err != nil {
-		slog.Debug("error updating/creating challenge",
-			slog.String("challengeId", challenge.ChallengeId),
-			slog.String("userId", challenge.UserId),
-			slog.String("labId", challenge.LabId),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to upsert challenge in table storage",
+			"challenge_id", challenge.ChallengeId,
+			"user_id", challenge.UserId,
+			"lab_id", challenge.LabId,
+			"error", err,
 		)
 		return err
 	}
@@ -191,6 +173,6 @@ func (c *challengeRepository) UpsertChallenge(challenge entity.Challenge) error 
 	return nil
 }
 
-func (c *challengeRepository) ValidateUser(userId string) (bool, error) {
+func (c *challengeRepository) ValidateUser(ctx context.Context, userId string) (bool, error) {
 	return true, nil
 }
