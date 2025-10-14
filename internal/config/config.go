@@ -29,7 +29,6 @@ type Config struct {
 	ActlabsHubAutoDestroyPollingIntervalSeconds              int32
 	ActlabsHubAutoDestroyIdleTimeSeconds                     int32
 	ActlabsHubDeploymentsPollingIntervalSeconds              int32
-	ActlabsHubAutoRemediatePollingIntervalSeconds            int32
 	ActlabsHubMonitorAndDestroyInactiveServers               bool
 	ActlabsHubMonitorAndAutoDestroyDeployments               bool
 	ActlabsServerCaddyCPU                                    float64
@@ -236,6 +235,9 @@ func NewConfig() (*Config, error) {
 	}
 
 	httpsPort, err := strconv.Atoi(getEnvWithDefault("HTTPS_PORT", "443"))
+	if err != nil {
+		return nil, fmt.Errorf("HTTPS_PORT not set")
+	}
 
 	actlabsServerReadinessProbePath := getEnvWithDefault("ACTLABS_SERVER_READINESS_PROBE_PATH", "/status")
 
@@ -359,12 +361,7 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 
-	actlabsHubDeploymentsPollingIntervalSeconds, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_HUB_DEPLOYMENTS_POLLING_INTERVAL_SECONDS", "300"), 10, 32)
-	if err != nil {
-		return nil, err
-	}
-
-	actlabsHubAutoRemediatePollingIntervalSeconds, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_HUB_AUTO_REMEDIATE_POLLING_INTERVAL_SECONDS", "300"), 10, 32)
+	actlabsHubDeploymentsPollingIntervalSeconds, err := strconv.ParseInt(getEnvWithDefault("ACTLABS_HUB_DEPLOYMENTS_POLLING_INTERVAL_SECONDS", "30"), 10, 32)
 	if err != nil {
 		return nil, err
 	}
@@ -448,7 +445,6 @@ func NewConfig() (*Config, error) {
 		ActlabsHubAutoDestroyPollingIntervalSeconds:              int32(actlabsHubAutoDestroyPollingIntervalSeconds),
 		ActlabsHubAutoDestroyIdleTimeSeconds:                     int32(actlabsHubAutoDestroyIdleTimeSeconds),
 		ActlabsHubDeploymentsPollingIntervalSeconds:              int32(actlabsHubDeploymentsPollingIntervalSeconds),
-		ActlabsHubAutoRemediatePollingIntervalSeconds:            int32(actlabsHubAutoRemediatePollingIntervalSeconds),
 		ActlabsServerCaddyCPU:                                    actlabsServerCaddyCPUFloat,
 		ActlabsServerCaddyMemory:                                 actlabsServerCaddyMemoryFloat,
 		ActlabsServerCPU:                                         actlabsServerCPUFloat,

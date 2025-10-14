@@ -90,13 +90,11 @@ func main() {
 	challengeService := service.NewChallengeService(challengeRepository, labService)
 	authService := service.NewAuthService(authRepository)
 	deploymentService := service.NewDeploymentService(deploymentRepository, serverService, eventService, appConfig)
-	// autoRemediateService := service.NewAutoRemediateService(appConfig, auth)
 
 	if appConfig.ActlabsHubMonitorAndAutoDestroyDeployments {
 		logger.LogInfo(context.Background(), "Auto deploy of auto-destroyed servers to destroy pending deployments is ENABLED")
 		go deploymentService.MonitorAndAutoDestroyDeployments(context.Background())
 	}
-	// go autoRemediateService.MonitorAndRemediate(context.Background())
 
 	// Disable Gin's default logging since we use structured logging
 	middleware.DisableGinDefaultLogging()
