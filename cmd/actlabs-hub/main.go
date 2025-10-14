@@ -110,14 +110,9 @@ func main() {
 	assignmentService := service.NewAssignmentService(assignmentRepository, labService)
 	challengeService := service.NewChallengeService(challengeRepository, labService)
 	authService := service.NewAuthService(authRepository)
-	autoDestroyService := service.NewAutoDestroyService(appConfig, serverRepository, eventService)
 	deploymentService := service.NewDeploymentService(deploymentRepository, serverService, eventService, appConfig)
 	// autoRemediateService := service.NewAutoRemediateService(appConfig, auth)
 
-	if appConfig.ActlabsHubMonitorAndDestroyInactiveServers {
-		slog.Info("Auto destroy of inactive servers is ENABLED")
-		go autoDestroyService.MonitorAndDestroyInactiveServers(context.Background())
-	}
 	if appConfig.ActlabsHubMonitorAndAutoDestroyDeployments {
 		slog.Info("Auto deploy of auto-destroyed servers to destroy pending deployments is ENABLED")
 		go deploymentService.MonitorAndAutoDestroyDeployments(context.Background())
