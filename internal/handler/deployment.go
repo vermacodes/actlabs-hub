@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"actlabs-hub/internal/entity"
+	"actlabs-hub/internal/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,6 +24,8 @@ func NewDeploymentHandler(r *gin.RouterGroup, service entity.DeploymentService) 
 }
 
 func (d *deploymentHandler) GetUserDeployments(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "getting user deployments")
+
 	userPrincipal := c.GetHeader("x-ms-client-principal-name")
 
 	deployments, err := d.deploymentService.GetUserDeployments(c.Request.Context(), userPrincipal)
@@ -35,6 +38,8 @@ func (d *deploymentHandler) GetUserDeployments(c *gin.Context) {
 }
 
 func (d *deploymentHandler) UpsertDeployment(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "upserting deployment")
+
 	deployment := entity.Deployment{}
 	if err := c.Bind(&deployment); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -55,6 +60,8 @@ func (d *deploymentHandler) UpsertDeployment(c *gin.Context) {
 }
 
 func (d *deploymentHandler) DeleteDeployment(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "deleting deployment")
+
 	subscriptionId := c.Param("subscriptionId")
 	workspace := c.Param("workspace")
 
