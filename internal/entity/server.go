@@ -58,21 +58,21 @@ type ManagedServerActionStatus struct {
 }
 
 type ServerService interface {
-	RegisterSubscription(server Server) error
+	RegisterSubscription(ctx context.Context, server Server) error
 	Unregister(ctx context.Context, userPrincipalName string) error
 
-	GetServer(userPrincipalName string) (Server, error)
+	GetServer(ctx context.Context, userPrincipalName string) (Server, error)
 
 	GetAllServers(ctx context.Context) ([]Server, error)
 
-	UpdateActivityStatus(userPrincipalName string) error
+	UpdateActivityStatus(ctx context.Context, userPrincipalName string) error
 }
 
 type ServerRepository interface {
-	IsUserAuthorized(server Server) (bool, error)
+	IsUserAuthorized(ctx context.Context, server Server) (bool, error)
 
-	UpsertServerInDatabase(server Server) error
-	GetServerFromDatabase(partitionKey string, rowKey string) (Server, error)
+	UpsertServerInDatabase(ctx context.Context, server Server) error
+	GetServerFromDatabase(ctx context.Context, partitionKey string, rowKey string) (Server, error)
 	GetAllServersFromDatabase(ctx context.Context) ([]Server, error)
 
 	DeleteServerFromDatabase(ctx context.Context, server Server) error

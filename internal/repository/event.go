@@ -3,14 +3,13 @@ package repository
 import (
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/entity"
+	"actlabs-hub/internal/logger"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
-	"github.com/google/uuid"
 	"golang.org/x/net/context"
 )
 
@@ -35,7 +34,9 @@ func (er *eventRepository) GetEvents(ctx context.Context) ([]entity.Event, error
 	for pager.More() {
 		resp, err := pager.NextPage(ctx)
 		if err != nil {
-			slog.Debug("failed to get next page of events")
+			logger.LogError(ctx, "failed to get next page of events from table storage",
+				"error", err,
+			)
 			return events, err
 		}
 
@@ -43,18 +44,24 @@ func (er *eventRepository) GetEvents(ctx context.Context) ([]entity.Event, error
 			var tableEntity aztables.EDMEntity
 			var event entity.Event
 			if err := json.Unmarshal(e, &tableEntity); err != nil {
-				slog.Debug("failed to unmarshal table entity", slog.String("error", err.Error()))
+				logger.LogError(ctx, "failed to unmarshal event table entity from storage",
+					"error", err,
+				)
 				return events, err
 			}
 
 			propertiesBytes, err := json.Marshal(tableEntity.Properties)
 			if err != nil {
-				slog.Debug("failed to marshal properties", slog.String("error", err.Error()))
+				logger.LogError(ctx, "failed to marshal event properties from storage",
+					"error", err,
+				)
 				return events, err
 			}
 
 			if err := json.Unmarshal(propertiesBytes, &event); err != nil {
-				slog.Debug("failed to unmarshal properties", slog.String("error", err.Error()))
+				logger.LogError(ctx, "failed to unmarshal event properties from storage",
+					"error", err,
+				)
 				return events, err
 			}
 
@@ -67,37 +74,21 @@ func (er *eventRepository) GetEvents(ctx context.Context) ([]entity.Event, error
 }
 
 func (er *eventRepository) CreateEvent(ctx context.Context, event entity.Event) error {
-	event.PartitionKey = event.Object
-	event.RowKey = uuid.New().String()
-
-	marshalledEvent, err := json.Marshal(event)
+	eventBinary, err := json.Marshal(event)
 	if err != nil {
-		slog.Debug("failed to marshal event",
-			slog.String("type", event.Type),
-			slog.String("reason", event.Reason),
-			slog.String("message", event.Message),
-			slog.String("reporter", event.Reporter),
-			slog.String("object", event.Object),
-			slog.String("timeStamp", event.TimeStamp),
+		logger.LogError(ctx, "failed to marshal event for storage",
+			"error", err,
 		)
 		return err
 	}
 
-	_, err = er.auth.ActlabsEventsTableClient.AddEntity(ctx, marshalledEvent, nil)
+	_, err = er.auth.ActlabsEventsTableClient.AddEntity(ctx, eventBinary, nil)
 	if err != nil {
-		slog.Debug("failed to add event to table",
-			slog.String("type", event.Type),
-			slog.String("reason", event.Reason),
-			slog.String("message", event.Message),
-			slog.String("reporter", event.Reporter),
-			slog.String("object", event.Object),
-			slog.String("timeStamp", event.TimeStamp),
+		logger.LogError(ctx, "failed to add event to table storage",
+			"error", err,
 		)
-
 		return err
 	}
-
-	slog.Debug("event added to table")
 
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
+	"actlabs-hub/internal/logger"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,7 +12,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/exp/slog"
 )
 
 type serverRepository struct {
@@ -34,12 +34,7 @@ func NewServerRepository(
 }
 
 // verify that user is the owner/contributor of the subscription
-func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) {
-	slog.Debug("is user owner/contributor of subscription",
-		slog.String("userPrincipalName", server.UserPrincipalName),
-		slog.String("subscriptionId", server.SubscriptionId),
-	)
-
+func (s *serverRepository) IsUserAuthorized(ctx context.Context, server entity.Server) (bool, error) {
 	if server.UserAlias == "" {
 		return false, errors.New("userId is required")
 	}
@@ -72,7 +67,7 @@ func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) 
 		TenantID: nil,
 	})
 	for pager.More() {
-		page, err := pager.NextPage(context.Background())
+		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return false, err
 		}
@@ -96,41 +91,36 @@ func (s *serverRepository) IsUserAuthorized(server entity.Server) (bool, error) 
 	return false, nil
 }
 
-func (s *serverRepository) UpsertServerInDatabase(server entity.Server) error {
+func (s *serverRepository) UpsertServerInDatabase(ctx context.Context, server entity.Server) error {
 	server.PartitionKey = "actlabs"
 	server.RowKey = server.UserPrincipalName
 
 	val, err := json.Marshal(server)
 	if err != nil {
-		slog.Debug("error marshalling server:",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to marshal server for database storage",
+			"subscription_id", server.SubscriptionId,
+			"error", err,
 		)
 		return err
 	}
 
-	_, err = s.auth.ActlabsServersTableClient.UpsertEntity(context.Background(), val, nil)
+	_, err = s.auth.ActlabsServersTableClient.UpsertEntity(ctx, val, nil)
 	if err != nil {
-		slog.Debug("error upserting server:",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to upsert server in database",
+			"subscription_id", server.SubscriptionId,
+			"error", err,
 		)
 		return err
 	}
-
-	slog.Debug("Server upserted in database")
 
 	return nil
 }
 
-func (s *serverRepository) GetServerFromDatabase(partitionKey string, rowKey string) (entity.Server, error) {
-	response, err := s.auth.ActlabsServersTableClient.GetEntity(context.Background(), partitionKey, rowKey, nil)
+func (s *serverRepository) GetServerFromDatabase(ctx context.Context, partitionKey string, rowKey string) (entity.Server, error) {
+	response, err := s.auth.ActlabsServersTableClient.GetEntity(ctx, partitionKey, rowKey, nil)
 	if err != nil {
-		slog.Debug("error getting server from database:",
-			slog.String("userPrincipalName", rowKey),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to get server from database",
+			"error", err,
 		)
 		return entity.Server{}, err
 	}
@@ -138,9 +128,8 @@ func (s *serverRepository) GetServerFromDatabase(partitionKey string, rowKey str
 	server := entity.Server{}
 	err = json.Unmarshal(response.Value, &server)
 	if err != nil {
-		slog.Debug("error unmarshalling server:",
-			slog.String("userPrincipalName", rowKey),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to unmarshal server from database",
+			"error", err,
 		)
 		return entity.Server{}, err
 	}
@@ -156,7 +145,9 @@ func (s *serverRepository) GetAllServersFromDatabase(ctx context.Context) ([]ent
 	for pager.More() {
 		response, err := pager.NextPage(ctx)
 		if err != nil {
-			slog.Debug("error getting servers from database:", slog.String("error", err.Error()))
+			logger.LogError(ctx, "failed to get servers from database",
+				"error", err,
+			)
 			return servers, err
 		}
 
@@ -164,16 +155,22 @@ func (s *serverRepository) GetAllServersFromDatabase(ctx context.Context) ([]ent
 			var myEntity aztables.EDMEntity
 			var server entity.Server
 			if err := json.Unmarshal(e, &myEntity); err != nil {
-				slog.Debug("error unmarshalling server:", slog.String("error", err.Error()))
+				logger.LogError(ctx, "failed to unmarshal server entity from database",
+					"error", err,
+				)
 				return servers, err
 			}
 			propertiesBytes, err := json.Marshal(myEntity.Properties)
 			if err != nil {
-				slog.Debug("error marshalling server:", slog.String("error", err.Error()))
+				logger.LogError(ctx, "failed to marshal server properties from database",
+					"error", err,
+				)
 				return servers, err
 			}
 			if err := json.Unmarshal(propertiesBytes, &server); err != nil {
-				slog.Debug("error unmarshalling server:", slog.String("error", err.Error()))
+				logger.LogError(ctx, "failed to unmarshal server properties from database",
+					"error", err,
+				)
 				return servers, err
 			}
 			servers = append(servers, server)
@@ -186,9 +183,8 @@ func (s *serverRepository) GetAllServersFromDatabase(ctx context.Context) ([]ent
 func (s *serverRepository) DeleteServerFromDatabase(ctx context.Context, server entity.Server) error {
 	_, err := s.auth.ActlabsServersTableClient.DeleteEntity(ctx, server.PartitionKey, server.RowKey, nil)
 	if err != nil {
-		slog.Debug("error deleting server from database:",
-			slog.String("userPrincipalName", server.RowKey),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to delete server from database",
+			"error", err,
 		)
 		return err
 	}

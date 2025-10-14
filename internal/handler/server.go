@@ -3,6 +3,7 @@ package handler
 import (
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/entity"
+	"actlabs-hub/internal/logger"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -42,13 +43,15 @@ func NewServerHandlerArmToken(r *gin.RouterGroup, serverService entity.ServerSer
 }
 
 func (h *serverHandler) RegisterSubscription(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "registering server subscription")
+
 	server := entity.Server{}
 	if err := c.ShouldBindJSON(&server); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid object"})
 		return
 	}
 
-	if err := h.serverService.RegisterSubscription(server); err != nil {
+	if err := h.serverService.RegisterSubscription(c.Request.Context(), server); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -57,6 +60,8 @@ func (h *serverHandler) RegisterSubscription(c *gin.Context) {
 }
 
 func (h *serverHandler) Unregister(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "unregistering server")
+
 	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
@@ -71,6 +76,8 @@ func (h *serverHandler) Unregister(c *gin.Context) {
 }
 
 func (h *serverHandler) AdminUnregister(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "admin unregistering server", "requested_user_id", c.Param("userPrincipalName"))
+
 	userPrincipalName := c.Param("userPrincipalName")
 
 	if err := h.serverService.Unregister(c.Request.Context(), userPrincipalName); err != nil {
@@ -82,6 +89,7 @@ func (h *serverHandler) AdminUnregister(c *gin.Context) {
 }
 
 func (h *serverHandler) ArmGetServer(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "getting server for arm token", "requested_user_id", c.Param("userPrincipalName"))
 
 	userPrincipalName := c.Param("userPrincipalName")
 	if userPrincipalName == "" {
@@ -89,7 +97,7 @@ func (h *serverHandler) ArmGetServer(c *gin.Context) {
 		return
 	}
 
-	server, err := h.serverService.GetServer(userPrincipalName)
+	server, err := h.serverService.GetServer(c.Request.Context(), userPrincipalName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -99,6 +107,8 @@ func (h *serverHandler) ArmGetServer(c *gin.Context) {
 }
 
 func (h *serverHandler) AdminGetAllServers(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "getting all servers for admin")
+
 	servers, err := h.serverService.GetAllServers(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -109,6 +119,8 @@ func (h *serverHandler) AdminGetAllServers(c *gin.Context) {
 }
 
 func (h *serverHandler) UpdateActivityStatus(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "updating server activity status", "requested_user_id", c.Param("userPrincipalName"))
+
 	userPrincipalName := c.Param("userPrincipalName")
 
 	if !auth.VerifyUserPrincipalName(userPrincipalName, c.GetHeader("Authorization")) {
@@ -116,7 +128,7 @@ func (h *serverHandler) UpdateActivityStatus(c *gin.Context) {
 		return
 	}
 
-	if err := h.serverService.UpdateActivityStatus(userPrincipalName); err != nil {
+	if err := h.serverService.UpdateActivityStatus(c.Request.Context(), userPrincipalName); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
