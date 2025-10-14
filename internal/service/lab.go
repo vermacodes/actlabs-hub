@@ -122,6 +122,8 @@ func (l *labService) GetLabs(ctx context.Context, typeOfLab string) ([]entity.La
 		return labs, err
 	}
 
+	logger.LogDebug(ctx, "listed labs", "type", typeOfLab, "count", len(blobs))
+
 	for _, element := range blobs {
 		if element.IsCurrentVersion {
 			lab, err := l.labRepository.GetLab(ctx, typeOfLab, element.Name) //element.Name is labId
@@ -133,6 +135,8 @@ func (l *labService) GetLabs(ctx context.Context, typeOfLab string) ([]entity.La
 			labs = append(labs, lab)
 		}
 	}
+
+	logger.LogDebug(ctx, "current versions of labs", "type", typeOfLab, "count", len(labs))
 
 	return labs, nil
 }

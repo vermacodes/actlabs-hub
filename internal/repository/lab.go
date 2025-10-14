@@ -11,12 +11,12 @@ import (
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
+	"actlabs-hub/internal/logger"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/exp/slog"
 )
 
 type labRepository struct {
@@ -45,22 +45,17 @@ func (l *labRepository) ListBlobs(
 	labType string,
 ) ([]entity.Blob, error) {
 
-	slog.Debug("listing labs",
-		slog.String("labType", labType),
-	)
-
 	// check if the list of the labs exist in redis
 	// if they do, return them
 	blobsStr, err := l.rdb.Get(ctx, "blobs-"+labType).Result()
 	if err == nil {
 		var blobs []entity.Blob
 		if err := json.Unmarshal([]byte(blobsStr), &blobs); err != nil {
-			return nil, err
+			logger.LogError(ctx, "failed to unmarshal blobs from Redis", "error", err.Error(), "labType", labType)
+			// Continue to fetch from storage account if Redis data is corrupted
+		} else {
+			return blobs, nil
 		}
-		slog.Debug("list of blobs found in redis",
-			slog.String("labType", labType),
-		)
-		return blobs, nil
 	}
 
 	// URL of the container to list the blobs
@@ -86,14 +81,11 @@ func (l *labRepository) ListBlobs(
 	for pager.More() {
 		resp, err := pager.NextPage(context.Background())
 		if err != nil {
+			logger.LogError(ctx, "failed to get next page from Azure storage", "error", err.Error(), "labType", labType)
 			return nil, err
 		}
 		for _, blob := range resp.Segment.BlobItems {
-			slog.Debug("blob",
-				slog.String("name", *blob.Name),
-				slog.String("versionId", *blob.VersionID),
-				slog.Bool("isCurrentVersion", true),
-			)
+			// Remove verbose debug logging - repository should focus on infrastructure errors only
 			blobs = append(blobs, entity.Blob{
 				Name:             *blob.Name,
 				VersionId:        *blob.VersionID,
@@ -105,12 +97,12 @@ func (l *labRepository) ListBlobs(
 	// save the blobs in redis
 	blobsBytes, err := json.Marshal(blobs)
 	if err != nil {
-		slog.Debug("not able to marshal blobs", slog.String("error", err.Error()))
+		logger.LogError(ctx, "failed to marshal blobs for Redis cache", "error", err.Error(), "labType", labType)
 		return blobs, nil
 	}
 	blobsStr = string(blobsBytes)
 	if err := l.rdb.Set(ctx, "blobs-"+labType, blobsStr, 0).Err(); err != nil {
-		slog.Debug("not able to set blobs in redis", slog.String("error", err.Error()))
+		logger.LogError(ctx, "failed to cache blobs in Redis", "error", err.Error(), "labType", labType)
 		return blobs, nil
 	}
 
@@ -123,11 +115,16 @@ func (l *labRepository) GetLabWithVersions(ctx context.Context, typeOfLab string
 	// check if the lab exists in redis
 	labStr, err := l.rdb.Get(ctx, redisKey("labWithVersions", typeOfLab, appendDotJson(labId))).Result()
 	if err == nil {
-		if err := json.Unmarshal([]byte(labStr), &labs); err == nil {
+		if unmarshalErr := json.Unmarshal([]byte(labStr), &labs); unmarshalErr == nil {
 			return labs, nil
+		} else {
+			logger.LogError(ctx, "failed to unmarshal lab versions from Redis",
+				"error", unmarshalErr.Error(),
+				"labId", labId,
+				"typeOfLab", typeOfLab,
+			)
 		}
-		slog.Debug("not able to unmarshal lab found in redis", slog.String("error", err.Error()))
-		slog.Debug("getting lab from storage account")
+		// Continue to fetch from storage account if Redis data is corrupted
 	}
 
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", l.appConfig.ActlabsHubStorageAccount)
@@ -171,44 +168,28 @@ func (l *labRepository) GetLabWithVersions(ctx context.Context, typeOfLab string
 			if *blob.Name == appendDotJson(labId) {
 				blobClientWithVersionId, err := blobClient.WithVersionID(*blob.VersionID)
 				if err != nil {
-					slog.Debug("not able to get blob client with version id",
-						slog.String("labId", labId),
-						slog.String("versionId", *blob.VersionID),
-						slog.String("error", err.Error()),
-					)
+					logger.LogError(ctx, "failed to create blob client with version ID", "error", err.Error(), "labId", labId, "versionId", *blob.VersionID)
 					return labs, err
 				}
 
 				downloadResponse, err := blobClientWithVersionId.DownloadStream(ctx, nil)
 				if err != nil {
-					slog.Debug("not able to download blob with version id",
-						slog.String("labId", labId),
-						slog.String("versionId", *blob.VersionID),
-						slog.String("error", err.Error()),
-					)
+					logger.LogError(ctx, "failed to download blob with version ID", "error", err.Error(), "labId", labId, "versionId", *blob.VersionID)
 					return labs, err
 				}
 
 				actualBlobData, err := io.ReadAll(downloadResponse.Body)
 				if err != nil {
-					slog.Debug("not able to read blob data",
-						slog.String("labId", labId),
-						slog.String("versionId", *blob.VersionID),
-						slog.String("error", err.Error()),
-					)
+					logger.LogError(ctx, "failed to read blob data", "error", err.Error(), "labId", labId, "versionId", *blob.VersionID)
 					return labs, err
 				}
 
-				slog.Debug("blob data : " + string(actualBlobData))
+				// Remove verbose debug logging of blob data
 
 				var lab entity.LabType
 
 				if err := json.Unmarshal(actualBlobData, &lab); err != nil {
-					slog.Debug("not able to unmarshal lab",
-						slog.String("labId", labId),
-						slog.String("versionId", *blob.VersionID),
-						slog.String("error", err.Error()),
-					)
+					logger.LogError(ctx, "failed to unmarshal lab data", "error", err.Error(), "labId", labId, "versionId", *blob.VersionID)
 					return labs, err
 				}
 
@@ -230,15 +211,12 @@ func (l *labRepository) GetLabWithVersions(ctx context.Context, typeOfLab string
 	// add labs to redis
 	labsBytes, err := json.Marshal(labs)
 	if err != nil {
-		slog.Debug("not able to marshal labs", slog.String("error", err.Error()))
+		logger.LogError(ctx, "failed to marshal labs for Redis cache", "error", err.Error(), "labId", labId)
 		return labs, nil
 	}
 
 	if err := l.rdb.Set(ctx, redisKey("labWithVersions", typeOfLab, appendDotJson(labId)), string(labsBytes), 0).Err(); err != nil {
-		slog.Debug("not able to set lab with versions in redis",
-			slog.String("error", err.Error()),
-			slog.String("labId", labId),
-		)
+		logger.LogError(ctx, "failed to cache lab versions in Redis", "error", err.Error(), "labId", labId, "typeOfLab", typeOfLab)
 	}
 
 	return labs, nil
@@ -254,11 +232,16 @@ func (l *labRepository) GetLab(
 	// check if the lab exists in redis
 	labStr, err := l.rdb.Get(ctx, redisKey("lab", typeOfLab, appendDotJson(labId))).Result()
 	if err == nil {
-		if err := json.Unmarshal([]byte(labStr), &lab); err == nil {
+		if unmarshalErr := json.Unmarshal([]byte(labStr), &lab); unmarshalErr == nil {
 			return lab, nil
+		} else {
+			logger.LogError(ctx, "failed to unmarshal lab from Redis",
+				"error", unmarshalErr.Error(),
+				"labId", labId,
+				"typeOfLab", typeOfLab,
+			)
 		}
-		slog.Debug("not able to unmarshal lab found in redis", slog.String("error", err.Error()))
-		slog.Debug("getting lab from storage account")
+		// Continue to fetch from storage account if Redis data is corrupted
 	}
 
 	containerURL := fmt.Sprintf("https://%s.blob.core.windows.net/%s", l.appConfig.ActlabsHubStorageAccount, ReproProjectPrefix+typeOfLab)
@@ -286,7 +269,7 @@ func (l *labRepository) GetLab(
 
 	// save the lab in redis
 	if err := l.rdb.Set(ctx, redisKey("lab", typeOfLab, appendDotJson(labId)), string(actualBlobData), 0).Err(); err != nil {
-		slog.Debug("not able to set lab in redis", slog.String("error", err.Error()))
+		logger.LogError(ctx, "failed to cache lab in Redis", "error", err.Error(), "labId", labId, "typeOfLab", typeOfLab)
 	}
 
 	if err := json.Unmarshal(actualBlobData, &lab); err != nil {
@@ -314,13 +297,9 @@ func (l *labRepository) UpsertLab(ctx context.Context, labId string, lab string,
 	blobData := []byte(lab) // convert string to []byte
 	blobContentReader := bytes.NewReader(blobData)
 
-	slog.Debug("uploading lab to storage account",
-		slog.String("containerName", containerName),
-		slog.String("blobName", blobName),
-	)
-
 	_, err = client.UploadStream(ctx, containerName, blobName, blobContentReader, nil)
 	if err != nil {
+		logger.LogError(ctx, "failed to upload lab to Azure storage", "error", err.Error(), "containerName", containerName, "blobName", blobName)
 		return err
 	}
 
@@ -438,11 +417,7 @@ func (l *labRepository) DoesSupportingDocumentExist(ctx context.Context, support
 	blobClient := containerClient.NewBlobClient(supportingDocumentId)
 
 	_, err = blobClient.GetProperties(ctx, nil)
-	if err != nil {
-		return false
-	}
-
-	return true
+	return err == nil
 }
 
 func appendDotJson(labId string) string {
