@@ -86,7 +86,7 @@ func AdminRequired(authService entity.AuthService) gin.HandlerFunc {
 		}
 
 		// Get the roles for the calling user
-		profile, err := authService.GetProfile(callingUserPrincipal)
+		profile, err := authService.GetProfile(c.Request.Context(), callingUserPrincipal)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
@@ -116,7 +116,7 @@ func MentorRequired(authService entity.AuthService) gin.HandlerFunc {
 		}
 
 		// Get the roles for the calling user
-		profile, err := authService.GetProfile(callingUserPrincipal)
+		profile, err := authService.GetProfile(c.Request.Context(), callingUserPrincipal)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
@@ -146,7 +146,7 @@ func ContributorRequired(authService entity.AuthService) gin.HandlerFunc {
 		}
 
 		// Get the roles for the calling user
-		profile, err := authService.GetProfile(callingUserPrincipal)
+		profile, err := authService.GetProfile(c.Request.Context(), callingUserPrincipal)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return

@@ -4,11 +4,11 @@ import (
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
+	"actlabs-hub/internal/logger"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/exp/slog"
 )
 
 type AuthHandler struct {
@@ -36,6 +36,10 @@ func NewAdminAuthHandler(r *gin.RouterGroup, authService entity.AuthService) {
 }
 
 func (h *AuthHandler) GetProfile(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "get profile request",
+		"user_principal", c.Param("userPrincipal"),
+	)
+
 	userPrincipal := c.Param("userPrincipal")
 
 	// My roles
@@ -50,7 +54,7 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		userPrincipal, _ = auth.GetUserPrincipalFromToken(authToken)
 	}
 
-	profile, err := h.authService.GetProfile(userPrincipal)
+	profile, err := h.authService.GetProfile(c.Request.Context(), userPrincipal)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -59,7 +63,9 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 }
 
 func (h *AuthHandler) GetAllProfilesRedacted(c *gin.Context) {
-	profiles, err := h.authService.GetAllProfilesRedacted()
+	logger.LogInfo(c.Request.Context(), "get all profiles redacted request")
+
+	profiles, err := h.authService.GetAllProfilesRedacted(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -68,7 +74,9 @@ func (h *AuthHandler) GetAllProfilesRedacted(c *gin.Context) {
 }
 
 func (h *AuthHandler) GetAllProfiles(c *gin.Context) {
-	profiles, err := h.authService.GetAllProfiles()
+	logger.LogInfo(c.Request.Context(), "get all profiles request")
+
+	profiles, err := h.authService.GetAllProfiles(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -79,7 +87,13 @@ func (h *AuthHandler) GetAllProfiles(c *gin.Context) {
 func (h *AuthHandler) AddRole(c *gin.Context) {
 	userPrincipal := c.Param("userPrincipal")
 	role := c.Param("role")
-	err := h.authService.AddRole(userPrincipal, role)
+
+	logger.LogInfo(c.Request.Context(), "add role request",
+		"user_principal", userPrincipal,
+		"role", role,
+	)
+
+	err := h.authService.AddRole(c.Request.Context(), userPrincipal, role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -88,6 +102,7 @@ func (h *AuthHandler) AddRole(c *gin.Context) {
 }
 
 func (h *AuthHandler) CreateProfile(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "create profile request")
 
 	profile := entity.Profile{}
 
@@ -99,8 +114,9 @@ func (h *AuthHandler) CreateProfile(c *gin.Context) {
 
 	userPrincipal, err := auth.GetUserPrincipalFromToken(authToken)
 	if err != nil {
-		slog.Error("Error getting user principal from token",
-			slog.String("error", err.Error()),
+		logger.LogError(c.Request.Context(), "Failed to extract user principal from token",
+			"endpoint", "POST /profiles",
+			"error", err.Error(),
 		)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "not able to identify user"})
 		return
@@ -109,9 +125,10 @@ func (h *AuthHandler) CreateProfile(c *gin.Context) {
 	role := "user"
 
 	if err := c.ShouldBindJSON(&profile); err != nil {
-		slog.Error("not able to bind json",
-			slog.String("userPrincipal", userPrincipal),
-			slog.String("error", err.Error()),
+		logger.LogError(c.Request.Context(), "Invalid request payload for create profile",
+			"validation_error", err.Error(),
+			"endpoint", "POST /profiles",
+			"user_principal", userPrincipal,
 		)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -119,9 +136,11 @@ func (h *AuthHandler) CreateProfile(c *gin.Context) {
 
 	// Ensure that the calling user is adding their own profile.
 	if userPrincipal != profile.UserPrincipal {
-		slog.Error("userPrincipal in the request body does not match the calling user",
-			slog.String("userPrincipal", userPrincipal),
-			slog.String("profile.UserPrincipal", profile.UserPrincipal),
+		logger.LogError(c.Request.Context(), "Authorization violation: user attempting to create profile for different user",
+			"error", "userPrincipal mismatch",
+			"requesting_user", userPrincipal,
+			"target_user", profile.UserPrincipal,
+			"endpoint", "POST /profiles",
 		)
 
 		c.JSON(http.StatusBadRequest, gin.H{"error": "userPrincipal in the request body does not match the calling user"})
@@ -133,7 +152,7 @@ func (h *AuthHandler) CreateProfile(c *gin.Context) {
 		profile.Roles = append(profile.Roles, role)
 	}
 
-	err = h.authService.CreateProfile(profile)
+	err = h.authService.CreateProfile(c.Request.Context(), profile)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -144,7 +163,13 @@ func (h *AuthHandler) CreateProfile(c *gin.Context) {
 func (h *AuthHandler) DeleteRole(c *gin.Context) {
 	userPrincipal := c.Param("userPrincipal")
 	role := c.Param("role")
-	err := h.authService.DeleteRole(userPrincipal, role)
+
+	logger.LogInfo(c.Request.Context(), "delete role request",
+		"user_principal", userPrincipal,
+		"role", role,
+	)
+
+	err := h.authService.DeleteRole(c.Request.Context(), userPrincipal, role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

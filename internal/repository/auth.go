@@ -5,12 +5,13 @@ import (
 	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
+	"actlabs-hub/internal/logger"
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/exp/slog"
 )
 
 type AuthRepository struct {
@@ -31,44 +32,53 @@ func NewAuthRepository(
 	}, nil
 }
 
-func (r *AuthRepository) GetProfile(userPrincipal string) (entity.Profile, error) {
-	slog.Debug("getting profile",
-		slog.String("userPrincipal", userPrincipal),
-	)
+func (r *AuthRepository) GetProfile(ctx context.Context, userPrincipal string) (entity.Profile, error) {
+	client := r.auth.ActlabsProfilesTableClient
 
-	principalRecord, err := r.auth.ActlabsProfilesTableClient.GetEntity(context.TODO(), "actlabs", userPrincipal, nil)
-	if err != nil {
-		slog.Debug("error getting entity",
-			slog.String("userPrincipal", userPrincipal),
-			slog.String("error", err.Error()),
-		)
-		return entity.Profile{}, err
+	filter := fmt.Sprintf("RowKey eq '%s'", userPrincipal)
+	listOptions := &aztables.ListEntitiesOptions{
+		Filter: &filter,
 	}
 
 	profileRecord := entity.ProfileRecord{}
-	if err := json.Unmarshal(principalRecord.Value, &profileRecord); err != nil {
-		slog.Debug("error unmarshal principal record",
-			slog.String("userPrincipal", userPrincipal),
-			slog.String("error", err.Error()),
-		)
-		return entity.Profile{}, err
+	pager := client.NewListEntitiesPager(listOptions)
+
+	for pager.More() {
+		response, err := pager.NextPage(ctx)
+		if err != nil {
+			logger.LogError(ctx, "failed to query profile from table storage",
+				"user_principal", userPrincipal,
+				"error", err,
+			)
+			return entity.Profile{}, err
+		}
+
+		for _, item := range response.Entities {
+			err := json.Unmarshal(item, &profileRecord)
+			if err != nil {
+				logger.LogError(ctx, "failed to unmarshal profile record",
+					"user_principal", userPrincipal,
+					"error", err,
+				)
+				return entity.Profile{}, err
+			}
+		}
 	}
 
-	return helper.ConvertRecordToProfile(profileRecord), nil
+	profile := helper.ConvertRecordToProfile(profileRecord)
+	return profile, nil
 }
 
-func (r *AuthRepository) GetAllProfiles() ([]entity.Profile, error) {
-	slog.Debug("getting all profiles")
-
+func (r *AuthRepository) GetAllProfiles(ctx context.Context) ([]entity.Profile, error) {
 	profile := entity.Profile{}
 	profiles := []entity.Profile{}
 
 	pager := r.auth.ActlabsProfilesTableClient.NewListEntitiesPager(nil)
 	for pager.More() {
-		response, err := pager.NextPage(context.Background())
+		response, err := pager.NextPage(ctx)
 		if err != nil {
-			slog.Debug("error getting entities",
-				slog.String("error", err.Error()),
+			logger.LogError(ctx, "failed to get entities from table storage",
+				"error", err,
 			)
 			return profiles, err
 		}
@@ -76,8 +86,8 @@ func (r *AuthRepository) GetAllProfiles() ([]entity.Profile, error) {
 		for _, entity := range response.Entities {
 			var myEntity aztables.EDMEntity
 			if err := json.Unmarshal(entity, &myEntity); err != nil {
-				slog.Debug("error unmarshal principal record",
-					slog.String("error", err.Error()),
+				logger.LogError(ctx, "failed to unmarshal profile record",
+					"error", err,
 				)
 				return profiles, err
 			}
@@ -120,41 +130,35 @@ func (r *AuthRepository) GetAllProfiles() ([]entity.Profile, error) {
 }
 
 // Use this function to complete delete the record for UserPrincipal.
-func (r *AuthRepository) DeleteProfile(userPrincipal string) error {
-	slog.Debug("deleting profile",
-		slog.String("userPrincipal", userPrincipal),
-	)
-
-	_, err := r.auth.ActlabsProfilesTableClient.DeleteEntity(context.TODO(), "actlabs", userPrincipal, nil)
+func (r *AuthRepository) DeleteProfile(ctx context.Context, userPrincipal string) error {
+	_, err := r.auth.ActlabsProfilesTableClient.DeleteEntity(ctx, "actlabs", userPrincipal, nil)
 	if err != nil {
-		slog.Debug("error deleting entity",
-			slog.String("userPrincipal", userPrincipal),
+		logger.LogError(ctx, "failed to delete profile from table storage",
+			"user_principal", userPrincipal,
+			"error", err,
 		)
+		return err
 	}
-	return err
+	return nil
 }
 
-func (r *AuthRepository) UpsertProfile(profile entity.Profile) error {
-	slog.Debug("upserting profile",
-		slog.String("userPrincipal", profile.UserPrincipal),
-	)
-
+func (r *AuthRepository) UpsertProfile(ctx context.Context, profile entity.Profile) error {
 	profileRecord := helper.ConvertProfileToRecord(profile)
 
 	marshalledPrincipalRecord, err := json.Marshal(profileRecord)
 	if err != nil {
-		slog.Debug("error marshalling principal record",
-			slog.String("userPrincipal", profile.UserPrincipal),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to marshal profile record",
+			"user_principal", profile.UserPrincipal,
+			"error", err,
 		)
 		return err
 	}
 
-	_, err = r.auth.ActlabsProfilesTableClient.UpsertEntity(context.TODO(), marshalledPrincipalRecord, nil)
+	_, err = r.auth.ActlabsProfilesTableClient.UpsertEntity(ctx, marshalledPrincipalRecord, nil)
 	if err != nil {
-		slog.Debug("error adding entity",
-			slog.String("userPrincipal", profile.UserPrincipal),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to upsert profile to table storage",
+			"user_principal", profile.UserPrincipal,
+			"error", err,
 		)
 		return err
 	}
