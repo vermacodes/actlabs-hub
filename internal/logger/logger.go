@@ -89,7 +89,7 @@ func getProjectRelativePath(fullPath string) string {
 // ACTLABS_HUB_LOG_LEVEL environment variable supports both formats:
 // String: DEBUG, INFO, WARN, ERROR (recommended)
 // Number: -4 (debug), 0 (info), 4 (warn), 8 (error)
-func SetupLogger() {
+func SetupLogger(ctx context.Context) {
 	logLevel := os.Getenv("ACTLABS_HUB_LOG_LEVEL")
 	if logLevel == "" {
 		slog.Info("ACTLABS_HUB_LOG_LEVEL not set defaulting to INFO")

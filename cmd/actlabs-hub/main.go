@@ -36,29 +36,29 @@ func main() {
 	// Load environment variables from .env file
 	err := godotenv.Load()
 	if err != nil {
-		slog.Error("Error loading .env file")
+		slog.WarnContext(ctx, "Error loading .env file")
 	}
 
 	// Load environment variables from .env.local file (overrides .env)
 	err = godotenv.Load(".env.local")
 	if err != nil {
-		slog.Info("No .env.local file found or error loading it")
+		slog.WarnContext(ctx, "No .env.local file found or error loading it")
 	}
 
-	logger.SetupLogger()
-	appConfig, err := config.NewConfig()
+	logger.SetupLogger(ctx)
+	appConfig, err := config.NewConfig(ctx)
 	if err != nil {
 		logger.LogError(ctx, "error initializing config", "error", err)
 		panic(err)
 	}
 
-	rdb, err := redis.NewRedisClient()
+	rdb, err := redis.NewRedisClient(ctx)
 	if err != nil {
 		logger.LogError(ctx, "error initializing redis", "error", err)
 		panic(err)
 	}
 
-	auth, err := auth.NewAuth(appConfig)
+	auth, err := auth.NewAuth(ctx, appConfig)
 	if err != nil {
 		logger.LogError(ctx, "error initializing auth", "error", err)
 		panic(err)
@@ -66,11 +66,11 @@ func main() {
 
 	// mise
 	miseServer := mise.Server{
-		ContainerClient: miseadapter.NewMISEAdapter(http.DefaultClient, appConfig.MiseEndpoint),
+		ContainerClient: miseadapter.NewMISEAdapter(ctx, http.DefaultClient, appConfig.MiseEndpoint),
 		VerboseLogging:  appConfig.MiseVerboseLogging,
 	}
 
-	eventRepository, err := repository.NewEventRepository(auth)
+	eventRepository, err := repository.NewEventRepository(ctx, auth)
 	if err != nil {
 		logger.LogError(ctx, "error initializing event repository", "error", err)
 		panic(err)

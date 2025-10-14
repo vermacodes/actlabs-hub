@@ -17,7 +17,7 @@ type eventRepository struct {
 	auth *auth.Auth
 }
 
-func NewEventRepository(auth *auth.Auth) (entity.EventRepository, error) {
+func NewEventRepository(ctx context.Context, auth *auth.Auth) (entity.EventRepository, error) {
 	return &eventRepository{
 		auth: auth,
 	}, nil
