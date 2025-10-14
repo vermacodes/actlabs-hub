@@ -111,7 +111,7 @@ func (s *serverService) GetServer(ctx context.Context, userPrincipalName string)
 	}
 
 	// update endpoint to accommodate new changes.
-	server.Endpoint = s.appConfig.ActlabsFQDN + "/server/"
+	server.Endpoint = s.appConfig.ActlabsServerEndpoint
 
 	return server, nil
 }
@@ -239,5 +239,5 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 		server.Status = entity.ServerStatusRegistered
 	}
 
-	server.Endpoint = s.appConfig.ActlabsFQDN + "/server/"
+	server.Endpoint = s.appConfig.ActlabsServerEndpoint
 }
