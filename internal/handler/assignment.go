@@ -69,7 +69,7 @@ func (a *assignmentHandler) GetAllLabsRedacted(c *gin.Context) {
 	authToken := c.GetHeader("Authorization")
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
-	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+	userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	labs, err := a.assignmentService.GetAllLabsRedacted(c.Request.Context(), userId)
 	if err != nil {
@@ -87,7 +87,7 @@ func (a *assignmentHandler) GetMyAssignedLabsRedacted(c *gin.Context) {
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
 	//Get the user principal from the auth token
-	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+	userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	labs, err := a.assignmentService.GetAssignedLabsRedactedByUserId(c.Request.Context(), userId)
 	if err != nil {
@@ -107,7 +107,7 @@ func (a *assignmentHandler) GetAssignedLabsRedactedByUserId(c *gin.Context) {
 		// Remove Bearer from the authToken
 		authToken = strings.Split(authToken, "Bearer ")[1]
 		//Get the user principal from the auth token
-		userId, _ = auth.GetUserPrincipalFromToken(authToken)
+		userId, _ = auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 	}
 
 	labs, err := a.assignmentService.GetAssignedLabsRedactedByUserId(c.Request.Context(), userId)
@@ -148,7 +148,7 @@ func (a *assignmentHandler) GetMyAssignments(c *gin.Context) {
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
 	//Get the user principal from the auth token
-	userPrincipal, _ := auth.GetUserPrincipalFromToken(authToken)
+	userPrincipal, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	assignments, err := a.assignmentService.GetAssignmentsByUserId(c.Request.Context(), userPrincipal)
 	if err != nil {
@@ -180,7 +180,7 @@ func (a *assignmentHandler) CreateMyAssignments(c *gin.Context) {
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
 	//Get the user principal from the auth token
-	userPrincipal, _ := auth.GetUserPrincipalFromToken(authToken)
+	userPrincipal, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	// Sanitizing to make sure that the user is not creating assignments for other users.
 	for _, userId := range bulkAssignment.UserIds {
@@ -225,7 +225,7 @@ func (a *assignmentHandler) CreateAssignments(c *gin.Context) {
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
 	//Get the user principal from the auth token
-	userPrincipal, _ := auth.GetUserPrincipalFromToken(authToken)
+	userPrincipal, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	if err := a.assignmentService.CreateAssignments(c.Request.Context(), bulkAssignment.UserIds, bulkAssignment.LabIds, userPrincipal); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -290,7 +290,7 @@ func (a *assignmentHandler) DeleteMyAssignments(c *gin.Context) {
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
 	//Get the user principal from the auth token
-	userPrincipal, _ := auth.GetUserPrincipalFromToken(authToken)
+	userPrincipal, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	// Sanitizing to make sure that the user is not deleting assignments for other users.
 	for _, assignment := range assignments {
@@ -335,7 +335,7 @@ func (a *assignmentHandler) DeleteAssignments(c *gin.Context) {
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
 	//Get the user principal from the auth token
-	userPrincipal, _ := auth.GetUserPrincipalFromToken(authToken)
+	userPrincipal, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	if err := a.assignmentService.DeleteAssignments(c.Request.Context(), assignments, userPrincipal); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

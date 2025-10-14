@@ -51,7 +51,7 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		// Remove Bearer from the authToken
 		authToken = strings.Split(authToken, "Bearer ")[1]
 
-		userPrincipal, _ = auth.GetUserPrincipalFromToken(authToken)
+		userPrincipal, _ = auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 	}
 
 	profile, err := h.authService.GetProfile(c.Request.Context(), userPrincipal)
@@ -112,7 +112,7 @@ func (h *AuthHandler) CreateProfile(c *gin.Context) {
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
 
-	userPrincipal, err := auth.GetUserPrincipalFromToken(authToken)
+	userPrincipal, err := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 	if err != nil {
 		logger.LogError(c.Request.Context(), "Failed to extract user principal from token",
 			"endpoint", "POST /profiles",

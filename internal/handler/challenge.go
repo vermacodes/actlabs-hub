@@ -52,7 +52,7 @@ func (ch *challengeHandler) GetMyChallengeLabsRedacted(c *gin.Context) {
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
 	//Get the user principal from the auth token
-	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+	userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	logger.LogInfo(c.Request.Context(), "get my challenge labs redacted request",
 		"user_id", userId,
@@ -84,7 +84,7 @@ func (ch *challengeHandler) GetMyChallenges(c *gin.Context) {
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
 	//Get the user principal from the auth token
-	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+	userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	logger.LogInfo(c.Request.Context(), "get my challenges request",
 		"user_id", userId,

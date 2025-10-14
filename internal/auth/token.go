@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"actlabs-hub/internal/logger"
 	"context"
 	"crypto/rsa"
 	"encoding/base64"
@@ -14,11 +15,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/lestrrat-go/jwx/jwa"
 	"github.com/lestrrat-go/jwx/jwk"
-	"golang.org/x/exp/slog"
 )
 
-func GetClaimFromToken(tokenString string, claim string) (string, error) {
-	token, err := ParseToken(tokenString)
+func GetClaimFromToken(ctx context.Context, tokenString string, claim string) (string, error) {
+	token, err := ParseToken(ctx, tokenString)
 	if err != nil {
 		return "", err
 	}
@@ -34,13 +34,13 @@ func GetClaimFromToken(tokenString string, claim string) (string, error) {
 	return value, nil
 }
 
-func ParseToken(tokenString string) (*jwt.Token, error) {
+func ParseToken(ctx context.Context, tokenString string) (*jwt.Token, error) {
 	// Drop the Bearer prefix if it exists
 	if strings.HasPrefix(tokenString, "Bearer ") {
 		tokenString = strings.Split(tokenString, "Bearer ")[1]
 	}
 
-	keySet, err := jwk.Fetch(context.TODO(), "https://login.microsoftonline.com/common/discovery/v2.0/keys")
+	keySet, err := jwk.Fetch(ctx, "https://login.microsoftonline.com/common/discovery/v2.0/keys")
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if token.Method.Alg() != jwa.RS256.String() {
@@ -78,9 +78,9 @@ func ParseToken(tokenString string) (*jwt.Token, error) {
 	return token, nil
 }
 
-func VerifyToken(tokenString string) (bool, error) {
+func VerifyToken(ctx context.Context, tokenString string) (bool, error) {
 
-	token, err := ParseToken(tokenString)
+	token, err := ParseToken(ctx, tokenString)
 	if err != nil {
 		return false, err
 	}
@@ -121,7 +121,7 @@ func VerifyToken(tokenString string) (bool, error) {
 	return true, nil
 }
 
-func GetTokenJSON(token string) (map[string]interface{}, error) {
+func GetTokenJSON(ctx context.Context, token string) (map[string]interface{}, error) {
 	// Drop the Bearer prefix if it exists
 	if strings.HasPrefix(token, "Bearer ") {
 		token = strings.Split(token, "Bearer ")[1]
@@ -131,18 +131,14 @@ func GetTokenJSON(token string) (map[string]interface{}, error) {
 	tokenParts := strings.Split(token, ".")
 	if len(tokenParts) < 2 {
 		err := errors.New("invalid token format")
-		slog.Error("invalid token format",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "invalid token format", "error", err)
 		return map[string]interface{}{}, err
 	}
 
 	// Decode the token
 	decodedToken, err := base64.URLEncoding.DecodeString(tokenParts[1] + strings.Repeat("=", (4-len(tokenParts[1])%4)%4))
 	if err != nil {
-		slog.Error("not able to decode token -> ",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "failed to decode token", "error", err)
 		return map[string]interface{}{}, err
 	}
 
@@ -150,19 +146,17 @@ func GetTokenJSON(token string) (map[string]interface{}, error) {
 	var tokenJSON map[string]interface{}
 	err = json.Unmarshal(decodedToken, &tokenJSON)
 	if err != nil {
-		slog.Error("not able to unmarshal token -> ",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "failed to unmarshal token", "error", err)
 		return map[string]interface{}{}, err
 	}
 
 	return tokenJSON, nil
 }
 
-func GetUserPrincipalFromToken(token string) (string, error) {
+func GetUserPrincipalFromToken(ctx context.Context, token string) (string, error) {
 
 	// Split the token into its parts
-	tokenJSON, err := GetTokenJSON(token)
+	tokenJSON, err := GetTokenJSON(ctx, token)
 	if err != nil {
 		return "", err
 	}
@@ -170,19 +164,17 @@ func GetUserPrincipalFromToken(token string) (string, error) {
 	userPrincipal, ok := tokenJSON["upn"].(string)
 	if !ok {
 		err := errors.New("user principal name not found in token")
-		slog.Debug("user principal name not found in token",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "user principal name not found in token", "error", err)
 		return "", err
 	}
 
 	return userPrincipal, nil
 }
 
-func GetUserObjectIdFromToken(token string) (string, error) {
+func GetUserObjectIdFromToken(ctx context.Context, token string) (string, error) {
 
 	// Split the token into its parts
-	tokenJSON, err := GetTokenJSON(token)
+	tokenJSON, err := GetTokenJSON(ctx, token)
 	if err != nil {
 		return "", err
 	}
@@ -190,28 +182,26 @@ func GetUserObjectIdFromToken(token string) (string, error) {
 	userObjectId, ok := tokenJSON["oid"].(string)
 	if !ok {
 		err := errors.New("user object id not found in token")
-		slog.Error("user object id not found in token",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "user object id not found in token", "error", err)
 		return "", err
 	}
 
 	return userObjectId, nil
 }
 
-func VerifyUserObjectId(userObjectId string, token string) bool {
-	userObjectIdInToken, _ := GetUserObjectIdFromToken(token)
+func VerifyUserObjectId(ctx context.Context, userObjectId string, token string) bool {
+	userObjectIdInToken, _ := GetUserObjectIdFromToken(ctx, token)
 	return userObjectId == userObjectIdInToken
 }
 
-func VerifyUserPrincipalName(userPrincipalName string, token string) bool {
-	userPrincipalNameInToken, _ := GetUserPrincipalFromToken(token)
+func VerifyUserPrincipalName(ctx context.Context, userPrincipalName string, token string) bool {
+	userPrincipalNameInToken, _ := GetUserPrincipalFromToken(ctx, token)
 	return userPrincipalName == userPrincipalNameInToken
 }
 
-func VerifyArmToken(tokenString string) (bool, error) {
+func VerifyArmToken(ctx context.Context, tokenString string) (bool, error) {
 
-	token, err := ParseToken(tokenString)
+	token, err := ParseToken(ctx, tokenString)
 	if err != nil {
 		return false, err
 	}

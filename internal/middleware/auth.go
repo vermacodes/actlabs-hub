@@ -79,7 +79,7 @@ func AdminRequired(authService entity.AuthService) gin.HandlerFunc {
 
 		authToken := c.GetHeader("Authorization")
 
-		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(authToken)
+		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
@@ -109,7 +109,7 @@ func MentorRequired(authService entity.AuthService) gin.HandlerFunc {
 
 		authToken := c.GetHeader("Authorization")
 
-		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(authToken)
+		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
@@ -139,7 +139,7 @@ func ContributorRequired(authService entity.AuthService) gin.HandlerFunc {
 
 		authToken := c.GetHeader("Authorization")
 
-		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(authToken)
+		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
@@ -239,7 +239,7 @@ func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken strin
 
 	// Keeping the custom auth validation in place, just in case MISE isn't working as expected.
 	// Always defaults to Custom
-	ok, err := auth.VerifyToken(accessToken)
+	ok, err := auth.VerifyToken(c.Request.Context(), accessToken)
 	if err != nil || !ok {
 		logger.LogError(ctx, "token verification failed", "error", err.Error())
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
@@ -248,7 +248,7 @@ func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken strin
 
 	// For custom auth, extract user principal from token
 	token := splitToken[1]
-	userPrincipal, err := auth.GetUserPrincipalFromToken(token)
+	userPrincipal, err := auth.GetUserPrincipalFromToken(c.Request.Context(), token)
 	if err != nil {
 		logger.LogError(ctx, "failed to get user principal from token", "error", err.Error())
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
@@ -274,7 +274,7 @@ func verifyArmAccessToken(c *gin.Context, accessToken string) error {
 		)
 	}
 
-	ok, err := auth.VerifyArmToken(accessToken)
+	ok, err := auth.VerifyArmToken(c.Request.Context(), accessToken)
 	if err != nil || !ok {
 		logger.LogError(ctx, "token verification failed", "error", err.Error())
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})

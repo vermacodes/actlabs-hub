@@ -62,7 +62,7 @@ func (h *serverHandler) RegisterSubscription(c *gin.Context) {
 func (h *serverHandler) Unregister(c *gin.Context) {
 	logger.LogInfo(c.Request.Context(), "unregistering server")
 
-	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
+	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.Request.Context(), c.GetHeader("Authorization"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
 	}
@@ -123,7 +123,7 @@ func (h *serverHandler) UpdateActivityStatus(c *gin.Context) {
 
 	userPrincipalName := c.Param("userPrincipalName")
 
-	if !auth.VerifyUserPrincipalName(userPrincipalName, c.GetHeader("Authorization")) {
+	if !auth.VerifyUserPrincipalName(c.Request.Context(), userPrincipalName, c.GetHeader("Authorization")) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid request"})
 		return
 	}

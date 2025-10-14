@@ -88,7 +88,7 @@ func (l *labHandler) GetLabWithSecret(c *gin.Context) {
 	authToken := c.GetHeader("Authorization")
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
-	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+	userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	switch {
 	case validateLabType(typeOfLab, entity.ProtectedLabs):
@@ -119,7 +119,7 @@ func (l *labHandler) GetLab(c *gin.Context) {
 	authToken := c.GetHeader("Authorization")
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
-	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+	userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	switch {
 	case validateLabType(typeOfLab, entity.ProtectedLabs):
@@ -149,7 +149,7 @@ func (l *labHandler) GetLabs(c *gin.Context) {
 	authToken := c.GetHeader("Authorization")
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
-	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+	userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	switch {
 	case validateLabType(typeOfLab, entity.PrivateLab):
@@ -157,7 +157,7 @@ func (l *labHandler) GetLabs(c *gin.Context) {
 		authToken := c.GetHeader("Authorization")
 		// Remove Bearer from the authToken
 		authToken = strings.Split(authToken, "Bearer ")[1]
-		userId, _ := auth.GetUserPrincipalFromToken(authToken)
+		userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 		labs, err = l.labService.GetPrivateLabs(c.Request.Context(), typeOfLab, userId)
 	case validateLabType(typeOfLab, entity.PublicLab):
 		labs, err = l.labService.GetPublicLabs(c.Request.Context(), typeOfLab)
@@ -196,7 +196,7 @@ func (l *labHandler) UpsertLab(c *gin.Context) {
 		authToken := c.GetHeader("Authorization")
 		// Remove Bearer from the authToken
 		authToken = strings.Split(authToken, "Bearer ")[1]
-		userId, _ := auth.GetUserPrincipalFromToken(authToken)
+		userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 		lab, upsertErr = l.labService.UpsertProtectedLab(c.Request.Context(), lab, userId)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lab type: " + lab.Type})
@@ -263,7 +263,7 @@ func (l *labHandler) UpsertLabWithSupportingDocument(c *gin.Context) {
 		authToken := c.GetHeader("Authorization")
 		// Remove Bearer from the authToken
 		authToken = strings.Split(authToken, "Bearer ")[1]
-		userId, _ := auth.GetUserPrincipalFromToken(authToken)
+		userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 		lab, upsertErr = l.labService.UpsertProtectedLab(c.Request.Context(), lab, userId)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lab type: " + lab.Type})
@@ -288,7 +288,7 @@ func (l *labHandler) DeleteLab(c *gin.Context) {
 	authToken := c.GetHeader("Authorization")
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
-	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+	userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
 	switch {
 	case validateLabType(typeOfLab, entity.PrivateLab):
@@ -323,7 +323,7 @@ func (l *labHandler) GetLabVersions(c *gin.Context) {
 		authToken := c.GetHeader("Authorization")
 		// Remove Bearer from the authToken
 		authToken = strings.Split(authToken, "Bearer ")[1]
-		userId, _ := auth.GetUserPrincipalFromToken(authToken)
+		userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 		labs, err = l.labService.GetPrivateLabVersions(c.Request.Context(), typeOfLab, labId, userId)
 	case validateLabType(typeOfLab, entity.PublicLab):
 		labs, err = l.labService.GetPublicLabVersions(c.Request.Context(), typeOfLab, labId)
