@@ -3,6 +3,7 @@ package service
 import (
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -27,7 +28,7 @@ func (a *challengeService) GetAllLabsRedacted() ([]entity.LabType, error) {
 
 	challengeLabRedacted := []entity.LabType{}
 
-	labs, err := a.labService.GetAllPrivateLabs("challengelab")
+	labs, err := a.labService.GetAllPrivateLabs(context.TODO(), "challengelab")
 	if err != nil {
 		slog.Error("not able to get challenge labs",
 			slog.String("error", err.Error()),

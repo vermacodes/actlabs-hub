@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -75,7 +76,7 @@ func (a *assignmentService) GetAllLabsRedacted(userId string) ([]entity.LabType,
 	slog.Info("getting all labs redacted")
 	readinessLabRedacted := []entity.LabType{}
 
-	labs, err := a.labService.GetProtectedLabs("readinesslab", userId, false)
+	labs, err := a.labService.GetProtectedLabs(context.TODO(), "readinesslab", userId, false)
 	if err != nil {
 		slog.Error("not able to get readiness labs",
 			slog.String("error", err.Error()),
@@ -110,7 +111,7 @@ func (a *assignmentService) GetAssignedLabsRedactedByUserId(userId string) ([]en
 		return assignedLabs, err
 	}
 
-	labs, err := a.labService.GetProtectedLabs("readinesslab", userId, false)
+	labs, err := a.labService.GetProtectedLabs(context.TODO(), "readinesslab", userId, false)
 	if err != nil {
 		slog.Error("not able to get readiness labs",
 			slog.String("userId", userId),
