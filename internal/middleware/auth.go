@@ -18,7 +18,6 @@ import (
 func Auth(miseServer mise.Server, config config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := GetContextFromGin(c)
-		logger.LogDebug(ctx, "Auth Middleware")
 
 		// if request is for the health check endpoint, skip auth
 		if c.Request.URL.Path == "/healthz" {
@@ -46,7 +45,6 @@ func Auth(miseServer mise.Server, config config.Config) gin.HandlerFunc {
 func ARMTokenAuth(appConfig *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := GetContextFromGin(c)
-		logger.LogDebug(ctx, "ARMTokenAuth Middleware")
 
 		// If request path includes /arm/server/register/ then skip verifyProtectedLabSecretAndUserPrincipalName
 		if !strings.Contains(c.Request.URL.Path, "/arm/server/register") {
@@ -74,9 +72,6 @@ func ARMTokenAuth(appConfig *config.Config) gin.HandlerFunc {
 
 func AdminRequired(authService entity.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := GetContextFromGin(c)
-		logger.LogDebug(ctx, "Middleware: AdminRequired")
-
 		authToken := c.GetHeader("Authorization")
 
 		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
@@ -104,9 +99,6 @@ func AdminRequired(authService entity.AuthService) gin.HandlerFunc {
 
 func MentorRequired(authService entity.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := GetContextFromGin(c)
-		logger.LogDebug(ctx, "Middleware: MentorRequired")
-
 		authToken := c.GetHeader("Authorization")
 
 		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
@@ -134,9 +126,6 @@ func MentorRequired(authService entity.AuthService) gin.HandlerFunc {
 
 func ContributorRequired(authService entity.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := GetContextFromGin(c)
-		logger.LogDebug(ctx, "Middleware: contributorRequired")
-
 		authToken := c.GetHeader("Authorization")
 
 		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)

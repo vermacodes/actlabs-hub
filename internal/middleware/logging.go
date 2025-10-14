@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"io"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -37,6 +36,7 @@ func DefaultLoggingConfig() LoggingConfig {
 			"/healthz",
 			"/ping",
 			"/metrics",
+			"/server",
 		},
 	}
 }
@@ -66,10 +66,8 @@ func GinLoggerWithConfig(config LoggingConfig) gin.HandlerFunc {
 		// Calculate latency
 		latency := time.Since(start)
 
-		// Get context and trace ID
+		// Get context
 		ctx := c.Request.Context()
-		traceID := logger.GetTraceID(ctx)
-		userID := logger.GetUserID(ctx)
 
 		// Build the log entry
 		clientIP := c.ClientIP()
@@ -81,14 +79,8 @@ func GinLoggerWithConfig(config LoggingConfig) gin.HandlerFunc {
 			path = path + "?" + raw
 		}
 
-		// Create structured log with trace_id
-		ctxLogger := slog.Default()
-		if traceID != "" {
-			ctxLogger = ctxLogger.With("trace_id", traceID)
-		}
-		if userID != "" {
-			ctxLogger = ctxLogger.With("user_id", userID)
-		}
+		// Create structured log with context (trace_id and user_id automatically included)
+		ctxLogger := logger.ContextLog(ctx)
 
 		// Determine log level based on path and status
 		logLevel := determineLogLevel(path, statusCode, config)
