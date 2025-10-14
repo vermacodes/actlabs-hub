@@ -109,6 +109,10 @@ func (s *serverService) GetServer(ctx context.Context, userPrincipalName string)
 
 		return server, errors.New("not able to get server status from database")
 	}
+
+	// update endpoint to accommodate new changes.
+	server.Endpoint = s.appConfig.ActlabsFQDN + "/server/"
+
 	return server, nil
 }
 
