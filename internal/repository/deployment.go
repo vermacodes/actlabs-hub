@@ -346,7 +346,7 @@ func (d *deploymentRepository) DeleteDeployment(ctx context.Context, userId stri
 func (d *deploymentRepository) AutoDestroyDeployment(ctx context.Context, userPrincipalName string, deployment entity.Deployment) error {
 
 	// http://actlabsserver.com/api/terraform/destroy/operationId
-	autoDestroyServiceEndpoint := d.config.actlabsServerEndpointExternal + "/api/terraform/destroy/" + uuid.New().String()
+	autoDestroyServiceEndpoint := d.config.ActlabsServerEndpointInternal + "/api/terraform/destroy/" + uuid.New().String()
 
 	// Marshal deployment to JSON for request body
 	deploymentJSON, err := json.Marshal(deployment)
