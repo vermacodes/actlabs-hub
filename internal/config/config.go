@@ -53,7 +53,8 @@ type Config struct {
 	ProtectedLabSecret                                       string
 	TenantID                                                 string
 	ActlabsServerApiKey                                      string
-	ActlabsServerEndpoint                                    string
+	ActlabsServerEndpointExternal                            string
+	ActlabsServerEndpointInternal                            string
 	ActlabsServerUseMsi                                      bool
 	ActlabsServerUseServicePrincipal                         bool
 	ActlabsServerServicePrincipalClientId                    string
@@ -121,9 +122,14 @@ func NewConfig(ctx context.Context) (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_SERVER_API_KEY not set")
 	}
 
-	actlabsServerEndpoint := getEnv(ctx, "ACTLABS_SERVER_ENDPOINT")
-	if actlabsServerEndpoint == "" {
-		return nil, fmt.Errorf("ACTLABS_SERVER_ENDPOINT not set")
+	actlabsServerEndpointExternal := getEnv(ctx, "ACTLABS_SERVER_ENDPOINT_EXTERNAL")
+	if actlabsServerEndpointExternal == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_ENDPOINT_EXTERNAL not set")
+	}
+
+	actlabsServerEndpointInternal := getEnv(ctx, "ACTLABS_SERVER_ENDPOINT_INTERNAL")
+	if actlabsServerEndpointInternal == "" {
+		return nil, fmt.Errorf("ACTLABS_SERVER_ENDPOINT_INTERNAL not set")
 	}
 
 	actlabsServerUseMsi, err := strconv.ParseBool(getEnvWithDefault(ctx, "ACTLABS_SERVER_USE_MSI", "false"))
@@ -457,7 +463,8 @@ func NewConfig(ctx context.Context) (*Config, error) {
 		ProtectedLabSecret:                                       protectedLabSecret,
 		TenantID:                                                 tenantID,
 		ActlabsServerApiKey:                                      actlabsServerApiKey,
-		ActlabsServerEndpoint:                                    actlabsServerEndpoint,
+		ActlabsServerEndpointExternal:                            actlabsServerEndpointExternal,
+		ActlabsServerEndpointInternal:                            actlabsServerEndpointInternal,
 		ActlabsServerUseMsi:                                      actlabsServerUseMsi,
 		ActlabsServerUseServicePrincipal:                         actlabsServerUseServicePrincipal,
 		ActlabsServerServicePrincipalClientId:                    actlabsServerServicePrincipalClientId,
