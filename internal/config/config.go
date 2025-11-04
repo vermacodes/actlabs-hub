@@ -207,7 +207,7 @@ func NewConfig(ctx context.Context) (*Config, error) {
 		return nil, fmt.Errorf("ACTLABS_SERVER_PORT not set")
 	}
 
-	actlabsServerImage := getEnvWithDefault(ctx, "ACTLABS_SERVER_IMAGE", "actlabs.azurecr.io/repro:latest")
+	actlabsServerImage := getEnvWithDefault(ctx, "ACTLABS_SERVER_IMAGE", "actlabs.azurecr.io/actlabs-server:latest")
 	if actlabsServerImage == "" {
 		return nil, fmt.Errorf("ACTLABS_SERVER_IMAGE not set")
 	}
