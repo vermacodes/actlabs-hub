@@ -37,14 +37,14 @@ func NewLabHandler(r *gin.RouterGroup, labService entity.LabService, appConfig *
 }
 
 // Authenticated with ARM token and ProtectedLabSecret.
-func NewLabHandlerARMTokenWithProtectedLabSecret(r *gin.RouterGroup, labService entity.LabService, appConfig *config.Config) {
+func NewLabHandlerAPIKey(r *gin.RouterGroup, labService entity.LabService, appConfig *config.Config) {
 	handler := &labHandler{
 		labService: labService,
 		appConfig:  appConfig,
 	}
 
 	// protected lab read-only operations. requires ARM token and super secret header.
-	r.GET("/lab/protected/:typeOfLab/:labId", handler.GetLabWithSecret)
+	r.GET("/lab/protected/:typeOfLab/:labId", handler.GetLabWithAPIKey)
 }
 
 // Authenticated user with 'contributor' role.
@@ -77,18 +77,14 @@ func NewLabHandlerMentorRequired(r *gin.RouterGroup, labService entity.LabServic
 	r.GET("/lab/protected/supportingDocument/:supportingDocumentId", handler.GetSupportingDocument)
 }
 
-func (l *labHandler) GetLabWithSecret(c *gin.Context) {
+func (l *labHandler) GetLabWithAPIKey(c *gin.Context) {
 	typeOfLab := c.Param("typeOfLab")
 	labId := c.Param("labId")
 
 	var lab entity.LabType
 	var err error
 
-	// Get the auth token from the request header
-	authToken := c.GetHeader("Authorization")
-	// Remove Bearer from the authToken
-	authToken = strings.Split(authToken, "Bearer ")[1]
-	userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
+	userId := c.GetHeader("x-user-id")
 
 	switch {
 	case validateLabType(typeOfLab, entity.ProtectedLabs):

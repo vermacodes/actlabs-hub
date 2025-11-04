@@ -40,35 +40,35 @@ func Auth(miseServer mise.Server, config config.Config) gin.HandlerFunc {
 	}
 }
 
-// ARM Auth Token can be presented along with
-// ProtectedLabSecret and x-ms-client-principal-name headers.
-func ARMTokenAuth(appConfig *config.Config) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ctx := GetContextFromGin(c)
+// // ARM Auth Token can be presented along with
+// // ProtectedLabSecret and x-user-id headers.
+// func ARMTokenAuth(appConfig *config.Config) gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		ctx := GetContextFromGin(c)
 
-		// If request path includes /arm/server/register/ then skip verifyProtectedLabSecretAndUserPrincipalName
-		if !strings.Contains(c.Request.URL.Path, "/arm/server/register") {
-			err := verifyProtectedLabSecretAndUserPrincipalName(c, appConfig)
-			if err != nil {
-				return
-			}
-		}
+// 		// If request path includes /arm/server/register/ then skip verifyProtectedLabSecretAndUserPrincipalName
+// 		if !strings.Contains(c.Request.URL.Path, "/arm/server/register") {
+// 			err := verifyProtectedLabSecretAndUserPrincipalName(c, appConfig)
+// 			if err != nil {
+// 				return
+// 			}
+// 		}
 
-		accessToken := c.GetHeader("Authorization")
-		if accessToken == "" {
-			logger.LogError(ctx, "no auth token provided")
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
+// 		accessToken := c.GetHeader("Authorization")
+// 		if accessToken == "" {
+// 			logger.LogError(ctx, "no auth token provided")
+// 			c.AbortWithStatus(http.StatusUnauthorized)
+// 			return
+// 		}
 
-		err := verifyArmAccessToken(c, accessToken)
-		if err != nil {
-			return
-		}
+// 		err := verifyArmAccessToken(c, accessToken)
+// 		if err != nil {
+// 			return
+// 		}
 
-		c.Next()
-	}
-}
+// 		c.Next()
+// 	}
+// }
 
 func AdminRequired(authService entity.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -154,22 +154,22 @@ func ContributorRequired(authService entity.AuthService) gin.HandlerFunc {
 	}
 }
 
-func verifyProtectedLabSecretAndUserPrincipalName(c *gin.Context, appConfig *config.Config) error {
-	ctx := GetContextFromGin(c)
-	if c.GetHeader("ProtectedLabSecret") != appConfig.ProtectedLabSecret {
-		logger.LogError(ctx, "ProtectedLabSecret header is missing or invalid")
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return errors.New("ProtectedLabSecret header is missing or invalid")
-	}
+// func verifyProtectedLabSecretAndUserPrincipalName(c *gin.Context, appConfig *config.Config) error {
+// 	ctx := GetContextFromGin(c)
+// 	if c.GetHeader("ProtectedLabSecret") != appConfig.ProtectedLabSecret {
+// 		logger.LogError(ctx, "ProtectedLabSecret header is missing or invalid")
+// 		c.AbortWithStatus(http.StatusUnauthorized)
+// 		return errors.New("ProtectedLabSecret header is missing or invalid")
+// 	}
 
-	if c.GetHeader("x-ms-client-principal-name") == "" {
-		logger.LogError(ctx, "x-ms-client-principal-name header is missing")
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return errors.New("x-ms-client-principal-name header is missing")
-	}
+// 	if c.GetHeader("x-user-id") == "" {
+// 		logger.LogError(ctx, "x-user-id header is missing")
+// 		c.AbortWithStatus(http.StatusUnauthorized)
+// 		return errors.New("x-user-id header is missing")
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func verifyAccessToken(miseServer mise.Server, c *gin.Context, accessToken string, config config.Config) error {
 	ctx := GetContextFromGin(c)
@@ -270,10 +270,36 @@ func verifyArmAccessToken(c *gin.Context, accessToken string) error {
 		return err
 	}
 
-	SetUserIDInGin(c, c.GetHeader("x-ms-client-principal-name"))
+	SetUserIDInGin(c, c.GetHeader("x-user-id"))
 	ctx = GetContextFromGin(c)
 
-	logger.LogDebug(ctx, "authenticated user using arm token auth", "user", c.GetHeader("x-ms-client-principal-name"))
+	logger.LogDebug(ctx, "authenticated user using arm token auth", "user", c.GetHeader("x-user-id"))
 
 	return nil
+}
+
+func APIKeyAuthRequired(config config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get the api key from the request header
+		reqApiKey := c.GetHeader("x-api-key")
+
+		if reqApiKey == "" || reqApiKey != config.ActlabsServerApiKey {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid api key"})
+			return
+		}
+
+		reqUserPrincipal := c.GetHeader("x-user-id")
+		if reqUserPrincipal == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no user principal provided"})
+			return
+		}
+
+		SetUserIDInGin(c, reqUserPrincipal)
+		ctx := GetContextFromGin(c)
+
+		logger.LogDebug(ctx, "api call authenticated successfully",
+			"user", reqUserPrincipal)
+
+		c.Next()
+	}
 }

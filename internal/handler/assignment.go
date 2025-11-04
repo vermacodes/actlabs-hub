@@ -29,7 +29,14 @@ func NewAssignmentHandler(r *gin.RouterGroup, service entity.AssignmentService, 
 	r.POST("/assignment/my", handler.CreateMyAssignments)
 	r.DELETE("/assignment/my", handler.DeleteMyAssignments)
 
-	// requires super secret header.
+}
+
+func NewAssignmentAPIKeyHandler(r *gin.RouterGroup, service entity.AssignmentService, appConfig *config.Config) {
+	handler := &assignmentHandler{
+		assignmentService: service,
+		appConfig:         appConfig,
+	}
+	// requires api key.
 	r.PUT("/assignment/:userId/:labId/:status", handler.UpdateAssignment)
 }
 
@@ -247,19 +254,19 @@ func (a *assignmentHandler) UpdateAssignment(c *gin.Context) {
 		"status", status,
 	)
 
-	// get super secret from header
-	protectedLabSecret := c.Request.Header.Get("ProtectedLabSecret")
-	if protectedLabSecret != a.appConfig.ProtectedLabSecret {
-		logger.LogError(c.Request.Context(), "Invalid protected lab secret",
-			"userId", userId,
-			"labId", labId,
-			"status", status,
-			"endpoint", "PUT /assignment/:userId/:labId/:status",
-		)
+	// // get super secret from header
+	// protectedLabSecret := c.Request.Header.Get("ProtectedLabSecret")
+	// if protectedLabSecret != a.appConfig.ProtectedLabSecret {
+	// 	logger.LogError(c.Request.Context(), "Invalid protected lab secret",
+	// 		"userId", userId,
+	// 		"labId", labId,
+	// 		"status", status,
+	// 		"endpoint", "PUT /assignment/:userId/:labId/:status",
+	// 	)
 
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Protected lab secret is invalid."})
-		return
-	}
+	// 	c.JSON(http.StatusUnauthorized, gin.H{"error": "Protected lab secret is invalid."})
+	// 	return
+	// }
 
 	if err := a.assignmentService.UpdateAssignment(c.Request.Context(), userId, labId, status); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

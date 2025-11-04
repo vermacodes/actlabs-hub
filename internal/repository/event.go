@@ -75,6 +75,12 @@ func (er *eventRepository) GetEvents(ctx context.Context) ([]entity.Event, error
 
 func (er *eventRepository) CreateEvent(ctx context.Context, event entity.Event) error {
 	eventBinary, err := json.Marshal(event)
+
+	if event.PartitionKey == "" || event.RowKey == "" {
+		logger.LogError(ctx, "event must have PartitionKey and RowKey set")
+		return fmt.Errorf("event must have PartitionKey and RowKey set")
+	}
+
 	if err != nil {
 		logger.LogError(ctx, "failed to marshal event for storage",
 			"error", err,

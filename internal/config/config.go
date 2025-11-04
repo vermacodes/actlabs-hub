@@ -50,7 +50,6 @@ type Config struct {
 	AuthTokenIss                                             string
 	HttpPort                                                 int32
 	HttpsPort                                                int32
-	ProtectedLabSecret                                       string
 	TenantID                                                 string
 	ActlabsServerApiKey                                      string
 	ActlabsServerEndpointExternal                            string
@@ -77,6 +76,7 @@ type Config struct {
 	ActlabsServerAppSettingWebsiteSiteName                   string
 	ActlabsServerArmMsiApiVersion                            string
 	ActlabsServerArmMsiApiProxyPort                          string
+	ActlabsServerAPIKey                                      string
 	// Add other configuration fields as needed
 }
 
@@ -110,11 +110,6 @@ func NewConfig(ctx context.Context) (*Config, error) {
 	actlabsServerRootDir := getEnv(ctx, "ACTLABS_SERVER_ROOT_DIR")
 	if actlabsServerRootDir == "" {
 		return nil, fmt.Errorf("ACTLABS_SERVER_ROOT_DIR not set")
-	}
-
-	protectedLabSecret := getEnv(ctx, "PROTECTED_LAB_SECRET")
-	if protectedLabSecret == "" {
-		return nil, fmt.Errorf("PROTECTED_LAB_SECRET not set")
 	}
 
 	actlabsServerApiKey := getEnv(ctx, "ACTLABS_SERVER_API_KEY")
@@ -460,7 +455,6 @@ func NewConfig(ctx context.Context) (*Config, error) {
 		AuthTokenIss:                                             authTokenIss,
 		HttpPort:                                                 int32(httpPort),
 		HttpsPort:                                                int32(httpsPort),
-		ProtectedLabSecret:                                       protectedLabSecret,
 		TenantID:                                                 tenantID,
 		ActlabsServerApiKey:                                      actlabsServerApiKey,
 		ActlabsServerEndpointExternal:                            actlabsServerEndpointExternal,

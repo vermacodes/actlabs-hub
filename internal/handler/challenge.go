@@ -143,18 +143,18 @@ func (ch *challengeHandler) UpdateChallenge(c *gin.Context) {
 		"status", status,
 	)
 
-	// get super secret from header
-	protectedLabSecret := c.Request.Header.Get("ProtectedLabSecret")
-	if protectedLabSecret != ch.appConfig.ProtectedLabSecret {
-		logger.LogError(c.Request.Context(), "invalid protected lab secret",
-			"user_id", userId,
-			"lab_id", labId,
-			"status", status,
-		)
+	// // get super secret from header
+	// protectedLabSecret := c.Request.Header.Get("ProtectedLabSecret")
+	// if protectedLabSecret != ch.appConfig.ProtectedLabSecret {
+	// 	logger.LogError(c.Request.Context(), "invalid protected lab secret",
+	// 		"user_id", userId,
+	// 		"lab_id", labId,
+	// 		"status", status,
+	// 	)
 
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Protected lab secret is invalid."})
-		return
-	}
+	// 	c.JSON(http.StatusUnauthorized, gin.H{"error": "Protected lab secret is invalid."})
+	// 	return
+	// }
 
 	if err := ch.challengeService.UpdateChallenge(c.Request.Context(), userId, labId, status); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

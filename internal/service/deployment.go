@@ -74,9 +74,10 @@ func (d *DeploymentService) GetDeployment(ctx context.Context, usePrincipalName 
 
 func (d *DeploymentService) UpsertDeployment(ctx context.Context, deployment entity.Deployment) error {
 	if deployment.DeploymentWorkspace == "" || deployment.DeploymentSubscriptionId == "" || deployment.DeploymentUserId == "" {
-		logger.LogError(ctx, "workspace or subscription id cannot be empty",
+		logger.LogError(ctx, "user Id, workspace and subscription id are all required",
 			"workspace", deployment.DeploymentWorkspace,
 			"subscription_id", deployment.DeploymentSubscriptionId,
+			"user_id", deployment.DeploymentUserId,
 		)
 		return fmt.Errorf("userId, workspace or subscription id cant be empty")
 	}

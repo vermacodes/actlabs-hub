@@ -26,7 +26,7 @@ func NewDeploymentHandler(r *gin.RouterGroup, service entity.DeploymentService) 
 func (d *deploymentHandler) GetUserDeployments(c *gin.Context) {
 	logger.LogInfo(c.Request.Context(), "getting user deployments")
 
-	userPrincipal := c.GetHeader("x-ms-client-principal-name")
+	userPrincipal := c.GetHeader("x-user-id")
 
 	deployments, err := d.deploymentService.GetUserDeployments(c.Request.Context(), userPrincipal)
 	if err != nil {
@@ -46,7 +46,7 @@ func (d *deploymentHandler) UpsertDeployment(c *gin.Context) {
 		return
 	}
 
-	userPrincipal := c.GetHeader("x-ms-client-principal-name")
+	userPrincipal := c.GetHeader("x-user-id")
 
 	deployment.DeploymentId = userPrincipal + "-" + deployment.DeploymentWorkspace + "-" + deployment.DeploymentSubscriptionId
 	deployment.DeploymentUserId = userPrincipal
@@ -65,7 +65,7 @@ func (d *deploymentHandler) DeleteDeployment(c *gin.Context) {
 	subscriptionId := c.Param("subscriptionId")
 	workspace := c.Param("workspace")
 
-	userPrincipal := c.GetHeader("x-ms-client-principal-name")
+	userPrincipal := c.GetHeader("x-user-id")
 
 	if err := d.deploymentService.DeleteDeployment(c.Request.Context(), userPrincipal, workspace, subscriptionId); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
