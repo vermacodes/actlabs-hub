@@ -254,20 +254,6 @@ func (a *assignmentHandler) UpdateAssignment(c *gin.Context) {
 		"status", status,
 	)
 
-	// // get super secret from header
-	// protectedLabSecret := c.Request.Header.Get("ProtectedLabSecret")
-	// if protectedLabSecret != a.appConfig.ProtectedLabSecret {
-	// 	logger.LogError(c.Request.Context(), "Invalid protected lab secret",
-	// 		"userId", userId,
-	// 		"labId", labId,
-	// 		"status", status,
-	// 		"endpoint", "PUT /assignment/:userId/:labId/:status",
-	// 	)
-
-	// 	c.JSON(http.StatusUnauthorized, gin.H{"error": "Protected lab secret is invalid."})
-	// 	return
-	// }
-
 	if err := a.assignmentService.UpdateAssignment(c.Request.Context(), userId, labId, status); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
