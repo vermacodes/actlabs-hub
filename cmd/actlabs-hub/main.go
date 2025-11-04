@@ -146,16 +146,18 @@ func main() {
 	authRouter := router.Group("/")
 	authRouter.Use(middleware.Auth(miseServer, *appConfig))
 
+	apiKeyAuthRouter := router.Group("/")
+	apiKeyAuthRouter.Use(middleware.APIKeyAuthRequired(*appConfig))
+
 	handler.NewHealthzHandler(router.Group("/"))
 	handler.NewServerHandler(authRouter.Group("/"), serverService)
 	handler.NewAssignmentHandler(authRouter.Group("/"), assignmentService, appConfig)
+	handler.NewAssignmentAPIKeyHandler(apiKeyAuthRouter.Group("/"), assignmentService, appConfig)
 	handler.NewChallengeHandler(authRouter.Group("/"), challengeService, appConfig)
 	handler.NewAuthHandler(authRouter.Group("/"), authService)
 
-	armAuthRouter := router.Group("/")
-	armAuthRouter.Use(middleware.ARMTokenAuth(appConfig))
-	handler.NewDeploymentHandler(armAuthRouter.Group("/"), deploymentService)
-	handler.NewServerHandlerArmToken(armAuthRouter.Group("/"), serverService)
+	handler.NewDeploymentHandler(apiKeyAuthRouter.Group("/"), deploymentService)
+	handler.NewServerHandlerArmToken(apiKeyAuthRouter.Group("/"), serverService)
 
 	adminRouter := authRouter.Group("/")
 	adminRouter.Use(middleware.AdminRequired(authService))
@@ -177,7 +179,7 @@ func main() {
 	contributorRouter.Use(middleware.ContributorRequired(authService)).Use(middleware.UpdateCredits())
 	handler.NewLabHandlerContributorRequired(contributorRouter, labService)
 
-	handler.NewLabHandlerARMTokenWithProtectedLabSecret(armAuthRouter, labService, appConfig)
+	handler.NewLabHandlerAPIKey(apiKeyAuthRouter, labService, appConfig)
 
 	port := os.Getenv("PORT")
 	if port == "" {
