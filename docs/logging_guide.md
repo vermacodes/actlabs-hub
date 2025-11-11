@@ -277,7 +277,7 @@ func (h *LabHandler) CreateLab(c *gin.Context) {
     }
     
     // Delegate to service
-    result, err := h.labService.CreateLab(c, req)
+    result, err := h.labService.CreateLab(c.Request.Context(), req)
     if err != nil {
         // Service already logged error details
         c.JSON(500, gin.H{"error": "Failed to create lab"})
