@@ -68,7 +68,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
     }
     
     // Call service - let it handle detailed logging
-    user, err := h.userService.CreateUser(c, req)
+    user, err := h.userService.CreateUser(c.Request.Context(), req)
     if err != nil {
         // ❌ Don't log here - service already logged the details
         c.JSON(500, gin.H{"error": "Failed to create user"})
