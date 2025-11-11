@@ -25,7 +25,7 @@ func ContextMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check for existing X-Trace-ID header, otherwise generate new one
 		traceID := c.GetHeader("X-Trace-ID")
-		if traceID == "" {
+		if _, err := uuid.Parse(traceID); err != nil {
 			traceID = uuid.New().String()
 		}
 
