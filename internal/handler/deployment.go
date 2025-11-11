@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"actlabs-hub/internal/entity"
+	"actlabs-hub/internal/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +24,9 @@ func NewDeploymentHandler(r *gin.RouterGroup, service entity.DeploymentService) 
 }
 
 func (d *deploymentHandler) GetUserDeployments(c *gin.Context) {
-	userPrincipal := c.GetHeader("x-ms-client-principal-name")
+	logger.LogInfo(c.Request.Context(), "getting user deployments")
+
+	userPrincipal := c.GetHeader("x-user-id")
 
 	deployments, err := d.deploymentService.GetUserDeployments(c.Request.Context(), userPrincipal)
 	if err != nil {
@@ -35,13 +38,15 @@ func (d *deploymentHandler) GetUserDeployments(c *gin.Context) {
 }
 
 func (d *deploymentHandler) UpsertDeployment(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "upserting deployment")
+
 	deployment := entity.Deployment{}
 	if err := c.Bind(&deployment); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	userPrincipal := c.GetHeader("x-ms-client-principal-name")
+	userPrincipal := c.GetHeader("x-user-id")
 
 	deployment.DeploymentId = userPrincipal + "-" + deployment.DeploymentWorkspace + "-" + deployment.DeploymentSubscriptionId
 	deployment.DeploymentUserId = userPrincipal
@@ -55,10 +60,12 @@ func (d *deploymentHandler) UpsertDeployment(c *gin.Context) {
 }
 
 func (d *deploymentHandler) DeleteDeployment(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "deleting deployment")
+
 	subscriptionId := c.Param("subscriptionId")
 	workspace := c.Param("workspace")
 
-	userPrincipal := c.GetHeader("x-ms-client-principal-name")
+	userPrincipal := c.GetHeader("x-user-id")
 
 	if err := d.deploymentService.DeleteDeployment(c.Request.Context(), userPrincipal, workspace, subscriptionId); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -66,39 +73,3 @@ func (d *deploymentHandler) DeleteDeployment(c *gin.Context) {
 
 	c.Status(http.StatusNoContent)
 }
-
-// func GetUserPrincipalFromToken(ctx context.Context, d entity.DeploymentService, token string, c *gin.Context) (string, error) {
-// 	userPrincipal, err := auth.GetUserPrincipalFromToken(token)
-// 	if err != nil && userPrincipal == "" {
-// 		slog.Debug("no user principal found in token checking if it is an MSI or SP token")
-
-// 		oid, err := auth.GetUserObjectIdFromToken(token)
-// 		if err != nil {
-// 			return "", errors.New("invalid access token")
-// 		}
-
-// 		if oid == "dbe22174-3ecc-4cfb-be36-76ed132ef90c" {
-// 			slog.Debug("service principal request, checking for x-ms-client-principal-name header")
-// 			userPrincipal := c.GetHeader("x-ms-client-principal-name")
-// 			if userPrincipal == "" {
-// 				c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid access token"})
-// 				return "", errors.New("missing header in request")
-// 			}
-
-// 			return userPrincipal, nil
-// 		}
-
-// 		userPrincipal, err := d.GetUserPrincipalNameByMSIPrincipalID(ctx, oid)
-// 		if err != nil {
-// 			return "", errors.New("invalid access token")
-// 		}
-
-// 		if userPrincipal == "" {
-// 			return "", errors.New("invalid access token")
-// 		}
-
-// 		return userPrincipal, nil
-// 	}
-
-// 	return userPrincipal, nil
-// }

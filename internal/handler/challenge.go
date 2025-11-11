@@ -4,11 +4,11 @@ import (
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
+	"actlabs-hub/internal/logger"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/exp/slog"
 )
 
 type challengeHandler struct {
@@ -35,7 +35,9 @@ func NewChallengeHandler(r *gin.RouterGroup, service entity.ChallengeService, ap
 }
 
 func (ch *challengeHandler) GetAllLabsRedacted(c *gin.Context) {
-	labs, err := ch.challengeService.GetAllLabsRedacted()
+	logger.LogInfo(c.Request.Context(), "get all labs redacted request")
+
+	labs, err := ch.challengeService.GetAllLabsRedacted(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -44,16 +46,19 @@ func (ch *challengeHandler) GetAllLabsRedacted(c *gin.Context) {
 }
 
 func (ch *challengeHandler) GetMyChallengeLabsRedacted(c *gin.Context) {
-
 	// Get the auth token from the request header
 	authToken := c.GetHeader("Authorization")
 
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
 	//Get the user principal from the auth token
-	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+	userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
-	labs, err := ch.challengeService.GetChallengesLabsRedactedByUserId(userId)
+	logger.LogInfo(c.Request.Context(), "get my challenge labs redacted request",
+		"user_id", userId,
+	)
+
+	labs, err := ch.challengeService.GetChallengesLabsRedactedByUserId(c.Request.Context(), userId)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -62,7 +67,9 @@ func (ch *challengeHandler) GetMyChallengeLabsRedacted(c *gin.Context) {
 }
 
 func (ch *challengeHandler) GetAllChallenges(c *gin.Context) {
-	challenges, err := ch.challengeService.GetAllChallenges()
+	logger.LogInfo(c.Request.Context(), "get all challenges request")
+
+	challenges, err := ch.challengeService.GetAllChallenges(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -71,16 +78,19 @@ func (ch *challengeHandler) GetAllChallenges(c *gin.Context) {
 }
 
 func (ch *challengeHandler) GetMyChallenges(c *gin.Context) {
-
 	// Get the auth token from the request header
 	authToken := c.GetHeader("Authorization")
 
 	// Remove Bearer from the authToken
 	authToken = strings.Split(authToken, "Bearer ")[1]
 	//Get the user principal from the auth token
-	userId, _ := auth.GetUserPrincipalFromToken(authToken)
+	userId, _ := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 
-	challenges, err := ch.challengeService.GetChallengesByUserId(userId)
+	logger.LogInfo(c.Request.Context(), "get my challenges request",
+		"user_id", userId,
+	)
+
+	challenges, err := ch.challengeService.GetChallengesByUserId(c.Request.Context(), userId)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -90,10 +100,13 @@ func (ch *challengeHandler) GetMyChallenges(c *gin.Context) {
 }
 
 func (ch *challengeHandler) GetChallengesByLabId(c *gin.Context) {
-
 	labId := c.Param("labId")
 
-	challenges, err := ch.challengeService.GetChallengesByLabId(labId)
+	logger.LogInfo(c.Request.Context(), "get challenges by lab id request",
+		"lab_id", labId,
+	)
+
+	challenges, err := ch.challengeService.GetChallengesByLabId(c.Request.Context(), labId)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -103,13 +116,15 @@ func (ch *challengeHandler) GetChallengesByLabId(c *gin.Context) {
 }
 
 func (ch *challengeHandler) UpsertChallenges(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "upsert challenges request")
+
 	challenges := []entity.Challenge{}
 	if err := c.BindJSON(&challenges); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := ch.challengeService.UpsertChallenges(challenges); err != nil {
+	if err := ch.challengeService.UpsertChallenges(c.Request.Context(), challenges); err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to create/update one or more challenges"})
 		return
 	}
@@ -122,21 +137,13 @@ func (ch *challengeHandler) UpdateChallenge(c *gin.Context) {
 	labId := c.Param("labId")
 	status := c.Param("status")
 
-	// get super secret from header
-	protectedLabSecret := c.Request.Header.Get("ProtectedLabSecret")
-	if protectedLabSecret != ch.appConfig.ProtectedLabSecret {
-		slog.Error("invalid protected lab secret",
-			slog.String("userId", userId),
-			slog.String("labId", labId),
-			slog.String("status", status),
-			slog.String("protectedLabSecret", protectedLabSecret),
-		)
+	logger.LogInfo(c.Request.Context(), "update challenge request",
+		"user_id", userId,
+		"lab_id", labId,
+		"status", status,
+	)
 
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Protected lab secret is invalid."})
-		return
-	}
-
-	if err := ch.challengeService.UpdateChallenge(userId, labId, status); err != nil {
+	if err := ch.challengeService.UpdateChallenge(c.Request.Context(), userId, labId, status); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -147,9 +154,13 @@ func (ch *challengeHandler) UpdateChallenge(c *gin.Context) {
 func (ch *challengeHandler) DeleteChallenge(c *gin.Context) {
 	challengeId := c.Param("challengeId")
 
+	logger.LogInfo(c.Request.Context(), "delete challenge request",
+		"challenge_id", challengeId,
+	)
+
 	challengeIds := []string{challengeId}
 
-	if err := ch.challengeService.DeleteChallenges(challengeIds); err != nil {
+	if err := ch.challengeService.DeleteChallenges(c.Request.Context(), challengeIds); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

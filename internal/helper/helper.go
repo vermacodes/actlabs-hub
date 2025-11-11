@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+
+	"github.com/google/uuid"
 )
 
 var alphabet = []byte("abcdefghijklmnopqrstuvwxyz0123456789")
@@ -20,6 +22,11 @@ func Generate(length int) string {
 		b[i] = alphabet[b[i]%byte(len(alphabet))]
 	}
 	return *(*string)(unsafe.Pointer(&b))
+}
+
+// GenerateUUID generates a new UUID string
+func GenerateUUID() string {
+	return uuid.New().String()
 }
 
 // Function to convert a slice of strings to a single string delimited by a comma

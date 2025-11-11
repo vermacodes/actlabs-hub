@@ -4,16 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
-	"strconv"
 	"strings"
 	"time"
-
-	"golang.org/x/exp/slog"
 
 	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
+	"actlabs-hub/internal/logger"
 )
 
 type serverService struct {
@@ -34,7 +31,7 @@ func NewServerService(
 	}
 }
 
-func (s *serverService) RegisterSubscription(server entity.Server) error {
+func (s *serverService) RegisterSubscription(ctx context.Context, server entity.Server) error {
 	server.UserPrincipalName = server.UserAlias + "@microsoft.com"
 	server.PartitionKey = "actlabs"
 	server.RowKey = server.UserPrincipalName
@@ -52,11 +49,11 @@ func (s *serverService) RegisterSubscription(server entity.Server) error {
 
 	s.ServerDefaults(&server) // Set defaults.
 
-	if err := s.Validate(server); err != nil { // Validate object. handles logging.
+	if err := s.Validate(ctx, server); err != nil { // Validate object. handles logging.
 		return err
 	}
 
-	if err := s.UpsertServerInDatabase(server); err != nil {
+	if err := s.UpsertServerInDatabase(ctx, server); err != nil {
 		return err
 	}
 
@@ -64,26 +61,19 @@ func (s *serverService) RegisterSubscription(server entity.Server) error {
 }
 
 func (s *serverService) Unregister(ctx context.Context, userPrincipalName string) error {
-	slog.Info("un-registering server",
-		slog.String("userPrincipalName", userPrincipalName),
-	)
+	logger.LogInfo(ctx, "unregistering server")
 
 	// get server from db.
-	server, err := s.GetServerFromDatabase(userPrincipalName)
+	server, err := s.GetServerFromDatabase(ctx, userPrincipalName)
 	if err != nil {
-		return err
-	}
-
-	if err := s.DestroyServer(userPrincipalName, false); err != nil {
 		return err
 	}
 
 	// delete server from db.
 	if err := s.serverRepository.DeleteServerFromDatabase(ctx, server); err != nil {
-		slog.Error("error deleting server from db",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to delete server from database",
+			"subscription_id", server.SubscriptionId,
+			"error", err,
 		)
 
 		return fmt.Errorf("resources were destroyed, but got error deleting server from db")
@@ -92,321 +82,23 @@ func (s *serverService) Unregister(ctx context.Context, userPrincipalName string
 	return nil
 }
 
-func (s *serverService) UpdateServer(server entity.Server) error {
-	slog.Info("updating server",
-		slog.String("userPrincipalName", server.UserPrincipalName),
-		slog.String("subscriptionId", server.SubscriptionId),
-	)
+// func (s *serverService) createEvent(server entity.Server, eventType, reason, message string) {
+// 	s.eventService.CreateEvent(context.TODO(), entity.Event{
+// 		Type:      eventType,
+// 		Reason:    reason,
+// 		Message:   message,
+// 		Reporter:  "actlabs-hub",
+// 		Object:    server.UserPrincipalName,
+// 		TimeStamp: time.Now().Format(time.RFC3339),
+// 	})
+// }
 
+func (s *serverService) GetServer(ctx context.Context, userPrincipalName string) (entity.Server, error) {
 	// get server from db.
-	serverFromDB, err := s.GetServerFromDatabase(server.UserPrincipalName)
+	server, err := s.serverRepository.GetServerFromDatabase(ctx, "actlabs", userPrincipalName)
 	if err != nil {
-		return errors.New("not able to get server from database")
-	}
-
-	// only update some properties
-	serverFromDB.Status = server.Status
-	serverFromDB.AutoCreate = server.AutoCreate
-	serverFromDB.AutoDestroy = server.AutoDestroy
-	serverFromDB.InactivityDurationInSeconds = server.InactivityDurationInSeconds
-
-	// Validate object.
-	if err := s.Validate(serverFromDB); err != nil {
-		return err
-	}
-
-	// Update server in database.
-	if err := s.UpsertServerInDatabase(serverFromDB); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *serverService) DeployServer(server entity.Server) (entity.Server, error) {
-	slog.Info("deploying server",
-		slog.String("userPrincipalName", server.UserPrincipalName),
-		slog.String("subscriptionId", server.SubscriptionId),
-	)
-
-	serverFromDB, err := s.GetServerFromDatabase(server.UserPrincipalName)
-	if err != nil {
-		return server, err
-	}
-
-	if serverFromDB.Status == entity.ServerStatusDeploying ||
-		serverFromDB.Status == entity.ServerStatusRunning {
-		slog.Info("server is already deployed or deploying",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("status", string(server.Status)),
-		)
-		return serverFromDB, nil
-	}
-
-	// here onwards, just use the server which is already in DB and take action.
-	// this will ensure that we are not overriding any properties which are not
-	// passed in the request.
-	server = serverFromDB
-
-	// Validate input.
-	if err := s.Validate(server); err != nil {
-		return server, err
-	}
-
-	s.ServerDefaults(&server) // Set defaults.
-
-	// Managed Identity
-	if err := s.UserAssignedIdentity(&server); err != nil {
-		return server, err
-	}
-
-	// Verify Actlabs Access
-	if err := s.VerifyActlabsAccess(&server); err != nil {
-		return server, err
-	}
-
-	// Before deploying, update the status in db.
-	server.Status = entity.ServerStatusDeploying
-
-	// Update server in database.
-	if err := s.UpsertServerInDatabase(server); err != nil {
-		return server, err
-	}
-
-	// Deploy server. Retry 5 times.
-	server, err = s.deployWithRetries(server)
-	if err != nil {
-		slog.Error("deploying server failed after retries",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-		return s.handleDeploymentFailure(server, err)
-	}
-
-	slog.Info("server deployed successfully, adding application gateway config for user",
-		slog.String("userPrincipalName", server.UserPrincipalName),
-		slog.String("subscriptionId", server.SubscriptionId),
-	)
-	server, err = s.serverRepository.AddApplicationGatewayConfigForUser(context.Background(), server)
-	if err != nil {
-		slog.Error("error adding application gateway config for user",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-		s.DestroyServer(server.UserPrincipalName, false)
-		return s.handleDeploymentFailure(server, err)
-	}
-
-	s.UpsertServerInDatabase(server)
-	s.createEvent(server, "Normal", "ServerDeployed", "server deployed for user "+server.UserPrincipalName+" in subscription "+server.SubscriptionId+" with version "+server.Version)
-
-	go s.backgroundReadinessCheck(server)
-
-	return server, nil
-}
-
-func (s *serverService) deployWithRetries(server entity.Server) (entity.Server, error) {
-	var err error
-	for i := 0; i < 5; i++ {
-		server, err = s.serverRepository.DeployServer(server)
-		if err == nil {
-			return server, nil
-		}
-		slog.Error("deploying server failed",
-			slog.String("backoff", strconv.FormatFloat(math.Min(math.Pow(2, float64(i))*10, 120.0), 'f', -1, 64)+"s"),
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("attempt", strconv.Itoa(i+1)),
-			slog.String("error", err.Error()),
-		)
-		if i < 4 {
-			sleepDuration := math.Min(math.Pow(2, float64(i))*10, 120.0)
-			time.Sleep(time.Duration(sleepDuration) * time.Second)
-		}
-	}
-	return server, err
-}
-
-func (s *serverService) handleDeploymentFailure(server entity.Server, err error) (entity.Server, error) {
-	server.Status = entity.ServerStatusFailed
-	s.UpsertServerInDatabase(server)
-	s.createEvent(server, "Warning", "ServerDeploymentFailed", "server deployment for user "+server.UserPrincipalName+" in subscription "+server.SubscriptionId+" with version "+server.Version+" failed with error "+err.Error())
-	return server, err
-}
-
-func (s *serverService) createEvent(server entity.Server, eventType, reason, message string) {
-	s.eventService.CreateEvent(context.TODO(), entity.Event{
-		Type:      eventType,
-		Reason:    reason,
-		Message:   message,
-		Reporter:  "actlabs-hub",
-		Object:    server.UserPrincipalName,
-		TimeStamp: time.Now().Format(time.RFC3339),
-	})
-}
-
-func (s *serverService) backgroundReadinessCheck(server entity.Server) {
-	waitTimeSeconds, err := strconv.Atoi(s.appConfig.ActlabsServerUPWaitTimeSeconds)
-	if err != nil {
-		slog.Error("error converting ACTLABS_SERVER_UP_WAIT_TIME_SECONDS to int",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("ACTLABS_SERVER_UP_WAIT_TIME_SECONDS", s.appConfig.ActlabsServerUPWaitTimeSeconds),
-			slog.String("error", err.Error()),
-		)
-		return
-	}
-	for i := 0; i < waitTimeSeconds/5; i++ {
-		slog.Info("checking if server is up and running (background)",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("endpoint", server.Endpoint),
-			slog.String("attempt", strconv.Itoa(i+1)),
-		)
-		if err := s.serverRepository.EnsureServerUp(server); err == nil {
-			slog.Info("server is up and running (background)",
-				slog.String("userPrincipalName", server.UserPrincipalName),
-				slog.String("subscriptionId", server.SubscriptionId),
-				slog.String("status", string(server.Status)),
-			)
-			server.Status = entity.ServerStatusRunning
-			server.LastUserActivityTime = time.Now().Format(time.RFC3339)
-			server.DeployedAtTime = time.Now().Format(time.RFC3339)
-			s.UpsertServerInDatabase(server)
-			s.createEvent(server, "Normal", "ServerDeployed", "server deployed for user "+server.UserPrincipalName+" in subscription "+server.SubscriptionId+" with version "+server.Version)
-			return
-		}
-		time.Sleep(5 * time.Second)
-	}
-	slog.Error("server deployed, but not able to verify server is up and running (background)",
-		slog.String("userPrincipalName", server.UserPrincipalName),
-		slog.String("subscriptionId", server.SubscriptionId),
-	)
-	server.Status = entity.ServerStatusUnknown
-	s.UpsertServerInDatabase(server)
-	s.createEvent(server, "Warning", "ServerUnknown", "server deployed for user "+server.UserPrincipalName+" in subscription "+server.SubscriptionId+" with version "+server.Version+" but not able to verify server is up and running")
-}
-
-func (s *serverService) DestroyServer(userPrincipalName string, adminInitiated bool) error {
-	slog.Info("destroying server",
-		slog.String("userPrincipalName", userPrincipalName),
-	)
-
-	// get server from db.
-	server, err := s.GetServerFromDatabase(userPrincipalName)
-	if err != nil {
-		return err
-	}
-
-	// Validate object.
-	if err := s.Validate(server); err != nil {
-		return err
-	}
-
-	s.ServerDefaults(&server)
-
-	// Retry 5 times.
-	for i := 0; i < 5; i++ {
-		err = s.serverRepository.DestroyServer(server)
-		if err == nil {
-			break
-		}
-
-		slog.Error(
-			"destroying server failed",
-			slog.String(
-				"backoff",
-				strconv.FormatFloat(math.Min(math.Pow(2, float64(i))*10, 120.0), 'f', -1, 64)+"s",
-			),
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("attempt", strconv.Itoa(i+1)),
-			slog.String("error", err.Error()),
-		)
-
-		if i < 4 { // Don't sleep after the last attempt
-			sleepDuration := math.Min(math.Pow(2, float64(i))*10, 120.0)
-			time.Sleep(
-				time.Duration(sleepDuration) * time.Second,
-			) // Exponential backoff: wait for twice the time from previous wait and a maximum of 120 waitTimeSeconds
-		}
-	}
-
-	// if no error then delete the app gateway config for user.
-	if err == nil {
-		slog.Info("server destroyed successfully, deleting application gateway config for user",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-		)
-
-		if err := s.serverRepository.DeleteApplicationGatewayConfigForUser(context.TODO(), server); err != nil {
-			slog.Error("failed to delete application gateway config for user",
-				slog.String("userPrincipalName", server.UserPrincipalName),
-				slog.String("subscriptionId", server.SubscriptionId),
-				slog.String("error", err.Error()),
-			)
-		}
-	}
-
-	if err != nil {
-		// Create Event
-		s.eventService.CreateEvent(context.TODO(), entity.Event{
-			Type:      "Normal",
-			Reason:    "ServerDestroyFailed",
-			Message:   "Failed destroying server for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
-			Reporter:  "actlabs-hub",
-			Object:    server.UserPrincipalName,
-			TimeStamp: time.Now().Format(time.RFC3339),
-		})
-
-		slog.Error("destroying server failed, all attempts exhausted",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
-		)
-
-		return err
-	}
-
-	server.Status = entity.ServerStatusDestroyed
-
-	// If admin initiated destroy, set status to AutoDestroyed.
-	if adminInitiated {
-		server.Status = entity.ServerStatusAutoDestroyed
-	}
-
-	server.DestroyedAtTime = time.Now().Format(time.RFC3339)
-
-	if err := s.UpsertServerInDatabase(server); err != nil {
-		return err
-	}
-
-	// Create Event
-	s.eventService.CreateEvent(context.TODO(), entity.Event{
-		Type:      "Normal",
-		Reason:    "ServerDestroyed",
-		Message:   "server destroyed for user " + server.UserPrincipalName + " in subscription " + server.SubscriptionId + " with version " + server.Version,
-		Reporter:  "actlabs-hub",
-		Object:    server.UserPrincipalName,
-		TimeStamp: time.Now().Format(time.RFC3339),
-	})
-
-	return nil
-}
-
-func (s *serverService) GetServer(userPrincipalName string) (entity.Server, error) {
-	slog.Info("getting server",
-		slog.String("userPrincipalName", userPrincipalName),
-	)
-
-	// get server from db.
-	server, err := s.serverRepository.GetServerFromDatabase("actlabs", userPrincipalName)
-	if err != nil {
-		slog.Error("error getting server from db",
-			slog.String("userPrincipalName", userPrincipalName),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to get server from database",
+			"error", err,
 		)
 
 		if strings.Contains(err.Error(), "404 Not Found") {
@@ -417,34 +109,33 @@ func (s *serverService) GetServer(userPrincipalName string) (entity.Server, erro
 
 		return server, errors.New("not able to get server status from database")
 	}
+
+	// update endpoint to accommodate new changes.
+	server.Endpoint = s.appConfig.ActlabsServerEndpointExternal
+
 	return server, nil
 }
 
-func (s *serverService) UpdateActivityStatus(userPrincipalName string) error {
-	slog.Info("updating server activity status",
-		slog.String("userPrincipalName", userPrincipalName),
-	)
-
-	server, err := s.GetServerFromDatabase(userPrincipalName)
+func (s *serverService) UpdateActivityStatus(ctx context.Context, userPrincipalName string) error {
+	server, err := s.GetServerFromDatabase(ctx, userPrincipalName)
 	if err != nil {
 		return errors.New("error getting server from database")
 	}
 
 	server.LastUserActivityTime = time.Now().Format(time.RFC3339)
 
-	if err := s.UpsertServerInDatabase(server); err != nil {
+	if err := s.UpsertServerInDatabase(ctx, server); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s *serverService) GetServerFromDatabase(userPrincipalName string) (entity.Server, error) {
-	server, err := s.serverRepository.GetServerFromDatabase("actlabs", userPrincipalName)
+func (s *serverService) GetServerFromDatabase(ctx context.Context, userPrincipalName string) (entity.Server, error) {
+	server, err := s.serverRepository.GetServerFromDatabase(ctx, "actlabs", userPrincipalName)
 	if err != nil {
-		slog.Error("error getting server from db",
-			slog.String("userPrincipalName", userPrincipalName),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to get server from database",
+			"error", err,
 		)
 		return server, fmt.Errorf(
 			"not able to find server for %s in database, is it registered?",
@@ -456,11 +147,10 @@ func (s *serverService) GetServerFromDatabase(userPrincipalName string) (entity.
 }
 
 func (s *serverService) GetAllServers(ctx context.Context) ([]entity.Server, error) {
-	slog.Info("getting all servers")
 	servers, err := s.serverRepository.GetAllServersFromDatabase(ctx)
 	if err != nil {
-		slog.Error("error getting all servers from db",
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to get all servers from database",
+			"error", err,
 		)
 		return servers, fmt.Errorf("not able to find servers in database")
 	}
@@ -468,13 +158,12 @@ func (s *serverService) GetAllServers(ctx context.Context) ([]entity.Server, err
 	return servers, nil
 }
 
-func (s *serverService) UpsertServerInDatabase(server entity.Server) error {
+func (s *serverService) UpsertServerInDatabase(ctx context.Context, server entity.Server) error {
 	// Update server in database.
-	if err := s.serverRepository.UpsertServerInDatabase(server); err != nil {
-		slog.Error("error upserting server in db",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("error", err.Error()),
+	if err := s.serverRepository.UpsertServerInDatabase(ctx, server); err != nil {
+		logger.LogError(ctx, "failed to upsert server in database",
+			"subscription_id", server.SubscriptionId,
+			"error", err,
 		)
 		return err
 	}
@@ -482,28 +171,15 @@ func (s *serverService) UpsertServerInDatabase(server entity.Server) error {
 	return nil
 }
 
-func (s *serverService) FailedServerDeployment(server entity.Server) error {
-	server.Status = entity.ServerStatusFailed
-	server.LastUserActivityTime = time.Now().Format(time.RFC3339)
-
-	// Update server in database.
-	if err := s.UpsertServerInDatabase(server); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *serverService) Validate(server entity.Server) error {
+func (s *serverService) Validate(ctx context.Context, server entity.Server) error {
 	if server.UserPrincipalName == "" ||
 		(server.UserPrincipalId == "" && server.FdpoUserPrincipalId == "") ||
 		server.SubscriptionId == "" {
-		slog.Error(
-			"Server validation failed. userPrincipalName, userPrincipalId or FdpoUserPrincipalId, and subscriptionId are all required",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("userPrincipalId", server.UserPrincipalId),
-			slog.String("FdpoUserPrincipalId", server.FdpoUserPrincipalId),
-			slog.String("subscriptionId", server.SubscriptionId),
+		logger.LogError(ctx, "server validation failed: required fields missing",
+			"user_principal_name", server.UserPrincipalName,
+			"user_principal_id", server.UserPrincipalId,
+			"fdpo_user_principal_id", server.FdpoUserPrincipalId,
+			"subscription_id", server.SubscriptionId,
 		)
 		return errors.New(
 			"userPrincipalName, userPrincipalId or FdpoUserPrincipalId, and subscriptionId are all required",
@@ -514,21 +190,19 @@ func (s *serverService) Validate(server entity.Server) error {
 		server.UserAlias = strings.Split(server.UserPrincipalName, "@")[0]
 	}
 
-	ok, err := s.serverRepository.IsUserAuthorized(server)
+	ok, err := s.serverRepository.IsUserAuthorized(ctx, server)
 	if err != nil {
-		slog.Error("failed to verify if user is the owner or contributor of subscription:",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("serverVersion", server.Version),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to verify user authorization for subscription",
+			"subscription_id", server.SubscriptionId,
+			"server_version", server.Version,
+			"error", err,
 		)
 		return errors.New("failed to verify if user is the owner or contributor of subscription")
 	}
 	if !ok {
-		slog.Error("user is not the owner or contributor of subscription:",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("serverVersion", server.Version),
+		logger.LogError(ctx, "user is not the owner or contributor of subscription",
+			"subscription_id", server.SubscriptionId,
+			"server_version", server.Version,
 		)
 		return errors.New("insufficient permissions")
 	}
@@ -564,55 +238,6 @@ func (s *serverService) ServerDefaults(server *entity.Server) {
 	if server.Status == "" {
 		server.Status = entity.ServerStatusRegistered
 	}
-}
 
-func (s *serverService) UserAssignedIdentity(server *entity.Server) error {
-	if server.Version == "V2" {
-		return nil
-	}
-
-	var err error
-	*server, err = s.serverRepository.GetUserAssignedManagedIdentity(*server)
-	if err != nil {
-		slog.Error("Managed Identity not found...",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("status", string(server.Status)),
-			slog.String("error", err.Error()),
-		)
-
-		return errors.New("managed identity not found. please register your subscription")
-	}
-
-	return nil
-}
-
-func (s *serverService) VerifyActlabsAccess(server *entity.Server) error {
-	if server.Version != "V2" {
-		return nil
-	}
-
-	ok, err := s.serverRepository.IsActlabsAuthorized(*server)
-	if err != nil {
-		slog.Error("failed to verify if actlabs is authorized to access subscription:",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("serverVersion", server.Version),
-			slog.String("error", err.Error()),
-		)
-		return errors.New("failed to verify if actlabs is authorized to access subscription")
-	}
-
-	if !ok {
-		slog.Error("actlabs is not authorized to access subscription:",
-			slog.String("userPrincipalName", server.UserPrincipalName),
-			slog.String("subscriptionId", server.SubscriptionId),
-			slog.String("serverVersion", server.Version),
-		)
-		return errors.New(
-			"actlabs does not have permissions to access subscription. Please ask Owner to register the subscription",
-		)
-	}
-
-	return nil
+	server.Endpoint = s.appConfig.ActlabsServerEndpointExternal
 }

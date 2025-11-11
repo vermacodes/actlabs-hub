@@ -1,36 +1,39 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
+	"net/http"
 
 	"actlabs-hub/internal/auth"
+	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
+	"actlabs-hub/internal/logger"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/exp/slog"
+
+	"github.com/google/uuid"
 )
 
 type deploymentRepository struct {
-	auth *auth.Auth
-	rdb  *redis.Client
+	auth   *auth.Auth
+	rdb    *redis.Client
+	config *config.Config
 }
 
-func NewDeploymentRepository(auth *auth.Auth, rdb *redis.Client) (entity.DeploymentRepository, error) {
+func NewDeploymentRepository(auth *auth.Auth, rdb *redis.Client, config *config.Config) (entity.DeploymentRepository, error) {
 	return &deploymentRepository{
-		auth: auth,
-		rdb:  rdb,
+		auth:   auth,
+		rdb:    rdb,
+		config: config,
 	}, nil
 }
 
 // don't implement redis caching unless all updates to deployments are done through the api
 func (d *deploymentRepository) GetAllDeployments(ctx context.Context) ([]entity.Deployment, error) {
-	slog.Debug("getting all deployments")
-
 	var deployment entity.Deployment
 	deployments := []entity.Deployment{}
 
@@ -38,7 +41,9 @@ func (d *deploymentRepository) GetAllDeployments(ctx context.Context) ([]entity.
 	for pager.More() {
 		response, err := pager.NextPage(ctx)
 		if err != nil {
-			slog.Debug("error getting deployments ", slog.String("error", err.Error()))
+			logger.LogError(ctx, "failed to get deployments from table storage",
+				"error", err,
+			)
 			return nil, err
 		}
 
@@ -46,13 +51,17 @@ func (d *deploymentRepository) GetAllDeployments(ctx context.Context) ([]entity.
 			var myEntity aztables.EDMEntity
 			err := json.Unmarshal(entity, &myEntity)
 			if err != nil {
-				slog.Debug("error unmarshal deployment entity ", slog.String("error", err.Error()))
+				logger.LogError(ctx, "failed to unmarshal deployment entity",
+					"error", err,
+				)
 				return nil, err
 			}
 
 			deploymentString := myEntity.Properties["Deployment"].(string)
 			if err := json.Unmarshal([]byte(deploymentString), &deployment); err != nil {
-				slog.Debug("error unmarshal deployment ", slog.String("error", err.Error()))
+				logger.LogError(ctx, "failed to unmarshal deployment",
+					"error", err,
+				)
 				return nil, err
 			}
 
@@ -70,23 +79,13 @@ func (d *deploymentRepository) GetUserDeployments(ctx context.Context, userPrinc
 	// check if user deployments already exist in redis
 	deploymentsString, err := d.rdb.Get(ctx, userPrincipalName+"-deployments").Result()
 	if err != nil {
-		slog.Debug("error getting deployments from redis continue to get from table storage ",
-			slog.String("userPrincipalName", userPrincipalName),
-			slog.String("error", err.Error()),
-		)
+		// Redis miss is expected, continue to table storage silently
 	}
 	if deploymentsString != "" {
 		if err := json.Unmarshal([]byte(deploymentsString), &deployments); err == nil {
-			slog.Debug("deployments found in redis ",
-				slog.String("userPrincipalName", userPrincipalName),
-			)
-
 			return deployments, nil
 		}
-		slog.Debug("error unmarshal deployment found in redis continue to get from table storage ",
-			slog.String("userPrincipalName", userPrincipalName),
-			slog.String("error", err.Error()),
-		)
+		// If unmarshal fails, continue to table storage silently
 	}
 
 	filter := "PartitionKey eq '" + userPrincipalName + "'"
@@ -97,9 +96,9 @@ func (d *deploymentRepository) GetUserDeployments(ctx context.Context, userPrinc
 	for pager.More() {
 		response, err := pager.NextPage(ctx)
 		if err != nil {
-			slog.Debug("error getting deployments ",
-				slog.String("userPrincipalName", userPrincipalName),
-				slog.String("error", err.Error()),
+			logger.LogError(ctx, "failed to get user deployments from table storage",
+				"requested_user_id", userPrincipalName,
+				"error", err,
 			)
 			return nil, err
 		}
@@ -108,18 +107,18 @@ func (d *deploymentRepository) GetUserDeployments(ctx context.Context, userPrinc
 			var myEntity aztables.EDMEntity
 			err := json.Unmarshal(entity, &myEntity)
 			if err != nil {
-				slog.Debug("error unmarshal deployment entity ",
-					slog.String("userPrincipalName", userPrincipalName),
-					slog.String("error", err.Error()),
+				logger.LogError(ctx, "failed to unmarshal deployment entity from table storage",
+					"requested_user_id", userPrincipalName,
+					"error", err,
 				)
 				return nil, err
 			}
 
 			deploymentString := myEntity.Properties["Deployment"].(string)
 			if err := json.Unmarshal([]byte(deploymentString), &deployment); err != nil {
-				slog.Debug("error unmarshal deployment ",
-					slog.String("userPrincipalName", userPrincipalName),
-					slog.String("error", err.Error()),
+				logger.LogError(ctx, "failed to unmarshal deployment data from table storage",
+					"requested_user_id", userPrincipalName,
+					"error", err,
 				)
 				return nil, err
 			}
@@ -133,20 +132,13 @@ func (d *deploymentRepository) GetUserDeployments(ctx context.Context, userPrinc
 	// save deployments to redis
 	marshalledDeployments, err := json.Marshal(deployments)
 	if err != nil {
-		slog.Debug("error occurred marshalling the deployments record.",
-			slog.String("userPrincipalName", userPrincipalName),
-			slog.String("error", err.Error()),
-		)
-
-		return deployments, err
+		// Marshaling error is not critical, continue without caching
+		return deployments, nil
 	}
 
 	err = d.rdb.Set(ctx, userPrincipalName+"-deployments", marshalledDeployments, 0).Err()
 	if err != nil {
-		slog.Debug("error occurred saving the deployments record to redis.",
-			slog.String("userPrincipalName", userPrincipalName),
-			slog.String("error", err.Error()),
-		)
+		// Redis error is not critical, continue without caching
 	}
 
 	return deployments, nil
@@ -158,38 +150,22 @@ func (d *deploymentRepository) GetDeployment(ctx context.Context, userId string,
 	// check if deployment already exist in redis
 	deploymentString, err := d.rdb.Get(ctx, userId+"-"+subscriptionId+"-"+workspace).Result()
 	if err != nil {
-		slog.Debug("error getting deployment from redis continue to get from table storage ",
-			slog.String("userId", userId),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("workspace", workspace),
-			slog.String("error", err.Error()),
-		)
+		// Redis miss is expected, continue to table storage silently
 	}
 	if deploymentString != "" {
 		if err := json.Unmarshal([]byte(deploymentString), &deployment); err == nil {
-			slog.Debug("deployment found in redis ",
-				slog.String("userId", userId),
-				slog.String("subscriptionId", subscriptionId),
-				slog.String("workspace", workspace),
-			)
-
 			return deployment, nil
 		}
-		slog.Debug("error unmarshal deployment found in redis continue to get from table storage ",
-			slog.String("userId", userId),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("workspace", workspace),
-			slog.String("error", err.Error()),
-		)
+		// If unmarshal fails, continue to table storage silently
 	}
 
 	response, err := d.auth.ActlabsDeploymentsTableClient.GetEntity(ctx, userId, userId+"-"+subscriptionId+"-"+workspace, nil)
 	if err != nil {
-		slog.Debug("error getting deployment ",
-			slog.String("userId", userId),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("workspace", workspace),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to get deployment from table storage",
+			"user_id", userId,
+			"subscription_id", subscriptionId,
+			"workspace", workspace,
+			"error", err,
 		)
 		return entity.Deployment{}, err
 	}
@@ -197,22 +173,22 @@ func (d *deploymentRepository) GetDeployment(ctx context.Context, userId string,
 	var myEntity aztables.EDMEntity
 	err = json.Unmarshal(response.Value, &myEntity)
 	if err != nil {
-		slog.Debug("error unmarshal deployment entity ",
-			slog.String("userId", userId),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("workspace", workspace),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to unmarshal deployment entity from table storage",
+			"user_id", userId,
+			"subscription_id", subscriptionId,
+			"workspace", workspace,
+			"error", err,
 		)
 		return entity.Deployment{}, err
 	}
 
 	deploymentString = myEntity.Properties["Deployment"].(string)
 	if err := json.Unmarshal([]byte(deploymentString), &deployment); err != nil {
-		slog.Debug("error unmarshal deployment ",
-			slog.String("userId", userId),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("workspace", workspace),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to unmarshal deployment data from table storage",
+			"user_id", userId,
+			"subscription_id", subscriptionId,
+			"workspace", workspace,
+			"error", err,
 		)
 		return entity.Deployment{}, err
 	}
@@ -220,24 +196,13 @@ func (d *deploymentRepository) GetDeployment(ctx context.Context, userId string,
 	// save deployment to redis
 	marshalledDeployment, err := json.Marshal(deployment)
 	if err != nil {
-		slog.Debug("error occurred marshalling the deployment record.",
-			slog.String("userId", userId),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("workspace", workspace),
-			slog.String("error", err.Error()),
-		)
-
-		return deployment, err
+		// Marshaling error is not critical, continue without caching
+		return deployment, nil
 	}
 
 	err = d.rdb.Set(ctx, userId+"-"+subscriptionId+"-"+workspace, marshalledDeployment, 0).Err()
 	if err != nil {
-		slog.Debug("error occurred saving the deployment record to redis.",
-			slog.String("userId", userId),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("workspace", workspace),
-			slog.String("error", err.Error()),
-		)
+		// Redis error is not critical, continue without caching
 	}
 
 	return deployment, nil
@@ -246,11 +211,11 @@ func (d *deploymentRepository) GetDeployment(ctx context.Context, userId string,
 func (d *deploymentRepository) UpsertDeployment(ctx context.Context, deployment entity.Deployment) error {
 	marshalledDeployment, err := json.Marshal(deployment)
 	if err != nil {
-		slog.Debug("error occurred marshalling the deployment record.",
-			slog.String("userId", deployment.DeploymentUserId),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-			slog.String("workspace", deployment.DeploymentWorkspace),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to marshal deployment for storage",
+			"user_id", deployment.DeploymentUserId,
+			"subscription_id", deployment.DeploymentSubscriptionId,
+			"workspace", deployment.DeploymentWorkspace,
+			"error", err,
 		)
 		return err
 	}
@@ -265,66 +230,40 @@ func (d *deploymentRepository) UpsertDeployment(ctx context.Context, deployment 
 
 	marshalled, err := json.Marshal(deploymentEntry)
 	if err != nil {
-		slog.Debug("error occurred marshalling the deployment record",
-			slog.String("userId", deployment.DeploymentUserId),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-			slog.String("workspace", deployment.DeploymentWorkspace),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to marshal deployment entry for table storage",
+			"user_id", deployment.DeploymentUserId,
+			"subscription_id", deployment.DeploymentSubscriptionId,
+			"workspace", deployment.DeploymentWorkspace,
+			"error", err,
 		)
 		return err
 	}
 
 	_, err = d.auth.ActlabsDeploymentsTableClient.UpsertEntity(ctx, marshalled, nil)
 	if err != nil {
-		slog.Debug("error adding deployment record ",
-			slog.String("userId", deployment.DeploymentUserId),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-			slog.String("workspace", deployment.DeploymentWorkspace),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to upsert deployment in table storage",
+			"user_id", deployment.DeploymentUserId,
+			"subscription_id", deployment.DeploymentSubscriptionId,
+			"workspace", deployment.DeploymentWorkspace,
+			"error", err,
 		)
 		return err
 	}
 
 	// save deployment to redis
 	if err := d.rdb.Set(ctx, deployment.DeploymentUserId+"-"+deployment.DeploymentSubscriptionId+"-"+deployment.DeploymentWorkspace, marshalledDeployment, 0).Err(); err != nil {
-		slog.Debug("error occurred saving the deployment record to redis.",
-			slog.String("userId", deployment.DeploymentUserId),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-			slog.String("workspace", deployment.DeploymentWorkspace),
-			slog.String("error", err.Error()),
-		)
+		// Redis error is not critical, continue without caching
 
 		// if not able to add deployment, delete existing deployment from redis if any
 		if err := d.rdb.Del(ctx, deployment.DeploymentUserId+"-"+deployment.DeploymentSubscriptionId+"-"+deployment.DeploymentWorkspace).Err(); err != nil {
-			slog.Debug("error occurred deleting the deployment record from redis.",
-				slog.String("userId", deployment.DeploymentUserId),
-				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-				slog.String("workspace", deployment.DeploymentWorkspace),
-				slog.String("error", err.Error()),
-			)
-
-			return err
+			// Redis deletion error is not critical
 		}
 	}
 
 	// delete deployments for user from redis
 	if err := d.rdb.Del(ctx, deployment.DeploymentUserId+"-deployments").Err(); err != nil {
-		slog.Debug("error occurred deleting the deployments record from redis.",
-			slog.String("userId", deployment.DeploymentUserId),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-			slog.String("workspace", deployment.DeploymentWorkspace),
-			slog.String("error", err.Error()),
-		)
-
-		return err
+		// Redis deletion error is not critical
 	}
-
-	slog.Debug("deployment record added successfully ",
-		slog.String("userId", deployment.DeploymentUserId),
-		slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-		slog.String("workspace", deployment.DeploymentWorkspace),
-		slog.String("status", string(deployment.DeploymentStatus)),
-	)
 
 	return nil
 }
@@ -332,11 +271,11 @@ func (d *deploymentRepository) UpsertDeployment(ctx context.Context, deployment 
 func (d *deploymentRepository) DeploymentOperationEntry(ctx context.Context, deployment entity.Deployment) error {
 	marshalledDeploymentLab, err := json.Marshal(deployment.DeploymentLab)
 	if err != nil {
-		slog.Debug("error occurred marshalling the deployment lab",
-			slog.String("userId", deployment.DeploymentUserId),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-			slog.String("workspace", deployment.DeploymentWorkspace),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to marshal deployment lab for operation entry",
+			"user_id", deployment.DeploymentUserId,
+			"subscription_id", deployment.DeploymentSubscriptionId,
+			"workspace", deployment.DeploymentWorkspace,
+			"error", err,
 		)
 		return err
 	}
@@ -356,22 +295,22 @@ func (d *deploymentRepository) DeploymentOperationEntry(ctx context.Context, dep
 
 	marshalled, err := json.Marshal(operationEntry)
 	if err != nil {
-		slog.Debug("error occurred marshalling the deployment entry record.",
-			slog.String("userId", deployment.DeploymentUserId),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-			slog.String("workspace", deployment.DeploymentWorkspace),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to marshal deployment operation entry for table storage",
+			"user_id", deployment.DeploymentUserId,
+			"subscription_id", deployment.DeploymentSubscriptionId,
+			"workspace", deployment.DeploymentWorkspace,
+			"error", err,
 		)
 		return err
 	}
 
 	_, err = d.auth.ActlabSDeploymentOperationsTableClient.UpsertEntity(ctx, marshalled, nil)
 	if err != nil {
-		slog.Debug("error adding deployment entry record ",
-			slog.String("userId", deployment.DeploymentUserId),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-			slog.String("workspace", deployment.DeploymentWorkspace),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to upsert deployment operation entry in table storage",
+			"user_id", deployment.DeploymentUserId,
+			"subscription_id", deployment.DeploymentSubscriptionId,
+			"workspace", deployment.DeploymentWorkspace,
+			"error", err,
 		)
 		return err
 	}
@@ -382,83 +321,78 @@ func (d *deploymentRepository) DeploymentOperationEntry(ctx context.Context, dep
 func (d *deploymentRepository) DeleteDeployment(ctx context.Context, userId string, workspace string, subscriptionId string) error {
 	_, err := d.auth.ActlabsDeploymentsTableClient.DeleteEntity(ctx, userId, userId+"-"+workspace+"-"+subscriptionId, nil)
 	if err != nil {
-		slog.Debug("error deleting deployment record ",
-			slog.String("userId", userId),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("workspace", workspace),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to delete deployment from table storage",
+			"user_id", userId,
+			"subscription_id", subscriptionId,
+			"workspace", workspace,
+			"error", err,
 		)
 		return err
 	}
 
 	// delete deployment from redis
 	if err := d.rdb.Del(ctx, userId+"-"+subscriptionId+"-"+workspace).Err(); err != nil {
-		slog.Debug("error occurred deleting the deployment record from redis.",
-			slog.String("userId", userId),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("workspace", workspace),
-			slog.String("error", err.Error()),
-		)
-
-		return err
+		// Redis deletion error is not critical
 	}
 
 	// delete deployments for user from redis
 	if err := d.rdb.Del(ctx, userId+"-deployments").Err(); err != nil {
-		slog.Debug("error occurred deleting the deployments record from redis.",
-			slog.String("userId", userId),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("workspace", workspace),
-			slog.String("error", err.Error()),
-		)
-
-		return err
+		// Redis deletion error is not critical
 	}
 
 	return nil
 }
 
-func (d *deploymentRepository) GetUserPrincipalNameByMSIPrincipalID(ctx context.Context, msiPrincipalID string) (string, error) {
-	// check the cache first
-	userPrincipalName, err := d.rdb.Get(ctx, msiPrincipalID+"-owner").Result()
-	if err == nil && userPrincipalName != "" {
-		return userPrincipalName, nil
-	}
+func (d *deploymentRepository) AutoDestroyDeployment(ctx context.Context, userPrincipalName string, deployment entity.Deployment) error {
 
-	slog.Debug("not able to find user principal name for msi principal id in redis, continue to get from table storage")
+	// http://actlabsserver.com/api/terraform/destroy/operationId
+	autoDestroyServiceEndpoint := d.config.ActlabsServerEndpointInternal + "/api/terraform/destroy/" + uuid.New().String()
 
-	pager := d.auth.ActlabsServersTableClient.NewListEntitiesPager(&aztables.ListEntitiesOptions{
-		Filter: to.Ptr("managedIdentityPrincipalId eq '" + msiPrincipalID + "'"),
-	})
-
-	for pager.More() {
-		resp, err := pager.NextPage(ctx)
-		if err != nil {
-			slog.Debug("not able to get next page", slog.String("error", err.Error()))
-			return "", err
-		}
-
-		for _, entity := range resp.Entities {
-			var myEntity aztables.EDMEntity
-			err := json.Unmarshal(entity, &myEntity)
-			if err != nil {
-				slog.Debug("not able to unmarshal entity", slog.String("error", err.Error()))
-				return "", err
-			}
-
-			userPrincipalName := myEntity.Properties["userPrincipalName"].(string)
-			return userPrincipalName, nil
-		}
-	}
-
-	// save user principal name to redis
-	if err := d.rdb.Set(ctx, msiPrincipalID+"-owner", userPrincipalName, 0).Err(); err != nil {
-		slog.Debug("error occurred saving the user principal name record to redis.",
-			slog.String("msiPrincipalID", msiPrincipalID),
-			slog.String("userPrincipalName", userPrincipalName),
-			slog.String("error", err.Error()),
+	// Marshal deployment to JSON for request body
+	deploymentJSON, err := json.Marshal(deployment)
+	if err != nil {
+		logger.LogError(ctx, "failed to marshal deployment for auto-destroy request",
+			"user_id", userPrincipalName,
+			"workspace", deployment.DeploymentWorkspace,
+			"subscription_id", deployment.DeploymentSubscriptionId,
+			"error", err,
 		)
+		return err
 	}
 
-	return userPrincipalName, errors.New("not able to find user principal name for msi principal id " + msiPrincipalID)
+	req, err := http.NewRequest("POST", autoDestroyServiceEndpoint, bytes.NewBuffer(deploymentJSON))
+	if err != nil {
+		logger.LogError(ctx, "failed to create HTTP request for auto-destroy",
+			"user_id", userPrincipalName,
+			"workspace", deployment.DeploymentWorkspace,
+			"subscription_id", deployment.DeploymentSubscriptionId,
+			"error", err,
+		)
+		return err
+	}
+
+	req.Header.Set("x-api-key", d.config.ActlabsServerApiKey)
+	req.Header.Set("x-user-id", userPrincipalName)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.LogError(ctx, "failed to make http request for auto destroy deployment",
+			"error", err,
+		)
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		logger.LogError(ctx, "http request for auto destroy deployment failed",
+			"status_code", resp.StatusCode,
+		)
+		return err
+	}
+
+	return nil
 }

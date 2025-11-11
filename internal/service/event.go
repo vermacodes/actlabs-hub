@@ -2,8 +2,10 @@ package service
 
 import (
 	"actlabs-hub/internal/entity"
+	"actlabs-hub/internal/helper"
+	"actlabs-hub/internal/logger"
 	"context"
-	"log/slog"
+	"errors"
 )
 
 type eventService struct {
@@ -17,11 +19,11 @@ func NewEventService(eventRepository entity.EventRepository) entity.EventService
 }
 
 func (es *eventService) GetEvents(ctx context.Context) ([]entity.Event, error) {
-	slog.Debug("getting events")
-
 	events, err := es.eventRepository.GetEvents(ctx)
 	if err != nil {
-		slog.Debug("failed to get events")
+		logger.LogError(ctx, "failed to get events from repository",
+			"error", err,
+		)
 		return nil, err
 	}
 
@@ -29,23 +31,20 @@ func (es *eventService) GetEvents(ctx context.Context) ([]entity.Event, error) {
 }
 
 func (es *eventService) CreateEvent(ctx context.Context, event entity.Event) error {
-	slog.Debug("creating event",
-		slog.String("type", event.Type),
-		slog.String("reason", event.Reason),
-		slog.String("message", event.Message),
-		slog.String("reporter", event.Reporter),
-		slog.String("object", event.Object),
-		slog.String("timeStamp", event.TimeStamp),
-	)
+	userID := logger.GetUserID(ctx)
+	if userID == "" {
+		logger.LogError(ctx, "user_id not found in context for event creation")
+		return errors.New("unauthorized: user_id not found in context")
+	}
 
+	event.PartitionKey = userID
+	event.RowKey = helper.GenerateUUID()
 	if err := es.eventRepository.CreateEvent(ctx, event); err != nil {
-		slog.Debug("failed to create event",
-			slog.String("type", event.Type),
-			slog.String("reason", event.Reason),
-			slog.String("message", event.Message),
-			slog.String("reporter", event.Reporter),
-			slog.String("object", event.Object),
-			slog.String("timeStamp", event.TimeStamp),
+		logger.LogError(ctx, "failed to create event in repository",
+			"event_type", event.Type,
+			"event_reason", event.Reason,
+			"event_object", event.Object,
+			"error", err,
 		)
 		return err
 	}

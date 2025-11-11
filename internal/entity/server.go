@@ -58,37 +58,21 @@ type ManagedServerActionStatus struct {
 }
 
 type ServerService interface {
-	RegisterSubscription(server Server) error
+	RegisterSubscription(ctx context.Context, server Server) error
 	Unregister(ctx context.Context, userPrincipalName string) error
 
-	UpdateServer(server Server) error // just updates in db. used to set flags like autoDestroy, autoCreate, etc.
-	DeployServer(server Server) (Server, error)
-	DestroyServer(userPrincipalName string, adminInitiated bool) error
-	GetServer(userPrincipalName string) (Server, error)
+	GetServer(ctx context.Context, userPrincipalName string) (Server, error)
 
 	GetAllServers(ctx context.Context) ([]Server, error)
 
-	UpdateActivityStatus(userPrincipalName string) error
+	UpdateActivityStatus(ctx context.Context, userPrincipalName string) error
 }
 
 type ServerRepository interface {
-	GetAzureContainerGroup(server Server) (Server, error)
-	GetUserAssignedManagedIdentity(server Server) (Server, error)
+	IsUserAuthorized(ctx context.Context, server Server) (bool, error)
 
-	DeployServer(server Server) (Server, error)
-	AddApplicationGatewayConfigForUser(ctx context.Context, server Server) (Server, error)
-
-	EnsureServerUp(server Server) error
-	EnsureServerIdle(server Server) (bool, error)
-
-	DestroyServer(server Server) error
-	DeleteApplicationGatewayConfigForUser(ctx context.Context, server Server) error
-
-	IsUserAuthorized(server Server) (bool, error)
-	IsActlabsAuthorized(server Server) (bool, error)
-
-	UpsertServerInDatabase(server Server) error
-	GetServerFromDatabase(partitionKey string, rowKey string) (Server, error)
+	UpsertServerInDatabase(ctx context.Context, server Server) error
+	GetServerFromDatabase(ctx context.Context, partitionKey string, rowKey string) (Server, error)
 	GetAllServersFromDatabase(ctx context.Context) ([]Server, error)
 
 	DeleteServerFromDatabase(ctx context.Context, server Server) error

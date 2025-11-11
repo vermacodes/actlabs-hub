@@ -2,6 +2,7 @@ package auth
 
 import (
 	"actlabs-hub/internal/config"
+	"context"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -21,7 +22,7 @@ type Auth struct {
 	ActlabSDeploymentOperationsTableClient *aztables.Client
 }
 
-func NewAuth(appConfig *config.Config) (*Auth, error) {
+func NewAuth(ctx context.Context, appConfig *config.Config) (*Auth, error) {
 	var cred azcore.TokenCredential
 	var err error
 

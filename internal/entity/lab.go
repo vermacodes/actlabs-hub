@@ -119,35 +119,35 @@ type LabService interface {
 	// Private Labs
 	// Role: user
 	// Types: privatelab, challengelab
-	GetAllPrivateLabs(typeOfLab string) ([]LabType, error) // Don't expose via API directly.
-	GetPrivateLabs(typeOfLab string, userId string) ([]LabType, error)
-	GetPrivateLab(typeOfLab string, labId string) (LabType, error)
-	GetPrivateLabVersions(typeOfLab string, labId string, userId string) ([]LabType, error)
-	UpsertPrivateLab(LabType) (LabType, error)
-	DeletePrivateLab(typeOfLab string, labId string, userId string) error
+	GetAllPrivateLabs(ctx context.Context, typeOfLab string) ([]LabType, error) // Don't expose via API directly.
+	GetPrivateLabs(ctx context.Context, typeOfLab string, userId string) ([]LabType, error)
+	GetPrivateLab(ctx context.Context, typeOfLab string, labId string) (LabType, error)
+	GetPrivateLabVersions(ctx context.Context, typeOfLab string, labId string, userId string) ([]LabType, error)
+	UpsertPrivateLab(ctx context.Context, lab LabType) (LabType, error)
+	DeletePrivateLab(ctx context.Context, typeOfLab string, labId string, userId string) error
 
 	// Public Labs
 	// Role: user
 	// Types: publiclab
-	GetPublicLabs(typeOfLab string) ([]LabType, error)
-	GetPublicLabVersions(typeOfLab string, labId string) ([]LabType, error)
-	UpsertPublicLab(LabType) (LabType, error)
-	DeletePublicLab(typeOfLab string, labId string, userId string) error
+	GetPublicLabs(ctx context.Context, typeOfLab string) ([]LabType, error)
+	GetPublicLabVersions(ctx context.Context, typeOfLab string, labId string) ([]LabType, error)
+	UpsertPublicLab(ctx context.Context, lab LabType) (LabType, error)
+	DeletePublicLab(ctx context.Context, typeOfLab string, labId string, userId string) error
 
 	// Protected Labs
 	// Role: mentor
 	// Types: readinesslab, mockcase
-	GetProtectedLabs(typeOfLab string, userId string, requestIsWithSecret bool) ([]LabType, error)
-	GetProtectedLab(typeOfLab string, labId string, userId string, requestIsWithSecret bool) (LabType, error)
-	GetProtectedLabVersions(typeOfLab string, labId string) ([]LabType, error)
-	UpsertProtectedLab(lab LabType, userId string) (LabType, error)
-	DeleteProtectedLab(typeOfLab string, labId string) error
+	GetProtectedLabs(ctx context.Context, typeOfLab string, userId string, requestIsWithSecret bool) ([]LabType, error)
+	GetProtectedLab(ctx context.Context, typeOfLab string, labId string, userId string, requestIsWithSecret bool) (LabType, error)
+	GetProtectedLabVersions(ctx context.Context, typeOfLab string, labId string) ([]LabType, error)
+	UpsertProtectedLab(ctx context.Context, lab LabType, userId string) (LabType, error)
+	DeleteProtectedLab(ctx context.Context, typeOfLab string, labId string) error
 
 	// Shared functions
-	GetLabs(typeOfLab string) ([]LabType, error)
-	GetLabVersions(typeOfLab string, labId string) ([]LabType, error)
-	UpsertLab(LabType) (LabType, error)
-	DeleteLab(typeOfLab string, labId string) error
+	GetLabs(ctx context.Context, typeOfLab string) ([]LabType, error)
+	GetLabVersions(ctx context.Context, typeOfLab string, labId string) ([]LabType, error)
+	UpsertLab(ctx context.Context, lab LabType) (LabType, error)
+	DeleteLab(ctx context.Context, typeOfLab string, labId string) error
 
 	// Supporting Documents
 	UpsertSupportingDocument(ctx context.Context, supportingDocument multipart.File) (string, error)

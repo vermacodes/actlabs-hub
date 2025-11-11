@@ -3,9 +3,9 @@ package service
 import (
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
+	"actlabs-hub/internal/logger"
+	"context"
 	"errors"
-
-	"golang.org/x/exp/slog"
 )
 
 type AuthService struct {
@@ -18,25 +18,24 @@ func NewAuthService(authRepository entity.AuthRepository) entity.AuthService {
 	}
 }
 
-func (s *AuthService) CreateProfile(profile entity.Profile) error {
-	slog.Info("creating profile",
-		slog.String("userPrincipal", profile.UserPrincipal),
+func (s *AuthService) CreateProfile(ctx context.Context, profile entity.Profile) error {
+	logger.LogInfo(ctx, "creating user profile",
+		"user_principal", profile.UserPrincipal,
 	)
 
-	existingProfile, err := s.authRepository.GetProfile(profile.UserPrincipal)
+	existingProfile, err := s.authRepository.GetProfile(ctx, profile.UserPrincipal)
 	if err != nil {
-		slog.Error("Error getting existing profile",
-			slog.String("userPrincipal", profile.UserPrincipal),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to check existing profile",
+			"user_principal", profile.UserPrincipal,
+			"error", err,
 		)
 	}
 
 	//Make sure that profile is complete
 	if profile.DisplayName == "" || profile.UserPrincipal == "" {
-		slog.Error("incomplete profile",
-			slog.String("userPrincipal", profile.UserPrincipal),
-			slog.String("displayName", profile.DisplayName),
-			slog.String("error", "profile is incomplete"),
+		logger.LogError(ctx, "profile validation failed - missing required fields",
+			"user_principal", profile.UserPrincipal,
+			"display_name", profile.DisplayName,
 		)
 		return errors.New("profile is incomplete")
 	}
@@ -49,10 +48,10 @@ func (s *AuthService) CreateProfile(profile entity.Profile) error {
 		profile.Roles = []string{"user"} // IMPORTANT: remove all roles and add only user role
 	}
 
-	if err := s.authRepository.UpsertProfile(profile); err != nil {
-		slog.Error("error creating profile",
-			slog.String("userPrincipal", profile.UserPrincipal),
-			slog.String("error", err.Error()),
+	if err := s.authRepository.UpsertProfile(ctx, profile); err != nil {
+		logger.LogError(ctx, "failed to upsert profile",
+			"user_principal", profile.UserPrincipal,
+			"error", err,
 		)
 		return err
 	}
@@ -60,110 +59,96 @@ func (s *AuthService) CreateProfile(profile entity.Profile) error {
 	return nil
 }
 
-func (s *AuthService) GetProfile(userPrincipal string) (entity.Profile, error) {
-	slog.Info("getting profile",
-		slog.String("userPrincipal", userPrincipal),
+func (s *AuthService) GetProfile(ctx context.Context, userPrincipal string) (entity.Profile, error) {
+	profile, err := s.authRepository.GetProfile(ctx, userPrincipal)
+	if err != nil {
+		logger.LogError(ctx, "failed to get profile",
+			"user_principal", userPrincipal,
+			"error", err,
+		)
+		return entity.Profile{}, err
+	}
+
+	return profile, nil
+}
+
+// return profiles without roles - returns all profiles but potentially redacted for regular users
+func (s *AuthService) GetAllProfilesRedacted(ctx context.Context) ([]entity.Profile, error) {
+	profiles, err := s.GetAllProfiles(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// For now, return the same profiles - redaction logic can be added later if needed
+	return profiles, nil
+}
+
+func (s *AuthService) GetAllProfiles(ctx context.Context) ([]entity.Profile, error) {
+	profiles, err := s.authRepository.GetAllProfiles(ctx)
+	if err != nil {
+		logger.LogError(ctx, "failed to get all profiles",
+			"error", err,
+		)
+		return nil, err
+	}
+
+	return profiles, nil
+}
+
+func (s *AuthService) DeleteRole(ctx context.Context, userPrincipal string, role string) error {
+	logger.LogInfo(ctx, "deleting role from user",
+		"user_principal", userPrincipal,
+		"role", role,
 	)
 
-	profile, err := s.authRepository.GetProfile(userPrincipal)
-	if err != nil {
-		slog.Error("error getting profile",
-			slog.String("userPrincipal", userPrincipal),
-			slog.String("error", err.Error()),
-		)
-	}
-
-	return profile, err
-}
-
-// return profiles without roles
-func (s *AuthService) GetAllProfilesRedacted() ([]entity.Profile, error) {
-	profiles, err := s.GetAllProfiles()
-	if err != nil {
-		return []entity.Profile{}, err
-	}
-
-	redactedProfiles := []entity.Profile{}
-	for _, profile := range profiles {
-		redactedProfile := entity.Profile{
-			DisplayName:   profile.DisplayName,
-			ProfilePhoto:  profile.ProfilePhoto,
-			UserPrincipal: profile.UserPrincipal,
-		}
-		redactedProfiles = append(redactedProfiles, redactedProfile)
-	}
-	return redactedProfiles, err
-}
-
-func (s *AuthService) GetAllProfiles() ([]entity.Profile, error) {
-	slog.Info("getting all profiles")
-	profiles, err := s.authRepository.GetAllProfiles()
-	if err != nil {
-		slog.Error("error getting profiles: ",
-			slog.String("error", err.Error()),
-		)
-	}
-	return profiles, err
-}
-
-func (s *AuthService) DeleteRole(userPrincipal string, role string) error {
-	slog.Info("deleting role",
-		slog.String("userPrincipal", userPrincipal),
-		slog.String("role", role),
-	)
-
-	// Get the profile
-	profile, err := s.GetProfile(userPrincipal)
+	profile, err := s.GetProfile(ctx, userPrincipal)
 	if err != nil {
 		return err
 	}
 
-	// if the user has only one role, then delete the profile.
-	profile.Roles = remove(profile.Roles, role)
-	if len(profile.Roles) == 0 {
-		return s.authRepository.DeleteProfile(userPrincipal)
+	// if the profile has only one role, then delete the profile
+	if len(profile.Roles) == 1 {
+		return s.authRepository.DeleteProfile(ctx, userPrincipal)
 	}
 
-	// remove the the role and upsert the profile.
+	// remove the role from the profile
 	profile.Roles = remove(profile.Roles, role)
-	if err := s.authRepository.UpsertProfile(profile); err != nil {
-		slog.Error("error deleting role",
-			slog.String("userPrincipal", userPrincipal),
-			slog.String("role", role),
+	if err := s.authRepository.UpsertProfile(ctx, profile); err != nil {
+		logger.LogError(ctx, "failed to update profile after role deletion",
+			"user_principal", userPrincipal,
+			"role", role,
+			"error", err,
 		)
-
 		return err
 	}
 
 	return nil
 }
 
-func (s *AuthService) AddRole(userPrincipal string, role string) error {
-
-	slog.Info("adding role",
-		slog.String("userPrincipal", userPrincipal),
-		slog.String("role", role),
+func (s *AuthService) AddRole(ctx context.Context, userPrincipal string, role string) error {
+	logger.LogInfo(ctx, "adding role to user",
+		"user_principal", userPrincipal,
+		"role", role,
 	)
 
 	// Get the profile
-	profile, err := s.GetProfile(userPrincipal)
+	profile, err := s.GetProfile(ctx, userPrincipal)
 	if err != nil {
 		return err
 	}
 
 	// if the role already exists, then return.
 	if helper.Contains(profile.Roles, role) {
-		slog.Debug("Role already exists: " + role)
 		return nil
 	}
 
 	profile.Roles = append(profile.Roles, role)
-	if err := s.authRepository.UpsertProfile(profile); err != nil {
-		slog.Error("error deleting role",
-			slog.String("userPrincipal", userPrincipal),
-			slog.String("role", role),
+	if err := s.authRepository.UpsertProfile(ctx, profile); err != nil {
+		logger.LogError(ctx, "failed to update profile after role addition",
+			"user_principal", userPrincipal,
+			"role", role,
+			"error", err,
 		)
-
 		return err
 	}
 

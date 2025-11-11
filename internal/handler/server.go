@@ -3,7 +3,7 @@ package handler
 import (
 	"actlabs-hub/internal/auth"
 	"actlabs-hub/internal/entity"
-	"log/slog"
+	"actlabs-hub/internal/logger"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,13 +18,10 @@ func NewServerHandler(r *gin.RouterGroup, serverService entity.ServerService) {
 		serverService: serverService,
 	}
 
+	r.GET("/server", handler.GetServer)
+
 	r.PUT("/server/register/:subscriptionId", handler.RegisterSubscription)
 	r.PUT("/server/unregister", handler.Unregister)
-
-	r.GET("/server", handler.GetServer)
-	r.PUT("/server", handler.DeployServer)
-	r.PUT("/server/update", handler.UpdateServer)
-	r.DELETE("/server", handler.DestroyServer)
 
 	r.PUT("/server/activity/:userPrincipalName", handler.UpdateActivityStatus)
 }
@@ -36,10 +33,6 @@ func NewAdminServerHandler(r *gin.RouterGroup, serverService entity.ServerServic
 
 	r.GET("/admin/servers", handler.AdminGetAllServers)
 	r.DELETE("/admin/server/unregister/:userPrincipalName", handler.AdminUnregister)
-
-	r.PUT("/admin/server", handler.AdminDeployServer)
-	r.PUT("/admin/server/update", handler.AdminUpdateServer)
-	r.DELETE("/admin/server/:userPrincipalName", handler.AdminDestroyServer)
 }
 
 func NewServerHandlerArmToken(r *gin.RouterGroup, serverService entity.ServerService) {
@@ -48,16 +41,37 @@ func NewServerHandlerArmToken(r *gin.RouterGroup, serverService entity.ServerSer
 	}
 
 	r.PUT("/arm/server/register", handler.RegisterSubscription)
+	r.GET("/arm/server/:userPrincipalName", handler.ArmGetServer)
+}
+
+func (h *serverHandler) GetServer(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "getting server")
+
+	userPrincipal, err := auth.GetUserPrincipalFromToken(c.Request.Context(), c.GetHeader("Authorization"))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authorized or invalid token"})
+		return
+	}
+
+	server, err := h.serverService.GetServer(c.Request.Context(), userPrincipal)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, server)
 }
 
 func (h *serverHandler) RegisterSubscription(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "registering server subscription")
+
 	server := entity.Server{}
 	if err := c.ShouldBindJSON(&server); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid object"})
 		return
 	}
 
-	if err := h.serverService.RegisterSubscription(server); err != nil {
+	if err := h.serverService.RegisterSubscription(c.Request.Context(), server); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -66,7 +80,9 @@ func (h *serverHandler) RegisterSubscription(c *gin.Context) {
 }
 
 func (h *serverHandler) Unregister(c *gin.Context) {
-	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
+	logger.LogInfo(c.Request.Context(), "unregistering server")
+
+	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.Request.Context(), c.GetHeader("Authorization"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
 	}
@@ -80,6 +96,8 @@ func (h *serverHandler) Unregister(c *gin.Context) {
 }
 
 func (h *serverHandler) AdminUnregister(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "admin unregistering server", "requested_user_id", c.Param("userPrincipalName"))
+
 	userPrincipalName := c.Param("userPrincipalName")
 
 	if err := h.serverService.Unregister(c.Request.Context(), userPrincipalName); err != nil {
@@ -90,23 +108,27 @@ func (h *serverHandler) AdminUnregister(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "success"})
 }
 
-func (h *serverHandler) GetServer(c *gin.Context) {
+func (h *serverHandler) ArmGetServer(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "getting server for arm token", "requested_user_id", c.Param("userPrincipalName"))
 
-	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
+	userPrincipalName := c.Param("userPrincipalName")
+	if userPrincipalName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "userPrincipalName is required"})
+		return
 	}
 
-	server, err := h.serverService.GetServer(userPrincipalName)
+	server, err := h.serverService.GetServer(c.Request.Context(), userPrincipalName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(200, server)
+	c.JSON(200, gin.H{"id": server.SubscriptionId})
 }
 
 func (h *serverHandler) AdminGetAllServers(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "getting all servers for admin")
+
 	servers, err := h.serverService.GetAllServers(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -116,145 +138,17 @@ func (h *serverHandler) AdminGetAllServers(c *gin.Context) {
 	c.JSON(200, servers)
 }
 
-func (h *serverHandler) UpdateServer(c *gin.Context) {
-	server := entity.Server{}
-	if err := c.ShouldBindJSON(&server); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if server.UserPrincipalId == "" {
-		slog.Info("UserPrincipalId not found in request, getting from token")
-		userPrincipalId, err := auth.GetUserObjectIdFromToken(c.GetHeader("Authorization"))
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
-		}
-		server.UserPrincipalId = userPrincipalId
-
-		// Updating server if user principal id is not present to record the user principal id
-		if err := h.serverService.UpdateServer(server); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-	}
-
-	if !auth.VerifyUserObjectId(server.UserPrincipalId, c.GetHeader("Authorization")) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid request"})
-		return
-	}
-
-	if err := h.serverService.UpdateServer(server); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(200, server)
-}
-
-func (h *serverHandler) AdminUpdateServer(c *gin.Context) {
-	server := entity.Server{}
-	if err := c.ShouldBindJSON(&server); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := h.serverService.UpdateServer(server); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(200, server)
-}
-
-func (h *serverHandler) DeployServer(c *gin.Context) {
-	server := entity.Server{}
-	if err := c.ShouldBindJSON(&server); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if server.UserPrincipalId == "" {
-		slog.Info("UserPrincipalId not found in request, getting from token")
-		userPrincipalId, err := auth.GetUserObjectIdFromToken(c.GetHeader("Authorization"))
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
-		}
-		server.UserPrincipalId = userPrincipalId
-
-		// Updating server if user principal id is not present to record the user principal id
-		if err := h.serverService.UpdateServer(server); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-	}
-
-	if !auth.VerifyUserObjectId(server.UserPrincipalId, c.GetHeader("Authorization")) {
-		slog.Error("UserPrincipalId does not match token")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid request"})
-		return
-	}
-
-	server, err := h.serverService.DeployServer(server)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(200, server)
-}
-
-func (h *serverHandler) AdminDeployServer(c *gin.Context) {
-	server := entity.Server{}
-	if err := c.ShouldBindJSON(&server); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	server, err := h.serverService.DeployServer(server)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(200, server)
-}
-
-func (h *serverHandler) DestroyServer(c *gin.Context) {
-	userPrincipalName, err := auth.GetUserPrincipalFromToken(c.GetHeader("Authorization"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "not authorized or invalid token"})
-	}
-
-	err = h.serverService.DestroyServer(userPrincipalName, false)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(200, gin.H{"status": "success"})
-}
-
-func (h *serverHandler) AdminDestroyServer(c *gin.Context) {
-	userPrincipalName := c.Param("userPrincipalName")
-
-	err := h.serverService.DestroyServer(userPrincipalName, true)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(200, gin.H{"status": "success"})
-}
-
 func (h *serverHandler) UpdateActivityStatus(c *gin.Context) {
+	logger.LogInfo(c.Request.Context(), "updating server activity status", "requested_user_id", c.Param("userPrincipalName"))
+
 	userPrincipalName := c.Param("userPrincipalName")
 
-	if !auth.VerifyUserPrincipalName(userPrincipalName, c.GetHeader("Authorization")) {
+	if !auth.VerifyUserPrincipalName(c.Request.Context(), userPrincipalName, c.GetHeader("Authorization")) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid request"})
 		return
 	}
 
-	if err := h.serverService.UpdateActivityStatus(userPrincipalName); err != nil {
+	if err := h.serverService.UpdateActivityStatus(c.Request.Context(), userPrincipalName); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/exp/slog"
 )
 
 func ChallengeMiddleware() gin.HandlerFunc {
@@ -29,15 +28,13 @@ func ChallengeMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		slog.Debug("Middleware: ChallengeMiddleware")
-
 		// Get the auth token from the request header
 		authToken := c.GetHeader("Authorization")
 
 		// Remove Bearer from the authToken
 		authToken = strings.Split(authToken, "Bearer ")[1]
 
-		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(authToken)
+		callingUserPrincipal, err := auth.GetUserPrincipalFromToken(c.Request.Context(), authToken)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return

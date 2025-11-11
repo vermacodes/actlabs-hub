@@ -61,7 +61,7 @@ type (
 )
 
 // New creates a Client able to delegate token validation.
-func NewMISEAdapter(httpClient *http.Client, miseAddress string) Client {
+func NewMISEAdapter(ctx context.Context, httpClient *http.Client, miseAddress string) Client {
 	return Client{
 		httpClient:  httpClient,
 		miseAddress: miseAddress,

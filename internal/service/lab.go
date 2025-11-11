@@ -12,9 +12,9 @@ import (
 
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
+	"actlabs-hub/internal/logger"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slog"
 )
 
 type labService struct {
@@ -27,15 +27,13 @@ func NewLabService(repo entity.LabRepository) entity.LabService {
 	}
 }
 
-func (l *labService) GetAllPrivateLabs(typeOfLab string) ([]entity.LabType, error) {
+func (l *labService) GetAllPrivateLabs(ctx context.Context, typeOfLab string) ([]entity.LabType, error) {
 	if typeOfLab != "challengelab" {
-		slog.Error("only challenge labs are allowed via this function",
-			slog.String("typeOfLab", typeOfLab),
-		)
+		logger.LogError(ctx, "only challenge labs are allowed via this function", "typeOfLab", typeOfLab)
 		return []entity.LabType{}, errors.New("only challenge labs are allowed via this function")
 	}
 
-	labs, err := l.GetLabs(typeOfLab)
+	labs, err := l.GetLabs(ctx, typeOfLab)
 	if err != nil {
 		return []entity.LabType{}, err
 	}
@@ -43,8 +41,8 @@ func (l *labService) GetAllPrivateLabs(typeOfLab string) ([]entity.LabType, erro
 	return labs, nil
 }
 
-func (l *labService) GetPrivateLabs(typeOfLab string, userId string) ([]entity.LabType, error) {
-	labs, err := l.GetLabs(typeOfLab)
+func (l *labService) GetPrivateLabs(ctx context.Context, typeOfLab string, userId string) ([]entity.LabType, error) {
+	labs, err := l.GetLabs(ctx, typeOfLab)
 	if err != nil {
 		return labs, err
 	}
@@ -60,28 +58,23 @@ func (l *labService) GetPrivateLabs(typeOfLab string, userId string) ([]entity.L
 	return filteredLabs, nil
 }
 
-func (l *labService) GetPrivateLab(typeOfLab string, labId string) (entity.LabType, error) {
-	lab, err := l.labRepository.GetLab(context.TODO(), typeOfLab, labId)
+func (l *labService) GetPrivateLab(ctx context.Context, typeOfLab string, labId string) (entity.LabType, error) {
+	lab, err := l.labRepository.GetLab(ctx, typeOfLab, labId)
 	if err != nil {
-		slog.Error("not able to get lab",
-			slog.String("labId", labId),
-			slog.String("typeOfLab", typeOfLab),
-			slog.String("error", err.Error()),
-		)
-
+		logger.LogError(ctx, "not able to get lab", "labId", labId, "typeOfLab", typeOfLab, "error", err.Error())
 		return entity.LabType{}, fmt.Errorf("not able to get lab")
 	}
 
 	return lab, nil
 }
 
-func (l *labService) GetPublicLabs(typeOfLab string) ([]entity.LabType, error) {
+func (l *labService) GetPublicLabs(ctx context.Context, typeOfLab string) ([]entity.LabType, error) {
 	// Public labs must only be shown to users who own them.
-	return l.GetLabs(typeOfLab)
+	return l.GetLabs(ctx, typeOfLab)
 }
 
-func (l *labService) GetProtectedLab(typeOfLab string, labId string, userId string, requestIsWithSecret bool) (entity.LabType, error) {
-	labs, err := l.GetProtectedLabs(typeOfLab, userId, requestIsWithSecret)
+func (l *labService) GetProtectedLab(ctx context.Context, typeOfLab string, labId string, userId string, requestIsWithSecret bool) (entity.LabType, error) {
+	labs, err := l.GetProtectedLabs(ctx, typeOfLab, userId, requestIsWithSecret)
 	if err != nil {
 		return entity.LabType{}, err
 	}
@@ -94,10 +87,10 @@ func (l *labService) GetProtectedLab(typeOfLab string, labId string, userId stri
 	return entity.LabType{}, errors.New("lab not found")
 }
 
-func (l *labService) GetProtectedLabs(typeOfLab string, userId string, requestIsWithSecret bool) ([]entity.LabType, error) {
+func (l *labService) GetProtectedLabs(ctx context.Context, typeOfLab string, userId string, requestIsWithSecret bool) ([]entity.LabType, error) {
 
 	// If RbacEnforcedProtectedLab is enabled then we need to redact description, supporting document and script.
-	labs, err := l.GetLabs(typeOfLab)
+	labs, err := l.GetLabs(ctx, typeOfLab)
 	if err != nil {
 		return []entity.LabType{}, err
 	}
@@ -118,43 +111,38 @@ func (l *labService) GetProtectedLabs(typeOfLab string, userId string, requestIs
 	return labs, nil
 }
 
-func (l *labService) GetLabs(typeOfLab string) ([]entity.LabType, error) {
-	slog.Info("getting labs",
-		slog.String("typeOfLab", typeOfLab),
-	)
+func (l *labService) GetLabs(ctx context.Context, typeOfLab string) ([]entity.LabType, error) {
+	logger.LogInfo(ctx, "getting labs", "typeOfLab", typeOfLab)
 
 	labs := []entity.LabType{}
 
-	blobs, err := l.labRepository.ListBlobs(context.TODO(), typeOfLab)
+	blobs, err := l.labRepository.ListBlobs(ctx, typeOfLab)
 	if err != nil {
-		slog.Error("not able to get list of blobs",
-			slog.String("typeOfLab", typeOfLab),
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "not able to get list of blobs", "typeOfLab", typeOfLab, "error", err.Error())
 		return labs, err
 	}
 
+	logger.LogDebug(ctx, "listed labs", "type", typeOfLab, "count", len(blobs))
+
 	for _, element := range blobs {
 		if element.IsCurrentVersion {
-			lab, err := l.labRepository.GetLab(context.TODO(), typeOfLab, element.Name) //element.Name is labId
+			lab, err := l.labRepository.GetLab(ctx, typeOfLab, element.Name) //element.Name is labId
 			if err != nil {
-				slog.Error("not able to get blob from given url",
-					slog.String("labId", element.Name),
-					slog.String("typeOfLab", typeOfLab),
-					slog.String("error", err.Error()),
-				)
+				logger.LogError(ctx, "not able to get blob from given url", "labId", element.Name, "typeOfLab", typeOfLab, "error", err.Error())
 				continue
 			}
-			AddCategoryToLabIfMissing(l, &lab)
+			AddCategoryToLabIfMissing(ctx, l, &lab)
 			labs = append(labs, lab)
 		}
 	}
 
+	logger.LogDebug(ctx, "current versions of labs", "type", typeOfLab, "count", len(labs))
+
 	return labs, nil
 }
 
-func (l *labService) UpsertPrivateLab(lab entity.LabType) (entity.LabType, error) {
-	ok, err := l.IsUpsertAllowed(lab)
+func (l *labService) UpsertPrivateLab(ctx context.Context, lab entity.LabType) (entity.LabType, error) {
+	ok, err := l.IsUpsertAllowed(ctx, lab)
 	if err != nil {
 		return lab, err
 	}
@@ -163,11 +151,11 @@ func (l *labService) UpsertPrivateLab(lab entity.LabType) (entity.LabType, error
 		return lab, fmt.Errorf("user is not either owner or editor which is required to edit the private lab")
 	}
 
-	return l.UpsertLab(lab)
+	return l.UpsertLab(ctx, lab)
 }
 
-func (l *labService) UpsertPublicLab(lab entity.LabType) (entity.LabType, error) {
-	ok, err := l.IsUpsertAllowed(lab)
+func (l *labService) UpsertPublicLab(ctx context.Context, lab entity.LabType) (entity.LabType, error) {
+	ok, err := l.IsUpsertAllowed(ctx, lab)
 	if err != nil {
 		return lab, err
 	}
@@ -175,24 +163,24 @@ func (l *labService) UpsertPublicLab(lab entity.LabType) (entity.LabType, error)
 	if !ok {
 		return lab, fmt.Errorf("user is not either owner or editor which is required to edit the public lab")
 	}
-	return l.UpsertLab(lab)
+	return l.UpsertLab(ctx, lab)
 }
 
-func (l *labService) UpsertProtectedLab(lab entity.LabType, userId string) (entity.LabType, error) {
+func (l *labService) UpsertProtectedLab(ctx context.Context, lab entity.LabType, userId string) (entity.LabType, error) {
 	// if lab Id is empty and there are no owners, let it go.
 	if lab.Id == "" && len(lab.Owners) == 0 {
-		return l.UpsertLab(lab)
+		return l.UpsertLab(ctx, lab)
 	}
 
 	if lab.RbacEnforcedProtectedLab && !helper.Contains(lab.Owners, userId) && !helper.Contains(lab.Editors, userId) {
 		return lab, errors.New("only the owner or an editor can modify this RBAC-enforced lab, please contact the owner or editor for access or further details")
 	}
-	return l.UpsertLab(lab)
+	return l.UpsertLab(ctx, lab)
 }
 
-func (l *labService) UpsertLab(lab entity.LabType) (entity.LabType, error) {
+func (l *labService) UpsertLab(ctx context.Context, lab entity.LabType) (entity.LabType, error) {
 
-	ok, err := l.ValidateAddingEditorsOrViewers(lab)
+	ok, err := l.ValidateAddingEditorsOrViewers(ctx, lab)
 	if err != nil {
 		return lab, &json.MarshalerError{}
 	}
@@ -201,49 +189,33 @@ func (l *labService) UpsertLab(lab entity.LabType) (entity.LabType, error) {
 		return lab, errors.New("user is not an owner and there are changes in owners, editors, or viewers")
 	}
 
-	l.NewLabThings(&lab)
-	l.AssignOwnerToOrphanLab(&lab)
+	l.NewLabThings(ctx, &lab)
+	l.AssignOwnerToOrphanLab(ctx, &lab)
 
 	// Ensure supporting document exists if its part of the lab.
 	if lab.SupportingDocumentId != "" {
-		if !l.DoesSupportingDocumentExist(context.TODO(), lab.SupportingDocumentId) {
-			slog.Error("Supporting document doesn't exist",
-				slog.String("SupportingDocumentId", lab.SupportingDocumentId),
-			)
+		if !l.DoesSupportingDocumentExist(ctx, lab.SupportingDocumentId) {
+			logger.LogError(ctx, "Supporting document doesn't exist", "SupportingDocumentId", lab.SupportingDocumentId)
 			return lab, errors.New("supporting document doesn't exist")
 		}
 	}
 
 	val, err := json.Marshal(lab)
 	if err != nil {
-		slog.Error("not able to convert object to string",
-			slog.String("labName", lab.Name),
-			slog.String("labId", lab.Id),
-			slog.String("typeOfLab", lab.Type),
-			slog.String("owners", strings.Join(lab.Owners, ", ")),
-			slog.String("editors", strings.Join(lab.Editors, ", ")),
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "not able to convert object to string", "labName", lab.Name, "labId", lab.Id, "typeOfLab", lab.Type, "owners", strings.Join(lab.Owners, ", "), "editors", strings.Join(lab.Editors, ", "), "error", err.Error())
 		return lab, fmt.Errorf("not able to convert object to string")
 	}
 
-	if err := l.labRepository.UpsertLab(context.TODO(), lab.Id, string(val), lab.Type); err != nil {
-		slog.Error("not able to save lab",
-			slog.String("labName", lab.Name),
-			slog.String("labId", lab.Id),
-			slog.String("typeOfLab", lab.Type),
-			slog.String("owners", strings.Join(lab.Owners, ", ")),
-			slog.String("editors", strings.Join(lab.Editors, ", ")),
-			slog.String("error", err.Error()),
-		)
+	if err := l.labRepository.UpsertLab(ctx, lab.Id, string(val), lab.Type); err != nil {
+		logger.LogError(ctx, "not able to save lab", "labName", lab.Name, "labId", lab.Id, "typeOfLab", lab.Type, "owners", strings.Join(lab.Owners, ", "), "editors", strings.Join(lab.Editors, ", "), "error", err.Error())
 		return lab, fmt.Errorf("not able to save lab")
 	}
 
 	return lab, nil
 }
 
-func (l *labService) DeletePrivateLab(typeOfLab string, labId string, userId string) error {
-	ok, err := l.IsDeleteAllowed(typeOfLab, labId, userId)
+func (l *labService) DeletePrivateLab(ctx context.Context, typeOfLab string, labId string, userId string) error {
+	ok, err := l.IsDeleteAllowed(ctx, typeOfLab, labId, userId)
 	if err != nil {
 		return err
 	}
@@ -252,98 +224,81 @@ func (l *labService) DeletePrivateLab(typeOfLab string, labId string, userId str
 		return errors.New("only owner can delete the lab")
 	}
 
-	if err := l.DeleteLab(typeOfLab, labId); err != nil {
-		slog.Error("not able to delete lab",
-			slog.String("userId", userId),
-			slog.String("labId", labId),
-			slog.String("typeOfLab", typeOfLab),
-			slog.String("error", err.Error()),
-		)
+	if err := l.DeleteLab(ctx, typeOfLab, labId); err != nil {
+		logger.LogError(ctx, "not able to delete lab", "labId", labId, "typeOfLab", typeOfLab, "error", err.Error())
 		return fmt.Errorf("not able to delete lab")
 	}
 
 	return nil
 }
 
-func (l *labService) DeletePublicLab(typeOfLab string, labId string, userId string) error {
-	ok, err := l.IsDeleteAllowed(typeOfLab, labId, userId)
+func (l *labService) DeletePublicLab(ctx context.Context, typeOfLab string, labId string, userId string) error {
+	ok, err := l.IsDeleteAllowed(ctx, typeOfLab, labId, userId)
 	if err != nil {
-		slog.Error("Not able to verify if delete should be allowed or not",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "Not able to verify if delete should be allowed or not", "error", err.Error())
 	}
 
 	if !ok {
-		slog.Error("Only owner can delete the lab", nil)
+		logger.LogError(ctx, "Only owner can delete the lab", "labId", labId)
 		return errors.New("only owner can delete the lab")
 	}
 
-	return l.DeleteLab(typeOfLab, labId)
+	return l.DeleteLab(ctx, typeOfLab, labId)
 }
 
-func (l *labService) DeleteProtectedLab(typeOfLab string, labId string) error {
-	return l.DeleteLab(typeOfLab, labId)
+func (l *labService) DeleteProtectedLab(ctx context.Context, typeOfLab string, labId string) error {
+	return l.DeleteLab(ctx, typeOfLab, labId)
 }
 
-func (l *labService) DeleteLab(typeOfLab string, labId string) error {
+func (l *labService) DeleteLab(ctx context.Context, typeOfLab string, labId string) error {
 	// Delete supporting document if any.
-	lab, err := l.labRepository.GetLab(context.TODO(), typeOfLab, labId)
+	lab, err := l.labRepository.GetLab(ctx, typeOfLab, labId)
 	if err != nil {
-		slog.Error("not able to get lab",
-			slog.String("labId", labId),
-		)
+		logger.LogError(ctx, "not able to get lab", "labId", labId, "error", err.Error())
 		return err
 	}
 
 	if lab.SupportingDocumentId != "" {
-		if l.DoesSupportingDocumentExist(context.TODO(), lab.SupportingDocumentId) {
-			if err := l.DeleteSupportingDocument(context.TODO(), lab.SupportingDocumentId); err != nil {
-				slog.Error("not able to delete supporting document",
-					slog.String("error", err.Error()),
-				)
+		if l.DoesSupportingDocumentExist(ctx, lab.SupportingDocumentId) {
+			if err := l.DeleteSupportingDocument(ctx, lab.SupportingDocumentId); err != nil {
+				logger.LogError(ctx, "not able to delete supporting document", "error", err.Error())
 				return err
 			}
 		}
 	}
 
-	if err := l.labRepository.DeleteLab(context.TODO(), typeOfLab, labId); err != nil {
-		slog.Error("not able to delete lab",
-			slog.String("error", err.Error()),
-		)
+	if err := l.labRepository.DeleteLab(ctx, typeOfLab, labId); err != nil {
+		logger.LogError(ctx, "not able to delete lab", "error", err.Error())
 		return err
 	}
 	return nil
 }
 
-func (l *labService) GetPrivateLabVersions(typeOfLab string, labId string, userId string) ([]entity.LabType, error) {
-	existingLab, err := l.labRepository.GetLab(context.TODO(), typeOfLab, labId)
+func (l *labService) GetPrivateLabVersions(ctx context.Context, typeOfLab string, labId string, userId string) ([]entity.LabType, error) {
+	existingLab, err := l.labRepository.GetLab(ctx, typeOfLab, labId)
 	if err != nil {
-		slog.Error("Not able to get the current version of lab.",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "Not able to get the current version of lab.", "error", err.Error())
 		return []entity.LabType{}, err
 	}
 	if !helper.Contains(existingLab.Owners, userId) && !helper.Contains(existingLab.Editors, userId) && !helper.Contains(existingLab.Viewers, userId) {
-		slog.Error("User doesn't have access to view Lab "+existingLab.Name, err)
+		logger.LogError(ctx, "User doesn't have access to view Lab", "labName", existingLab.Name)
 		return []entity.LabType{}, errors.New("user does not have access to view lab")
 	}
-	return l.GetLabVersions(typeOfLab, labId)
+	return l.GetLabVersions(ctx, typeOfLab, labId)
 }
 
-func (l *labService) GetPublicLabVersions(typeOfLab string, labId string) ([]entity.LabType, error) {
-	return l.GetLabVersions(typeOfLab, labId)
+func (l *labService) GetPublicLabVersions(ctx context.Context, typeOfLab string, labId string) ([]entity.LabType, error) {
+	return l.GetLabVersions(ctx, typeOfLab, labId)
 }
 
-func (l *labService) GetProtectedLabVersions(typeOfLab string, labId string) ([]entity.LabType, error) {
-	return l.GetLabVersions(typeOfLab, labId)
+func (l *labService) GetProtectedLabVersions(ctx context.Context, typeOfLab string, labId string) ([]entity.LabType, error) {
+	return l.GetLabVersions(ctx, typeOfLab, labId)
 }
 
-func (l *labService) GetLabVersions(typeOfLab string, labId string) ([]entity.LabType, error) {
-	labs, err := l.labRepository.GetLabWithVersions(context.TODO(), typeOfLab, labId)
+func (l *labService) GetLabVersions(ctx context.Context, typeOfLab string, labId string) ([]entity.LabType, error) {
+	labs, err := l.labRepository.GetLabWithVersions(ctx, typeOfLab, labId)
 	if err != nil {
-		slog.Error("Not able to get list of blobs",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "Not able to get list of blobs", "error", err.Error())
 		return []entity.LabType{}, err
 	}
 
@@ -354,9 +309,7 @@ func (l *labService) GetLabVersions(typeOfLab string, labId string) ([]entity.La
 func (l *labService) UpsertSupportingDocument(ctx context.Context, supportingDocument multipart.File) (string, error) {
 	supportingDocumentId, err := l.labRepository.UpsertSupportingDocument(ctx, supportingDocument)
 	if err != nil {
-		slog.Error("not able to save supporting document",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "not able to save supporting document", "error", err.Error())
 		return "", err
 	}
 
@@ -366,17 +319,13 @@ func (l *labService) UpsertSupportingDocument(ctx context.Context, supportingDoc
 func (l *labService) DeleteSupportingDocument(ctx context.Context, supportingDocumentId string) error {
 
 	if !l.DoesSupportingDocumentExist(ctx, supportingDocumentId) {
-		slog.Error("Supporting document doesn't exist",
-			slog.String("SupportingDocumentId", supportingDocumentId),
-		)
+		logger.LogError(ctx, "Supporting document doesn't exist", "SupportingDocumentId", supportingDocumentId)
 
 		return nil
 	}
 
 	if err := l.labRepository.DeleteSupportingDocument(ctx, supportingDocumentId); err != nil {
-		slog.Error("not able to delete supporting document",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "not able to delete supporting document", "error", err.Error())
 		return err
 	}
 
@@ -386,9 +335,7 @@ func (l *labService) DeleteSupportingDocument(ctx context.Context, supportingDoc
 func (l *labService) GetSupportingDocument(ctx context.Context, supportingDocumentId string) (io.ReadCloser, error) {
 	supportingDocument, err := l.labRepository.GetSupportingDocument(ctx, supportingDocumentId)
 	if err != nil {
-		slog.Error("not able to get supporting document",
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "not able to get supporting document", "error", err.Error())
 		return nil, err
 	}
 
@@ -397,14 +344,14 @@ func (l *labService) GetSupportingDocument(ctx context.Context, supportingDocume
 
 func (l *labService) DoesSupportingDocumentExist(ctx context.Context, supportingDocumentId string) bool {
 	exists := l.labRepository.DoesSupportingDocumentExist(ctx, supportingDocumentId)
-	slog.Debug("Supporting document exists: " + supportingDocumentId + " " + fmt.Sprint(exists))
+	logger.LogDebug(ctx, "Supporting document exists", "supportingDocumentId", supportingDocumentId, "exists", exists)
 	return exists
 }
 
 // Helper functions.
 
 // NewLabThings modifies the given lab.
-func (l *labService) NewLabThings(lab *entity.LabType) {
+func (l *labService) NewLabThings(ctx context.Context, lab *entity.LabType) {
 	if lab.Id == "" {
 		lab.Id = uuid.NewString()
 		lab.Owners = append(lab.Owners, lab.CreatedBy)
@@ -412,7 +359,7 @@ func (l *labService) NewLabThings(lab *entity.LabType) {
 }
 
 // Orphan Lab needs owner
-func (l *labService) AssignOwnerToOrphanLab(lab *entity.LabType) {
+func (l *labService) AssignOwnerToOrphanLab(ctx context.Context, lab *entity.LabType) {
 	if len(lab.Owners) == 0 {
 		if lab.CreatedBy != "" {
 			lab.Owners = append(lab.Owners, lab.CreatedBy)
@@ -424,7 +371,7 @@ func (l *labService) AssignOwnerToOrphanLab(lab *entity.LabType) {
 			lab.Owners = append(lab.Owners, "ashisverma@microsoft.com")
 			lab.Owners = append(lab.Owners, "ericlucier@microsoft.com")
 		}
-		slog.Debug("Updating Owners: " + strings.Join(lab.Owners, ", "))
+		logger.LogDebug(ctx, "Updating Owners", "owners", strings.Join(lab.Owners, ", "))
 	}
 
 	if len(lab.Owners) == 1 && lab.Owners[0] == "" {
@@ -440,54 +387,30 @@ func (l *labService) AssignOwnerToOrphanLab(lab *entity.LabType) {
 			lab.Owners = append(lab.Owners, "ashisverma@microsoft.com")
 			lab.Owners = append(lab.Owners, "ericlucier@microsoft.com")
 		}
-		slog.Debug("Updating Owners: " + strings.Join(lab.Owners, ", "))
+		logger.LogDebug(ctx, "Updating Owners", "owners", strings.Join(lab.Owners, ", "))
 	}
 }
 
-func (l *labService) ValidateAddingEditorsOrViewers(lab entity.LabType) (bool, error) {
+func (l *labService) ValidateAddingEditorsOrViewers(ctx context.Context, lab entity.LabType) (bool, error) {
 	if lab.Id == "" {
-		slog.Debug("new lab, all good",
-			slog.String("labName", lab.Name),
-			slog.String("owners", strings.Join(lab.Owners, ", ")),
-		)
+		logger.LogDebug(ctx, "new lab, all good", "labName", lab.Name, "owners", strings.Join(lab.Owners, ", "))
 		return true, nil // New lab all good.
 	}
 
-	existingLab, err := l.labRepository.GetLab(context.TODO(), lab.Type, lab.Id)
+	existingLab, err := l.labRepository.GetLab(ctx, lab.Type, lab.Id)
 	if err != nil {
-		slog.Error("error getting current version of lab",
-			slog.String("labName", lab.Name),
-			slog.String("labId", lab.Id),
-			slog.String("typeOfLab", lab.Type),
-			slog.String("owners", strings.Join(lab.Owners, ", ")),
-			slog.String("editors", strings.Join(lab.Editors, ", ")),
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "error getting current version of lab", "labName", lab.Name, "labId", lab.Id, "typeOfLab", lab.Type, "owners", strings.Join(lab.Owners, ", "), "editors", strings.Join(lab.Editors, ", "), "error", err.Error())
 		return false, fmt.Errorf("error getting current version of lab")
 	}
 
 	if len(existingLab.Owners) == 0 || (len(existingLab.Owners) == 1 && existingLab.Owners[0] == "") {
-		slog.Debug("no owners specified allowing changes",
-			slog.String("labName", lab.Name),
-			slog.String("labId", lab.Id),
-			slog.String("typeOfLab", lab.Type),
-			slog.String("owners", strings.Join(lab.Owners, ", ")),
-			slog.String("editors", strings.Join(lab.Editors, ", ")),
-		)
+		logger.LogDebug(ctx, "no owners specified allowing changes", "labName", lab.Name, "labId", lab.Id, "typeOfLab", lab.Type, "owners", strings.Join(lab.Owners, ", "), "editors", strings.Join(lab.Editors, ", "))
 		return true, nil
 	}
 
 	if !helper.Contains(existingLab.Owners, lab.UpdatedBy) {
 		if !helper.SlicesAreEqual(existingLab.Owners, lab.Owners) || !helper.SlicesAreEqual(existingLab.Editors, lab.Editors) || !helper.SlicesAreEqual(existingLab.Viewers, lab.Viewers) {
-			slog.Error("user is not owner and there are changes in either owners, editors or viewers which is not allowed",
-				slog.String("labName", lab.Name),
-				slog.String("labId", lab.Id),
-				slog.String("typeOfLab", lab.Type),
-				slog.String("updatedBy", lab.UpdatedBy),
-				slog.String("owners", strings.Join(lab.Owners, ", ")),
-				slog.String("editors", strings.Join(lab.Editors, ", ")),
-				slog.String("viewers", strings.Join(lab.Viewers, ", ")),
-			)
+			logger.LogError(ctx, "user is not owner and there are changes in either owners, editors or viewers which is not allowed", "labName", lab.Name, "labId", lab.Id, "typeOfLab", lab.Type, "updatedBy", lab.UpdatedBy, "owners", strings.Join(lab.Owners, ", "), "editors", strings.Join(lab.Editors, ", "), "viewers", strings.Join(lab.Viewers, ", "))
 			return false, fmt.Errorf("user is not owner and there are changes in owners, editors, or viewers")
 		}
 	}
@@ -495,61 +418,36 @@ func (l *labService) ValidateAddingEditorsOrViewers(lab entity.LabType) (bool, e
 	return true, nil
 }
 
-func (l *labService) IsUpsertAllowed(lab entity.LabType) (bool, error) {
+func (l *labService) IsUpsertAllowed(ctx context.Context, lab entity.LabType) (bool, error) {
 	if lab.Id == "" {
-		slog.Debug("New lab, all good",
-			slog.String("labName", lab.Name),
-			slog.String("owners", strings.Join(lab.Owners, ", ")),
-		)
+		logger.LogDebug(ctx, "New lab, all good", "labName", lab.Name, "owners", strings.Join(lab.Owners, ", "))
 		return true, nil // New lab all good.
 	}
 
 	// if lab is not new, we must find it in db.
-	existingLab, err := l.labRepository.GetLab(context.TODO(), lab.Type, lab.Id)
+	existingLab, err := l.labRepository.GetLab(ctx, lab.Type, lab.Id)
 	if err != nil {
-		slog.Error("error getting current version of lab",
-			slog.String("labName", lab.Name),
-			slog.String("labId", lab.Id),
-			slog.String("typeOfLab", lab.Type),
-			slog.String("owners", strings.Join(lab.Owners, ", ")),
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "error getting current version of lab", "labName", lab.Name, "labId", lab.Id, "typeOfLab", lab.Type, "owners", strings.Join(lab.Owners, ", "), "error", err.Error())
 		return false, err
 	}
 
 	if len(existingLab.Owners) == 0 || (len(existingLab.Owners) == 1 && existingLab.Owners[0] == "") {
-		slog.Debug("no owners specified. allowing changes",
-			slog.String("labName", lab.Name),
-			slog.String("labId", lab.Id),
-			slog.String("typeOfLab", lab.Type),
-			slog.String("owners", strings.Join(lab.Owners, ", ")),
-		)
+		logger.LogDebug(ctx, "no owners specified. allowing changes", "labName", lab.Name, "labId", lab.Id, "typeOfLab", lab.Type, "owners", strings.Join(lab.Owners, ", "))
 		return true, nil
 	}
 
 	if !helper.Contains(existingLab.Owners, lab.UpdatedBy) && !helper.Contains(existingLab.Editors, lab.UpdatedBy) {
-		slog.Error("user is not either owner or editor which is required to edit the lab",
-			slog.String("labName", lab.Name),
-			slog.String("labId", lab.Id),
-			slog.String("typeOfLab", lab.Type),
-			slog.String("owners", strings.Join(lab.Owners, ", ")),
-			slog.String("editors", strings.Join(lab.Editors, ", ")),
-		)
+		logger.LogError(ctx, "user is not either owner or editor which is required to edit the lab", "labName", lab.Name, "labId", lab.Id, "typeOfLab", lab.Type, "owners", strings.Join(lab.Owners, ", "), "editors", strings.Join(lab.Editors, ", "))
 		return false, fmt.Errorf("user is not owner or editor") // user not either owner or editor. edit not allowed.
 	}
 
 	return true, nil
 }
 
-func (l *labService) IsDeleteAllowed(typeOfLab string, labId string, userId string) (bool, error) {
-	existingLab, err := l.labRepository.GetLab(context.TODO(), typeOfLab, labId)
+func (l *labService) IsDeleteAllowed(ctx context.Context, typeOfLab string, labId string, userId string) (bool, error) {
+	existingLab, err := l.labRepository.GetLab(ctx, typeOfLab, labId)
 	if err != nil {
-		slog.Error("error getting current version of lab",
-			slog.String("useId", userId),
-			slog.String("labId", labId),
-			slog.String("typeOfLab", typeOfLab),
-			slog.String("error", err.Error()),
-		)
+		logger.LogError(ctx, "error getting current version of lab", "labId", labId, "typeOfLab", typeOfLab, "error", err.Error())
 		return false, fmt.Errorf("error getting current version of lab")
 	}
 
@@ -560,9 +458,9 @@ func (l *labService) IsDeleteAllowed(typeOfLab string, labId string, userId stri
 	return true, nil
 }
 
-func AddCategoryToLabIfMissing(l *labService, lab *entity.LabType) {
+func AddCategoryToLabIfMissing(ctx context.Context, l *labService, lab *entity.LabType) {
 	if lab.Category == "" {
-		slog.Debug("Updating Category for " + lab.Name)
+		logger.LogDebug(ctx, "Updating Category for lab", "labName", lab.Name)
 		if lab.Type == "readinesslab" || lab.Type == "mockcase" {
 			lab.Category = "protected"
 		}
@@ -574,6 +472,6 @@ func AddCategoryToLabIfMissing(l *labService, lab *entity.LabType) {
 		}
 
 		// Update lab so that this change is saved.
-		l.UpsertLab(*lab)
+		l.UpsertLab(ctx, *lab)
 	}
 }

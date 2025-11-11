@@ -8,8 +8,7 @@ import (
 	"actlabs-hub/internal/config"
 	"actlabs-hub/internal/entity"
 	"actlabs-hub/internal/helper"
-
-	"golang.org/x/exp/slog"
+	"actlabs-hub/internal/logger"
 )
 
 type DeploymentService struct {
@@ -36,10 +35,9 @@ func NewDeploymentService(
 func (d *DeploymentService) GetAllDeployments(ctx context.Context) ([]entity.Deployment, error) {
 	deployments, err := d.deploymentRepository.GetAllDeployments(ctx)
 	if err != nil {
-		slog.Error("not able to get all deployments",
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to get all deployments",
+			"error", err,
 		)
-
 		return nil, err
 	}
 
@@ -47,17 +45,12 @@ func (d *DeploymentService) GetAllDeployments(ctx context.Context) ([]entity.Dep
 }
 
 func (d *DeploymentService) GetUserDeployments(ctx context.Context, usePrincipalName string) ([]entity.Deployment, error) {
-	slog.Info("getting user deployments",
-		slog.String("userPrincipalName", usePrincipalName),
-	)
-
 	deployments, err := d.deploymentRepository.GetUserDeployments(ctx, usePrincipalName)
 	if err != nil {
-		slog.Error("not able to get user deployments",
-			slog.String("userPrincipalName", usePrincipalName),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to get user deployments",
+			"requested_user_id", usePrincipalName,
+			"error", err,
 		)
-
 		return nil, err
 	}
 
@@ -65,21 +58,14 @@ func (d *DeploymentService) GetUserDeployments(ctx context.Context, usePrincipal
 }
 
 func (d *DeploymentService) GetDeployment(ctx context.Context, usePrincipalName string, workspace string, subscriptionId string) (entity.Deployment, error) {
-	slog.Info("getting deployment",
-		slog.String("userPrincipalName", usePrincipalName),
-		slog.String("workspace", workspace),
-		slog.String("subscriptionId", subscriptionId),
-	)
-
 	deployment, err := d.deploymentRepository.GetDeployment(ctx, usePrincipalName, workspace, subscriptionId)
 	if err != nil {
-		slog.Error("not able to get deployment",
-			slog.String("userPrincipalName", usePrincipalName),
-			slog.String("workspace", workspace),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to get deployment",
+			"requested_user_id", usePrincipalName,
+			"workspace", workspace,
+			"subscription_id", subscriptionId,
+			"error", err,
 		)
-
 		return entity.Deployment{}, err
 	}
 
@@ -87,28 +73,20 @@ func (d *DeploymentService) GetDeployment(ctx context.Context, usePrincipalName 
 }
 
 func (d *DeploymentService) UpsertDeployment(ctx context.Context, deployment entity.Deployment) error {
-	slog.Info("upserting deployment",
-		slog.String("userPrincipalName", deployment.DeploymentUserId),
-		slog.String("deploymentWorkspace", deployment.DeploymentWorkspace),
-		slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-	)
-
 	if deployment.DeploymentWorkspace == "" || deployment.DeploymentSubscriptionId == "" || deployment.DeploymentUserId == "" {
-		slog.Error("workspace or subscription id cant be empty",
-			slog.String("userPrincipalName", deployment.DeploymentUserId),
-			slog.String("workspace", deployment.DeploymentWorkspace),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
+		logger.LogError(ctx, "user Id, workspace and subscription id are all required",
+			"workspace", deployment.DeploymentWorkspace,
+			"subscription_id", deployment.DeploymentSubscriptionId,
+			"user_id", deployment.DeploymentUserId,
 		)
-
 		return fmt.Errorf("userId, workspace or subscription id cant be empty")
 	}
 
 	if err := d.deploymentRepository.UpsertDeployment(ctx, deployment); err != nil {
-		slog.Error("not able to upsert deployment",
-			slog.String("userPrincipalName", deployment.DeploymentUserId),
-			slog.String("deploymentWorkspace", deployment.DeploymentWorkspace),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to upsert deployment",
+			"workspace", deployment.DeploymentWorkspace,
+			"subscription_id", deployment.DeploymentSubscriptionId,
+			"error", err,
 		)
 
 		// Create Event
@@ -120,11 +98,10 @@ func (d *DeploymentService) UpsertDeployment(ctx context.Context, deployment ent
 			Reporter:  "actlabs-hub",
 			Object:    deployment.DeploymentUserId,
 		}); err != nil {
-			slog.Error("not able to create event",
-				slog.String("userPrincipalName", deployment.DeploymentUserId),
-				slog.String("workspace", deployment.DeploymentWorkspace),
-				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-				slog.String("error", err.Error()),
+			logger.LogError(ctx, "failed to create warning event",
+				"workspace", deployment.DeploymentWorkspace,
+				"subscription_id", deployment.DeploymentSubscriptionId,
+				"error", err,
 			)
 		}
 
@@ -140,11 +117,10 @@ func (d *DeploymentService) UpsertDeployment(ctx context.Context, deployment ent
 		Reporter:  "actlabs-hub",
 		Object:    deployment.DeploymentUserId,
 	}); err != nil {
-		slog.Error("not able to create event",
-			slog.String("userPrincipalName", deployment.DeploymentUserId),
-			slog.String("workspace", deployment.DeploymentWorkspace),
-			slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to create success event",
+			"workspace", deployment.DeploymentWorkspace,
+			"subscription_id", deployment.DeploymentSubscriptionId,
+			"error", err,
 		)
 	}
 
@@ -156,28 +132,22 @@ func (d *DeploymentService) UpsertDeployment(ctx context.Context, deployment ent
 }
 
 func (d *DeploymentService) DeleteDeployment(ctx context.Context, userPrincipalName string, subscriptionId string, workspace string) error {
-	slog.Info("deleting deployment",
-		slog.String("userPrincipalName", userPrincipalName),
-		slog.String("workspace", workspace),
-		slog.String("subscriptionId", subscriptionId),
-	)
-
 	// default deployment cant be deleted.
 	if workspace == "default" {
-		slog.Error("default workspace cant be deleted",
-			slog.String("userPrincipalName", userPrincipalName),
-			slog.String("workspace", workspace),
-			slog.String("subscriptionId", subscriptionId),
+		logger.LogError(ctx, "default workspace cannot be deleted",
+			"requested_user_id", userPrincipalName,
+			"workspace", workspace,
+			"subscription_id", subscriptionId,
 		)
 		return nil
 	}
 
 	if err := d.deploymentRepository.DeleteDeployment(ctx, userPrincipalName, subscriptionId, workspace); err != nil {
-		slog.Error("not able to delete deployment",
-			slog.String("userPrincipalName", userPrincipalName),
-			slog.String("workspace", workspace),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to delete deployment",
+			"requested_user_id", userPrincipalName,
+			"workspace", workspace,
+			"subscription_id", subscriptionId,
+			"error", err,
 		)
 
 		// Create Event
@@ -189,11 +159,11 @@ func (d *DeploymentService) DeleteDeployment(ctx context.Context, userPrincipalN
 			Reporter:  "actlabs-hub",
 			Object:    userPrincipalName,
 		}); err != nil {
-			slog.Error("not able to create event",
-				slog.String("userPrincipalName", userPrincipalName),
-				slog.String("workspace", workspace),
-				slog.String("subscriptionId", subscriptionId),
-				slog.String("error", err.Error()),
+			logger.LogError(ctx, "failed to create warning event",
+				"requested_user_id", userPrincipalName,
+				"workspace", workspace,
+				"subscription_id", subscriptionId,
+				"error", err,
 			)
 		}
 
@@ -209,19 +179,19 @@ func (d *DeploymentService) DeleteDeployment(ctx context.Context, userPrincipalN
 		Reporter:  "actlabs-hub",
 		Object:    userPrincipalName,
 	}); err != nil {
-		slog.Error("not able to create event",
-			slog.String("userPrincipalName", userPrincipalName),
-			slog.String("workspace", workspace),
-			slog.String("subscriptionId", subscriptionId),
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to create success event",
+			"requested_user_id", userPrincipalName,
+			"workspace", workspace,
+			"subscription_id", subscriptionId,
+			"error", err,
 		)
 	}
 
 	return nil
 }
 
-func (d *DeploymentService) MonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments(ctx context.Context) {
-	helper.Recoverer(100, "MonitorAndDeployAutoDestroyedServersToDestroyPendingDeployments", func() {
+func (d *DeploymentService) MonitorAndAutoDestroyDeployments(ctx context.Context) {
+	helper.Recoverer(ctx, 100, "MonitorAndAutoDestroyDeployments", func() {
 		ticker := time.NewTicker(time.Duration(d.appConfig.ActlabsHubDeploymentsPollingIntervalSeconds) * time.Second)
 		defer ticker.Stop()
 
@@ -233,8 +203,8 @@ func (d *DeploymentService) MonitorAndDeployAutoDestroyedServersToDestroyPending
 			case <-ticker.C:
 				// Every minute, check for servers to destroy
 				if err := d.PollDeploymentsToBeAutoDestroyed(ctx); err != nil {
-					slog.Error("not able to deploy auto destroyed servers to destroy pending deployments",
-						slog.String("error", err.Error()),
+					logger.LogError(ctx, "failed to poll deployments for auto destruction",
+						"error", err,
 					)
 				}
 			}
@@ -243,11 +213,10 @@ func (d *DeploymentService) MonitorAndDeployAutoDestroyedServersToDestroyPending
 }
 
 func (d *DeploymentService) PollDeploymentsToBeAutoDestroyed(ctx context.Context) error {
-	slog.Info("polling for deployments to be destroyed")
 	allDeployments, err := d.deploymentRepository.GetAllDeployments(ctx)
 	if err != nil {
-		slog.Error("not able to get all deployments",
-			slog.String("error", err.Error()),
+		logger.LogError(ctx, "failed to get all deployments for auto destruction check",
+			"error", err,
 		)
 		return err
 	}
@@ -264,80 +233,10 @@ func (d *DeploymentService) PollDeploymentsToBeAutoDestroyed(ctx context.Context
 			(deployment.DeploymentStatus == entity.DeploymentCompleted ||
 				deployment.DeploymentStatus == entity.DeploymentFailed) {
 
-			slog.Info("redeploying server to destroy pending deployment",
-				slog.String("userPrincipalName", deployment.DeploymentUserId),
-				slog.String("workspace", deployment.DeploymentWorkspace),
-				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-			)
-
-			go d.RedeployServer(ctx, deployment)
+			d.deploymentRepository.AutoDestroyDeployment(ctx, deployment.DeploymentUserId, deployment)
 		}
 
 	}
 
 	return nil
-}
-
-func (d *DeploymentService) RedeployServer(ctx context.Context, deployment entity.Deployment) {
-
-	server, err := d.serverService.GetServer(deployment.DeploymentUserId)
-	if err != nil {
-		slog.Error("not able to get server",
-			slog.String("userPrincipalName", deployment.DeploymentUserId),
-		)
-		return
-	}
-
-	if server.Status == entity.ServerStatusAutoDestroyed &&
-		server.SubscriptionId == deployment.DeploymentSubscriptionId {
-		// deploy server again.
-		server, err := d.serverService.DeployServer(server)
-		if err != nil {
-			slog.Error("not able to deploy server",
-				slog.String("userPrincipalName", deployment.DeploymentUserId),
-				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-				slog.String("error", err.Error()),
-			)
-
-			return
-		}
-
-		// ensure server status is running.
-		if server.Status != entity.ServerStatusRunning {
-			slog.Error("not able to deploy server",
-				slog.String("userPrincipalName", deployment.DeploymentUserId),
-				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-				slog.String("error", err.Error()),
-			)
-
-			return
-		}
-
-		// update activity so that server stays alive for at least 15 minutes.
-		if err := d.serverService.UpdateActivityStatus(server.UserPrincipalName); err != nil {
-			slog.Error("not able to update activity status",
-				slog.String("userPrincipalName", deployment.DeploymentUserId),
-				slog.String("subscriptionId", deployment.DeploymentSubscriptionId),
-				slog.String("error", err.Error()),
-			)
-		}
-	}
-}
-
-func (d *DeploymentService) GetUserPrincipalNameByMSIPrincipalID(ctx context.Context, msiPrincipalID string) (string, error) {
-	slog.Info("getting user principal name by msi principal id",
-		slog.String("msiPrincipalID", msiPrincipalID),
-	)
-
-	userPrincipalName, err := d.deploymentRepository.GetUserPrincipalNameByMSIPrincipalID(ctx, msiPrincipalID)
-	if err != nil {
-		slog.Error("not able to get user principal name by msi principal id",
-			slog.String("msiPrincipalID", msiPrincipalID),
-			slog.String("error", err.Error()),
-		)
-
-		return "", err
-	}
-
-	return userPrincipalName, nil
 }

@@ -1,12 +1,12 @@
 package helper
 
 import (
+	"actlabs-hub/internal/logger"
+	"context"
 	"errors"
-
-	"golang.org/x/exp/slog"
 )
 
-func Recoverer(maxRetries int, id string, f func()) {
+func Recoverer(ctx context.Context, maxRetries int, id string, f func()) {
 	defer func() {
 		if r := recover(); r != nil {
 			var err error
@@ -18,24 +18,24 @@ func Recoverer(maxRetries int, id string, f func()) {
 			default:
 				err = errors.New("unknown panic")
 			}
-			slog.Error("recovering goroutine panic",
-				slog.String("id", id),
-				slog.String("err", err.Error()),
-				slog.Int("retry", maxRetries),
-				slog.Int("remaining retries", maxRetries-1),
+			logger.LogError(ctx, "recovering goroutine panic",
+				"id", id,
+				"err", err,
+				"retry", maxRetries,
+				"remaining retries", maxRetries-1,
 			)
 			if maxRetries == 0 {
-				slog.Error("max retries exceeded, not retrying",
-					slog.String("id", id),
+				logger.LogError(ctx, "max retries exceeded, not retrying",
+					"id", id,
 				)
 				panic("max retries exceeded, not retrying")
 			} else {
-				go Recoverer(maxRetries-1, id, f)
+				go Recoverer(ctx, maxRetries-1, id, f)
 			}
 		}
 	}()
-	slog.Info("starting goroutine",
-		slog.String("id", id),
+	logger.LogInfo(ctx, "starting goroutine",
+		"id", id,
 	)
 	f() // call the function
 }
