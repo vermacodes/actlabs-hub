@@ -20,7 +20,7 @@ func NewServerHandler(r *gin.RouterGroup, serverService entity.ServerService) {
 
 	r.GET("/server", handler.GetServer)
 
-	r.PUT("/server/register/:subscriptionId", handler.RegisterSubscription)
+	r.PUT("/server/register", handler.RegisterSubscription)
 	r.PUT("/server/unregister", handler.Unregister)
 
 	r.PUT("/server/activity/:userPrincipalName", handler.UpdateActivityStatus)
