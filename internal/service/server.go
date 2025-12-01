@@ -190,6 +190,11 @@ func (s *serverService) Validate(ctx context.Context, server entity.Server) erro
 		server.UserAlias = strings.Split(server.UserPrincipalName, "@")[0]
 	}
 
+	if s.appConfig.ActlabsEnvironmentName == "local" {
+		// Skip authorization check in local environment.
+		return nil
+	}
+
 	ok, err := s.serverRepository.IsUserAuthorized(ctx, server)
 	if err != nil {
 		logger.LogError(ctx, "failed to verify user authorization for subscription",
