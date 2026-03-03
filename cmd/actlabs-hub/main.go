@@ -11,6 +11,7 @@ import (
 	"actlabs-hub/internal/redis"
 	"actlabs-hub/internal/repository"
 	"actlabs-hub/internal/service"
+	"actlabs/ratelimit"
 	"context"
 	"log/slog"
 	"net/http"
@@ -120,6 +121,9 @@ func main() {
 		go deploymentService.MonitorAndAutoDestroyDeployments(ctx)
 	}
 
+	// add in ratelimiter
+	rateLimiter := ratelimit.NewLimiter(rdb, ratelimit.DefaultConfig())
+
 	// Disable Gin's default logging since we use structured logging
 	middleware.DisableGinDefaultLogging()
 
@@ -145,6 +149,13 @@ func main() {
 
 	authRouter := router.Group("/")
 	authRouter.Use(middleware.Auth(miseServer, *appConfig))
+	authRouter.Use(ratelimit.Middleware(rateLimiter, func(c *gin.Context) string {
+		// logger.UserIDKey is hub's internal contextKey type
+		if uid, ok := c.Request.Context().Value(logger.UserIDKey).(string); ok {
+			return uid
+		}
+		return ""
+	}))
 
 	apiKeyAuthRouter := router.Group("/")
 	apiKeyAuthRouter.Use(middleware.APIKeyAuthRequired(*appConfig))
