@@ -36,7 +36,7 @@ func (s *serverService) RegisterSubscription(ctx context.Context, server entity.
 	server.PartitionKey = "actlabs"
 	server.RowKey = server.UserPrincipalName
 	server.Version = "V2"
-	server.Region = "eastus"
+	server.Region = "West Central US"
 
 	// if tenant is fdpo, set version to V3.
 	// set FdpoUserPrincipalId to userPrincipalId.
