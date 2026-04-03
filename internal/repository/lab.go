@@ -86,9 +86,16 @@ func (l *labRepository) ListBlobs(
 		}
 		for _, blob := range resp.Segment.BlobItems {
 			// Remove verbose debug logging - repository should focus on infrastructure errors only
+			// Azurite doesn't support blob versioning (https://github.com/Azure/Azurite/issues/665)
+			// Handle nil VersionID gracefully
+			versionId := "current"
+			if blob.VersionID != nil {
+				versionId = *blob.VersionID
+			}
+
 			blobs = append(blobs, entity.Blob{
 				Name:             *blob.Name,
-				VersionId:        *blob.VersionID,
+				VersionId:        versionId,
 				IsCurrentVersion: true,
 			})
 		}
