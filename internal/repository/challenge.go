@@ -46,8 +46,7 @@ func (c *challengeRepository) GetAllChallenges(ctx context.Context) ([]entity.Ch
 		}
 
 		for _, entity := range page.Entities {
-			data, _ := json.Marshal(entity)
-			if err := json.Unmarshal(data, &challenge); err != nil {
+			if err := json.Unmarshal(entity, &challenge); err != nil {
 				logger.LogError(ctx, "failed to unmarshal entity",
 					"error", err,
 				)
@@ -76,13 +75,12 @@ func (c *challengeRepository) GetChallengesByLabId(ctx context.Context, labId st
 		}
 
 		for _, element := range response.Entities {
-			//var myEntity aztables.EDMEntity
 			if err := json.Unmarshal(element, &challenge); err != nil {
 				logger.LogError(ctx, "failed to unmarshal entity",
 					"lab_id", labId,
 					"error", err,
 				)
-				return challenges, err
+				continue
 			}
 			challenges = append(challenges, challenge)
 		}
@@ -107,13 +105,12 @@ func (c *challengeRepository) GetChallengesByUserId(ctx context.Context, userId 
 		}
 
 		for _, element := range response.Entities {
-			//var myEntity aztables.EDMEntity
 			if err := json.Unmarshal(element, &challenge); err != nil {
 				logger.LogError(ctx, "failed to unmarshal entity",
 					"user_id", userId,
 					"error", err,
 				)
-				return challenges, err
+				continue
 			}
 
 			if challenge.UserId == userId {
