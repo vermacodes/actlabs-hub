@@ -165,6 +165,7 @@ func main() {
 	handler.NewAssignmentHandler(authRouter.Group("/"), assignmentService, appConfig)
 	handler.NewAssignmentAPIKeyHandler(apiKeyAuthRouter.Group("/"), assignmentService, appConfig)
 	handler.NewChallengeHandler(authRouter.Group("/"), challengeService, appConfig)
+	handler.NewChallengeAPIKeyHandler(apiKeyAuthRouter.Group("/"), challengeService, appConfig)
 	handler.NewAuthHandler(authRouter.Group("/"), authService)
 
 	handler.NewDeploymentHandler(apiKeyAuthRouter.Group("/"), deploymentService)

@@ -30,7 +30,15 @@ func NewChallengeHandler(r *gin.RouterGroup, service entity.ChallengeService, ap
 	r.POST("/challenge", handler.UpsertChallenges)
 	r.DELETE("/challenge/:challengeId", handler.DeleteChallenge)
 
-	// requires super secret header.
+}
+
+func NewChallengeAPIKeyHandler(r *gin.RouterGroup, service entity.ChallengeService, appConfig *config.Config) {
+	handler := &challengeHandler{
+		challengeService: service,
+		appConfig:        appConfig,
+	}
+
+	// requires API key
 	r.PUT("/challenge/:userId/:labId/:status", handler.UpdateChallenge)
 }
 
