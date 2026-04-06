@@ -121,7 +121,7 @@ func main() {
 		go deploymentService.MonitorAndAutoDestroyDeployments(ctx)
 	}
 
-	// add in ratelimiter
+	// add in ratelimiter for user calls
 	rateLimiter := ratelimit.NewLimiter(rdb, ratelimit.DefaultConfig())
 
 	// Disable Gin's default logging since we use structured logging
@@ -160,11 +160,30 @@ func main() {
 	apiKeyAuthRouter := router.Group("/")
 	apiKeyAuthRouter.Use(middleware.APIKeyAuthRequired(*appConfig))
 
+	apiKeyRateLimiter := ratelimit.NewLimiter(rdb, ratelimit.Config{
+		Window:            1 * time.Minute,
+		MaxRequests:       200, // Higher limit for API key authenticated routes
+		InitialBackoff:    1 * time.Second,
+		MaxBackoff:        60 * time.Second,
+		BackoffMultiplier: 2.0,
+		KeyPrefix:         "api_key_ratelimit",
+	})
+
+	apiKeyAuthRouter.Use(ratelimit.Middleware(apiKeyRateLimiter, func(c *gin.Context) string {
+		// For API key authenticated routes, we can use the API key itself as the identifier for rate limiting
+		apiKey := c.GetHeader("x-api-key")
+		if apiKey != "" {
+			return apiKey
+		}
+		return ""
+	}))
+
 	handler.NewHealthzHandler(router.Group("/"))
 	handler.NewServerHandler(authRouter.Group("/"), serverService)
 	handler.NewAssignmentHandler(authRouter.Group("/"), assignmentService, appConfig)
 	handler.NewAssignmentAPIKeyHandler(apiKeyAuthRouter.Group("/"), assignmentService, appConfig)
 	handler.NewChallengeHandler(authRouter.Group("/"), challengeService, appConfig)
+	handler.NewChallengeAPIKeyHandler(apiKeyAuthRouter.Group("/"), challengeService, appConfig)
 	handler.NewAuthHandler(authRouter.Group("/"), authService)
 
 	handler.NewDeploymentHandler(apiKeyAuthRouter.Group("/"), deploymentService)
