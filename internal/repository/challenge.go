@@ -74,9 +74,9 @@ func (c *challengeRepository) GetChallengeById(ctx context.Context, challengeId 
 			return challenge, err
 		}
 
-		for _, entity := range page.Entities {
-			var ch entity.Challenge
-			if err := json.Unmarshal(entity, &ch); err != nil {
+		for _, _entity := range page.Entities {
+			ch := entity.Challenge{}
+			if err := json.Unmarshal(_entity, &ch); err != nil {
 				logger.LogError(ctx, "failed to unmarshal entity",
 					"challenge_id", challengeId,
 					"error", err,
