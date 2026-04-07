@@ -61,6 +61,7 @@ type LabService interface {
 	DeleteProtectedLab(ctx context.Context, typeOfLab string, labId string) error
 
 	// Shared functions
+	GetLabByIdAndType(ctx context.Context, typeOfLab string, labId string) (LabType, error)
 	GetLabs(ctx context.Context, typeOfLab string) ([]LabType, error)
 	GetLabVersions(ctx context.Context, typeOfLab string, labId string) ([]LabType, error)
 	UpsertLab(ctx context.Context, lab LabType) (LabType, error)
@@ -81,6 +82,7 @@ type LabRepository interface {
 		typeOfLab string,
 		labId string,
 	) (LabType, error) // send empty versionId ("") to get current version.
+
 	GetLabWithVersions(ctx context.Context, typeOfLab string, labId string) ([]LabType, error)
 
 	UpsertLab(ctx context.Context, labId string, lab string, typeOfLab string) error

@@ -111,6 +111,16 @@ func (l *labService) GetProtectedLabs(ctx context.Context, typeOfLab string, use
 	return labs, nil
 }
 
+func (l *labService) GetLabByIdAndType(ctx context.Context, typeOfLab string, labId string) (entity.LabType, error) {
+	lab, err := l.labRepository.GetLab(ctx, typeOfLab, labId)
+	if err != nil {
+		logger.LogError(ctx, "not able to get lab", "labId", labId, "typeOfLab", typeOfLab, "error", err.Error())
+		return entity.LabType{}, fmt.Errorf("not able to get lab")
+	}
+
+	return lab, nil
+}
+
 func (l *labService) GetLabs(ctx context.Context, typeOfLab string) ([]entity.LabType, error) {
 	logger.LogInfo(ctx, "getting labs", "typeOfLab", typeOfLab)
 

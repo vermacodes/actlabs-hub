@@ -7,6 +7,7 @@ import (
 	"actlabs-hub/internal/logger"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -57,6 +58,37 @@ func (c *challengeRepository) GetAllChallenges(ctx context.Context) ([]entity.Ch
 	}
 
 	return challenges, nil
+}
+
+func (c *challengeRepository) GetChallengeById(ctx context.Context, challengeId string) (entity.Challenge, error) {
+	challenge := entity.Challenge{}
+
+	pager := c.auth.ActlabsChallengesTableClient.NewListEntitiesPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			logger.LogError(ctx, "failed to get entities from table storage",
+				"challenge_id", challengeId,
+				"error", err,
+			)
+			return challenge, err
+		}
+
+		for _, entity := range page.Entities {
+			if err := json.Unmarshal(entity, &challenge); err != nil {
+				logger.LogError(ctx, "failed to unmarshal entity",
+					"challenge_id", challengeId,
+					"error", err,
+				)
+				continue
+			}
+			if challenge.ChallengeId == challengeId {
+				return challenge, nil
+			}
+		}
+	}
+
+	return challenge, fmt.Errorf("challenge with id %s not found", challengeId)
 }
 
 func (c *challengeRepository) GetChallengesByLabId(ctx context.Context, labId string) ([]entity.Challenge, error) {

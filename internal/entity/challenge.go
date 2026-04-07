@@ -43,6 +43,11 @@ type ChallengeService interface {
 	// Returns an array of challenges and any error encountered.
 	GetAllChallenges(ctx context.Context) ([]Challenge, error)
 
+	// GetChallengeById retrieves a specific challenge by its ID.
+	// challengeId: The ID of the challenge to retrieve.
+	// Returns the Challenge and any error encountered.
+	GetChallengeById(ctx context.Context, challengeId string) (Challenge, error)
+
 	// GetChallengesByLabId retrieves challenges associated with a specific lab.
 	// labId: The ID of the lab.
 	// Returns an array of challenges and any error encountered.
@@ -81,6 +86,11 @@ type ChallengeRepository interface {
 	// GetAllChallenges retrieves all available challenges.
 	// Returns an array of challenges and any error encountered.
 	GetAllChallenges(ctx context.Context) ([]Challenge, error)
+
+	// GetChallengeById retrieves a specific challenge by its ID.
+	// challengeId: The ID of the challenge to retrieve.
+	// Returns the Challenge and any error encountered.
+	GetChallengeById(ctx context.Context, challengeId string) (Challenge, error)
 
 	// GetChallengesByLabId retrieves challenges associated with a specific lab.
 	// labId: The ID of the lab.
