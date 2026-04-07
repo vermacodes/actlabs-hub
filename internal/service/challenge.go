@@ -345,7 +345,7 @@ func (c *challengeService) IsDeleteAllowed(ctx context.Context, challengeId stri
 		return nil
 	}
 
-	if lab.LabControls.ChallengeLabAllowUserToDeleteChallenge {
+	if challenge.UserId == userId && lab.LabControls.ChallengeLabAllowUserToDeleteChallenge {
 		return nil
 	}
 
