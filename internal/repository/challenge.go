@@ -60,36 +60,28 @@ func (c *challengeRepository) GetAllChallenges(ctx context.Context) ([]entity.Ch
 	return challenges, nil
 }
 
-func (c *challengeRepository) GetChallengeById(ctx context.Context, challengeId string) (entity.Challenge, error) {
+func (c *challengeRepository) GetChallengeByUserIdAndLabId(ctx context.Context, userId string, labId string) (entity.Challenge, error) {
 	challenge := entity.Challenge{}
+	rowKey := userId + "+" + labId
 
-	pager := c.auth.ActlabsChallengesTableClient.NewListEntitiesPager(nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			logger.LogError(ctx, "failed to get entities from table storage",
-				"challenge_id", challengeId,
-				"error", err,
-			)
-			return challenge, err
-		}
-
-		for _, _entity := range page.Entities {
-			ch := entity.Challenge{}
-			if err := json.Unmarshal(_entity, &ch); err != nil {
-				logger.LogError(ctx, "failed to unmarshal entity",
-					"challenge_id", challengeId,
-					"error", err,
-				)
-				continue
-			}
-			if ch.ChallengeId == challengeId {
-				return ch, nil
-			}
-		}
+	response, err := c.auth.ActlabsChallengesTableClient.GetEntity(ctx, labId, rowKey, nil)
+	if err != nil {
+		logger.LogError(ctx, "failed to get challenge from table storage",
+			"challenge_id", rowKey,
+			"error", err,
+		)
+		return challenge, fmt.Errorf("challenge with id %s not found", rowKey)
 	}
 
-	return challenge, fmt.Errorf("challenge with id %s not found", challengeId)
+	if err := json.Unmarshal(response.Value, &challenge); err != nil {
+		logger.LogError(ctx, "failed to unmarshal challenge",
+			"challenge_id", rowKey,
+			"error", err,
+		)
+		return challenge, err
+	}
+
+	return challenge, nil
 }
 
 func (c *challengeRepository) GetChallengesByLabId(ctx context.Context, labId string) ([]entity.Challenge, error) {
@@ -156,9 +148,11 @@ func (c *challengeRepository) GetChallengesByUserId(ctx context.Context, userId 
 }
 
 func (c *challengeRepository) DeleteChallenge(ctx context.Context, challengeId string) error {
-	userId := strings.SplitN(challengeId, "+", 2)[1]
+	// challengeId is in format of userId+labId. Split it to get labId.
+	// PartitionKey in table storage is labId, RowKey is userId+labId
+	partitionKey := strings.SplitN(challengeId, "+", 2)[1]
 
-	_, err := c.auth.ActlabsChallengesTableClient.DeleteEntity(ctx, userId, challengeId, nil)
+	_, err := c.auth.ActlabsChallengesTableClient.DeleteEntity(ctx, partitionKey, challengeId, nil)
 	if err != nil {
 		logger.LogError(ctx, "failed to delete challenge from table storage",
 			"challenge_id", challengeId,

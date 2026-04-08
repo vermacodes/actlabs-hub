@@ -85,14 +85,15 @@ func (c *challengeService) GetAllChallenges(ctx context.Context) ([]entity.Chall
 	return challenges, nil
 }
 
-func (c *challengeService) GetChallengeById(ctx context.Context, challengeId string) (entity.Challenge, error) {
-	challenge, err := c.challengeRepository.GetChallengeById(ctx, challengeId)
+func (c *challengeService) GetChallengeByUserIdAndLabId(ctx context.Context, userId string, labId string) (entity.Challenge, error) {
+	challenge, err := c.challengeRepository.GetChallengeByUserIdAndLabId(ctx, userId, labId)
 	if err != nil {
-		logger.LogError(ctx, "failed to get challenge by id",
-			"challenge_id", challengeId,
+		logger.LogError(ctx, "failed to get challenge by user id and lab id",
+			"user_id", userId,
+			"lab_id", labId,
 			"error", err,
 		)
-		return challenge, fmt.Errorf("not able to get challenge for challenge id %s", challengeId)
+		return challenge, fmt.Errorf("not able to get challenge for user id %s and lab id %s", userId, labId)
 	}
 
 	return challenge, nil
@@ -271,7 +272,19 @@ func (c *challengeService) DeleteChallenges(ctx context.Context, challengeIds []
 	for _, challengeId := range challengeIds {
 
 		// Check if delete is allowed for the challenge. If not, return error.
-		if err := c.IsDeleteAllowed(ctx, challengeId); err != nil {
+		// che challengeId is in format of userId+labId. Split it to get userId and labId.
+		parts := strings.Split(challengeId, "+")
+		if len(parts) != 2 {
+			logger.LogError(ctx, "invalid challenge id format",
+				"challenge_id", challengeId,
+			)
+			return fmt.Errorf("invalid challenge id format for challenge id %s", challengeId)
+		}
+
+		userId := parts[0]
+		labId := parts[1]
+
+		if err := c.IsDeleteAllowed(ctx, userId, labId); err != nil {
 			logger.LogError(ctx, "delete not allowed for challenge",
 				"challenge_id", challengeId,
 				"error", err,
@@ -291,23 +304,21 @@ func (c *challengeService) DeleteChallenges(ctx context.Context, challengeIds []
 	return nil
 }
 
-func (c *challengeService) IsDeleteAllowed(ctx context.Context, challengeId string) error {
+func (c *challengeService) IsDeleteAllowed(ctx context.Context, userId string, labId string) error {
 
 	// Get the challenge
-	challenge, err := c.challengeRepository.GetChallengeById(ctx, challengeId)
+	challenge, err := c.challengeRepository.GetChallengeByUserIdAndLabId(ctx, userId, labId)
 	if err != nil {
 		logger.LogError(ctx, "failed to get challenge by id",
-			"challenge_id", challengeId,
+			"challenge_id", userId+"+"+labId,
 			"error", err,
 		)
-		return fmt.Errorf("not able to get challenge for challenge id %s", challengeId)
+		return fmt.Errorf("not able to get challenge for challenge id %s", userId+"+"+labId)
 	}
 
-	// Get user id from context.
-	userId, ok := ctx.Value("user_id").(string)
-	if !ok {
-		return errors.New("failed to get user id from context")
-	}
+	// The calling user is the one making the API request.
+	// Their identity is set in context by the auth middleware.
+	callingUserId := logger.GetUserID(ctx)
 
 	lab, err := c.labService.GetLabByIdAndType(ctx, "challengelab", challenge.LabId)
 	if err != nil {
@@ -318,10 +329,10 @@ func (c *challengeService) IsDeleteAllowed(ctx context.Context, challengeId stri
 		return fmt.Errorf("not able to get lab for lab id %s", challenge.LabId)
 	}
 
-	// check if user is owner or editor of the lab. If yes, allow delete.
+	// Check if calling user is owner or editor of the lab. If yes, allow delete.
 	isOwnerOrEditor := false
 	for _, owner := range lab.Owners {
-		if owner == userId {
+		if owner == callingUserId {
 			isOwnerOrEditor = true
 			break
 		}
@@ -329,7 +340,7 @@ func (c *challengeService) IsDeleteAllowed(ctx context.Context, challengeId stri
 
 	if !isOwnerOrEditor {
 		for _, editor := range lab.Editors {
-			if editor == userId {
+			if editor == callingUserId {
 				isOwnerOrEditor = true
 				break
 			}
@@ -340,12 +351,13 @@ func (c *challengeService) IsDeleteAllowed(ctx context.Context, challengeId stri
 		return nil
 	}
 
-	// check if user is the challenger of the challenge. If yes, check if delete is allowed for challenger. If yes, allow delete.
-	if challenge.CreatedBy == userId && lab.LabControls.ChallengeLabAllowChallengerToDeleteChallenge {
+	// Check if calling user is the challenger (created the challenge). If yes, check if delete is allowed for challenger.
+	if challenge.CreatedBy == callingUserId && lab.LabControls.ChallengeLabAllowChallengerToDeleteChallenge {
 		return nil
 	}
 
-	if challenge.UserId == userId && lab.LabControls.ChallengeLabAllowUserToDeleteChallenge {
+	// Check if calling user is the challenged user. If yes, check if delete is allowed for challenged user.
+	if challenge.UserId == callingUserId && lab.LabControls.ChallengeLabAllowUserToDeleteChallenge {
 		return nil
 	}
 
