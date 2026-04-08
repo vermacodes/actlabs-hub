@@ -131,15 +131,16 @@ func (c *challengeService) UpsertChallenges(ctx context.Context, challenges []en
 	// Has createdBy completed the challenge? Yes? Have they challenged this to two people already? Yes? Return error.
 
 	for _, challenge := range challenges {
-		if challenge.Status == entity.ChallengeStatusAccepted {
+		switch challenge.Status {
+		case entity.ChallengeStatusAccepted:
 			if challenge.ChallengeId == "" {
 				challenge.AcceptedOn = helper.GetTodaysDateTimeString()
 			}
-		} else if challenge.Status == entity.ChallengeStatusCreated {
+		case entity.ChallengeStatusCreated:
 			if challenge.ChallengeId == "" {
 				challenge.CreatedOn = helper.GetTodaysDateTimeString()
 			}
-		} else {
+		default:
 			logger.LogError(ctx, "invalid status",
 				"user_id", challenge.UserId,
 				"lab_id", challenge.LabId,
@@ -241,22 +242,17 @@ func (c *challengeService) UpdateChallenge(ctx context.Context, userId string, l
 		return fmt.Errorf("challenge not found for user id %s and lab id %s", userId, labId)
 	}
 
-	if status == entity.ChallengeStatusAccepted {
-		challenge.AcceptedOn = helper.GetTodaysDateTimeString()
-	} else if status == entity.ChallengeStatusCompleted {
-		challenge.CompletedOn = helper.GetTodaysDateTimeString()
-	} else {
+	updated, err := applyStatusTransition(challenge, status, helper.GetTodaysDateTimeString())
+	if err != nil {
 		logger.LogError(ctx, "invalid status",
 			"user_id", userId,
 			"lab_id", labId,
 			"status", status,
 		)
-		return errors.New("invalid status")
+		return err
 	}
 
-	challenge.Status = status
-
-	if err := c.challengeRepository.UpsertChallenge(ctx, challenge); err != nil {
+	if err := c.challengeRepository.UpsertChallenge(ctx, updated); err != nil {
 		logger.LogError(ctx, "failed to update challenge",
 			"user_id", userId,
 			"lab_id", labId,
@@ -266,6 +262,21 @@ func (c *challengeService) UpdateChallenge(ctx context.Context, userId string, l
 	}
 
 	return nil
+}
+
+// applyStatusTransition is a pure function that applies a status transition to a challenge.
+// It sets the appropriate timestamp field and updates the status.
+func applyStatusTransition(challenge entity.Challenge, status string, now string) (entity.Challenge, error) {
+	switch status {
+	case entity.ChallengeStatusAccepted:
+		challenge.AcceptedOn = now
+	case entity.ChallengeStatusCompleted:
+		challenge.CompletedOn = now
+	default:
+		return challenge, fmt.Errorf("invalid status: %s", status)
+	}
+	challenge.Status = status
+	return challenge, nil
 }
 
 func (c *challengeService) DeleteChallenges(ctx context.Context, challengeIds []string) error {
@@ -329,34 +340,32 @@ func (c *challengeService) IsDeleteAllowed(ctx context.Context, userId string, l
 		return fmt.Errorf("not able to get lab for lab id %s", challenge.LabId)
 	}
 
+	return isDeleteAllowed(callingUserId, challenge, lab)
+}
+
+// isDeleteAllowed is a pure function that checks if the calling user is allowed
+// to delete the given challenge based on lab ownership, editorship, and lab controls.
+func isDeleteAllowed(callingUserId string, challenge entity.Challenge, lab entity.LabType) error {
 	// Check if calling user is owner or editor of the lab. If yes, allow delete.
-	isOwnerOrEditor := false
 	for _, owner := range lab.Owners {
 		if owner == callingUserId {
-			isOwnerOrEditor = true
-			break
+			return nil
+		}
+	}
+	for _, editor := range lab.Editors {
+		if editor == callingUserId {
+			return nil
 		}
 	}
 
-	if !isOwnerOrEditor {
-		for _, editor := range lab.Editors {
-			if editor == callingUserId {
-				isOwnerOrEditor = true
-				break
-			}
-		}
-	}
-
-	if isOwnerOrEditor {
-		return nil
-	}
-
-	// Check if calling user is the challenger (created the challenge). If yes, check if delete is allowed for challenger.
+	// Check if calling user is the challenger (created the challenge).
+	// If yes, check if delete is allowed for challenger.
 	if challenge.CreatedBy == callingUserId && lab.LabControls.ChallengeLabAllowChallengerToDeleteChallenge {
 		return nil
 	}
 
-	// Check if calling user is the challenged user. If yes, check if delete is allowed for challenged user.
+	// Check if calling user is the challenged user.
+	// If yes, check if delete is allowed for challenged user.
 	if challenge.UserId == callingUserId && lab.LabControls.ChallengeLabAllowUserToDeleteChallenge {
 		return nil
 	}
