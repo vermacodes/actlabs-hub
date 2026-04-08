@@ -604,3 +604,84 @@ func TestUpdateChallengeOrchestrator(t *testing.T) {
 		}
 	})
 }
+
+func TestNormalizeUserId(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:  "valid full email",
+			input: "user@microsoft.com",
+			want:  "user@microsoft.com",
+		},
+		{
+			name:  "alias without domain gets suffix appended",
+			input: "ashish",
+			want:  "ashish@microsoft.com",
+		},
+		{
+			name:  "alias with hyphen is valid",
+			input: "ashish-kumar",
+			want:  "ashish-kumar@microsoft.com",
+		},
+		{
+			name:    "empty string is rejected",
+			input:   "",
+			wantErr: true,
+		},
+		{
+			name:    "non-microsoft domain is rejected",
+			input:   "user@gmail.com",
+			wantErr: true,
+		},
+		{
+			name:    "similar domain like microsoft.community is rejected",
+			input:   "user@microsoft.community",
+			wantErr: true,
+		},
+		{
+			name:    "attacker domain is rejected",
+			input:   "user@evil.com",
+			wantErr: true,
+		},
+		{
+			name:    "uppercase letters in alias are rejected",
+			input:   "User",
+			wantErr: true,
+		},
+		{
+			name:    "numbers in alias are rejected",
+			input:   "user123",
+			wantErr: true,
+		},
+		{
+			name:    "special characters in alias are rejected",
+			input:   "user.name",
+			wantErr: true,
+		},
+		{
+			name:    "spaces in alias are rejected",
+			input:   "user name",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeUserId(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("normalizeUserId(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+				return
+			}
+			if tt.wantErr {
+				return
+			}
+			if got != tt.want {
+				t.Errorf("normalizeUserId(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}

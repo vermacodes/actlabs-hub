@@ -7,8 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+var validAliasPattern = regexp.MustCompile(`^[a-z-]+$`)
 
 type challengeService struct {
 	challengeRepository entity.ChallengeRepository
@@ -165,23 +168,9 @@ func (c *challengeService) UpsertChallenges(ctx context.Context, challenges []en
 func (c *challengeService) CreateChallenges(ctx context.Context, userIds []string, labIds []string, createdBy string) error {
 
 	for _, userId := range userIds {
-
-		if !strings.Contains(userId, "@microsoft.com") {
-			userId = userId + "@microsoft.com"
-		}
-
-		valid, err := c.challengeRepository.ValidateUser(ctx, userId)
+		userId, err := normalizeUserId(userId)
 		if err != nil {
-			logger.LogError(ctx, "failed to validate user id",
-				"user_id", userId,
-				"error", err,
-			)
-			continue
-		}
-
-		if !valid {
-			err := errors.New("user id is not valid")
-			logger.LogError(ctx, "user id is not valid",
+			logger.LogError(ctx, "invalid user id domain",
 				"user_id", userId,
 				"error", err,
 			)
@@ -262,6 +251,27 @@ func (c *challengeService) UpdateChallenge(ctx context.Context, userId string, l
 	}
 
 	return nil
+}
+
+// normalizeUserId ensures the userId is a valid @microsoft.com email.
+// The alias portion (before @) must contain only a-z and hyphens.
+// If the userId has no domain, @microsoft.com is appended.
+// If it has a non-@microsoft.com domain, an error is returned.
+func normalizeUserId(userId string) (string, error) {
+	var alias string
+	if !strings.Contains(userId, "@") {
+		alias = userId
+	} else if strings.HasSuffix(userId, "@microsoft.com") {
+		alias = strings.TrimSuffix(userId, "@microsoft.com")
+	} else {
+		return "", fmt.Errorf("invalid email domain for user id %s", userId)
+	}
+
+	if !validAliasPattern.MatchString(alias) {
+		return "", fmt.Errorf("invalid alias for user id %s", userId)
+	}
+
+	return alias + "@microsoft.com", nil
 }
 
 // applyStatusTransition is a pure function that applies a status transition to a challenge.
