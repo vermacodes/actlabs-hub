@@ -26,54 +26,62 @@ func NewChallengeService(challengeRepository entity.ChallengeRepository, labServ
 }
 
 func (a *challengeService) GetAllLabsRedacted(ctx context.Context) ([]entity.LabType, error) {
-	challengeLabRedacted := []entity.LabType{}
-
 	labs, err := a.labService.GetAllPrivateLabs(ctx, "challengelab")
 	if err != nil {
 		logger.LogError(ctx, "failed to get challenge labs",
 			"error", err,
 		)
-		return challengeLabRedacted, errors.New("not able to get challenge labs")
+		return nil, errors.New("not able to get challenge labs")
 	}
 
+	return redactLabs(labs), nil
+}
+
+// redactLabs filters to published labs and redacts sensitive fields.
+func redactLabs(labs []entity.LabType) []entity.LabType {
+	var result []entity.LabType
 	for _, lab := range labs {
-		// Only show published labs
 		if !lab.IsPublished {
 			continue
 		}
-
 		lab.ExtendScript = "redacted"
-		lab.Description = lab.Message //Replace description with message
+		lab.Description = lab.Message
 		lab.Type = "challenge"
 		lab.Tags = []string{"challenge"}
-		challengeLabRedacted = append(challengeLabRedacted, lab)
+		result = append(result, lab)
 	}
-	return challengeLabRedacted, nil
+	return result
 }
 
 func (c *challengeService) GetChallengesLabsRedactedByUserId(ctx context.Context, userId string) ([]entity.LabType, error) {
-	challengeLabs := []entity.LabType{}
-
 	challenges, err := c.GetChallengesByUserId(ctx, userId)
 	if err != nil {
-		return challengeLabs, err
+		return nil, err
 	}
 
 	redactedLabs, err := c.GetAllLabsRedacted(ctx)
 	if err != nil {
-		return challengeLabs, err
+		return nil, err
 	}
 
-	for _, challenge := range challenges {
-		for _, lab := range redactedLabs {
-			if challenge.LabId == lab.Id && challenge.UserId == userId {
-				challengeLabs = append(challengeLabs, lab)
-				break
-			}
+	return filterLabsByChallenges(challenges, redactedLabs), nil
+}
+
+// filterLabsByChallenges returns the subset of labs whose Id matches
+// the LabId of at least one challenge.
+func filterLabsByChallenges(challenges []entity.Challenge, labs []entity.LabType) []entity.LabType {
+	challengedLabIds := make(map[string]struct{}, len(challenges))
+	for _, ch := range challenges {
+		challengedLabIds[ch.LabId] = struct{}{}
+	}
+
+	var result []entity.LabType
+	for _, lab := range labs {
+		if _, ok := challengedLabIds[lab.Id]; ok {
+			result = append(result, lab)
 		}
 	}
-
-	return challengeLabs, nil
+	return result
 }
 
 func (c *challengeService) GetAllChallenges(ctx context.Context) ([]entity.Challenge, error) {
@@ -134,22 +142,17 @@ func (c *challengeService) UpsertChallenges(ctx context.Context, challenges []en
 	// Has createdBy completed the challenge? Yes? Have they challenged this to two people already? Yes? Return error.
 
 	for _, challenge := range challenges {
-		switch challenge.Status {
-		case entity.ChallengeStatusAccepted:
-			if challenge.ChallengeId == "" {
-				challenge.AcceptedOn = helper.GetTodaysDateTimeString()
+		if challenge.ChallengeId == "" {
+			var err error
+			challenge, err = applyStatusTransition(challenge, challenge.Status, helper.GetTodaysDateTimeString())
+			if err != nil {
+				logger.LogError(ctx, "invalid status",
+					"user_id", challenge.UserId,
+					"lab_id", challenge.LabId,
+					"status", challenge.Status,
+				)
+				return err
 			}
-		case entity.ChallengeStatusCreated:
-			if challenge.ChallengeId == "" {
-				challenge.CreatedOn = helper.GetTodaysDateTimeString()
-			}
-		default:
-			logger.LogError(ctx, "invalid status",
-				"user_id", challenge.UserId,
-				"lab_id", challenge.LabId,
-				"status", challenge.Status,
-			)
-			return errors.New("invalid status")
 		}
 
 		if err := c.challengeRepository.UpsertChallenge(ctx, challenge); err != nil {
@@ -282,6 +285,8 @@ func applyStatusTransition(challenge entity.Challenge, status string, now string
 		challenge.AcceptedOn = now
 	case entity.ChallengeStatusCompleted:
 		challenge.CompletedOn = now
+	case entity.ChallengeStatusCreated:
+		challenge.CreatedOn = now
 	default:
 		return challenge, fmt.Errorf("invalid status: %s", status)
 	}

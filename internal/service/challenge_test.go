@@ -419,6 +419,7 @@ func TestApplyStatusTransition(t *testing.T) {
 		wantStatus      string
 		wantAcceptedOn  string
 		wantCompletedOn string
+		wantCreatedOn   string
 		wantErr         bool
 	}{
 		{
@@ -477,6 +478,18 @@ func TestApplyStatusTransition(t *testing.T) {
 			wantErr:         false,
 		},
 		{
+			name: "created sets CreatedOn and status",
+			challenge: entity.Challenge{
+				UserId: "user@microsoft.com",
+				LabId:  "lab1",
+			},
+			status:        entity.ChallengeStatusCreated,
+			now:           "2026-04-08T00:00:00Z",
+			wantStatus:    entity.ChallengeStatusCreated,
+			wantCreatedOn: "2026-04-08T00:00:00Z",
+			wantErr:       false,
+		},
+		{
 			name:      "empty status returns error",
 			challenge: entity.Challenge{},
 			status:    "",
@@ -503,6 +516,9 @@ func TestApplyStatusTransition(t *testing.T) {
 			}
 			if got.CompletedOn != tt.wantCompletedOn {
 				t.Errorf("CompletedOn = %q, want %q", got.CompletedOn, tt.wantCompletedOn)
+			}
+			if got.CreatedOn != tt.wantCreatedOn {
+				t.Errorf("CreatedOn = %q, want %q", got.CreatedOn, tt.wantCreatedOn)
 			}
 		})
 	}
@@ -684,4 +700,727 @@ func TestNormalizeUserId(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateChallengesOrchestrator(t *testing.T) {
+	t.Run("skips invalid user ids", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				validateUser: true,
+			},
+		}
+		// "User" has uppercase, should be skipped; no upsert call, no error
+		err := svc.CreateChallenges(context.Background(), []string{"User"}, []string{"lab1"}, "creator@microsoft.com")
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+
+	t.Run("skips attacker email domain", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				validateUser: true,
+			},
+		}
+		err := svc.CreateChallenges(context.Background(), []string{"attacker@evil.com"}, []string{"lab1"}, "creator@microsoft.com")
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+
+	t.Run("normalizes alias and creates challenge", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				validateUser: true,
+			},
+		}
+		err := svc.CreateChallenges(context.Background(), []string{"ashish"}, []string{"lab1"}, "creator@microsoft.com")
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+
+	t.Run("creates challenge for valid full email", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				validateUser: true,
+			},
+		}
+		err := svc.CreateChallenges(context.Background(), []string{"user@microsoft.com"}, []string{"lab1"}, "creator@microsoft.com")
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+
+	t.Run("returns error when upsert fails", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				validateUser: true,
+				upsertErr:    errors.New("upsert failed"),
+			},
+		}
+		err := svc.CreateChallenges(context.Background(), []string{"user@microsoft.com"}, []string{"lab1"}, "creator@microsoft.com")
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+
+	t.Run("creates challenges for multiple users and labs", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				validateUser: true,
+			},
+		}
+		err := svc.CreateChallenges(context.Background(), []string{"user-a", "user-b"}, []string{"lab1", "lab2"}, "creator@microsoft.com")
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+
+	t.Run("skips empty user id", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				validateUser: true,
+			},
+		}
+		err := svc.CreateChallenges(context.Background(), []string{""}, []string{"lab1"}, "creator@microsoft.com")
+		if err != nil {
+			t.Errorf("expected nil (skipped), got %v", err)
+		}
+	})
+
+	t.Run("continues past invalid users and creates for valid ones", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				validateUser: true,
+			},
+		}
+		err := svc.CreateChallenges(context.Background(), []string{"attacker@evil.com", "valid-user"}, []string{"lab1"}, "creator@microsoft.com")
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+}
+
+func TestUpsertChallengesOrchestrator(t *testing.T) {
+	t.Run("new challenge with accepted status sets AcceptedOn", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{},
+		}
+		challenges := []entity.Challenge{
+			{
+				ChallengeId: "",
+				UserId:      "user@microsoft.com",
+				LabId:       "lab1",
+				Status:      entity.ChallengeStatusAccepted,
+			},
+		}
+		err := svc.UpsertChallenges(context.Background(), challenges)
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+
+	t.Run("new challenge with created status sets CreatedOn", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{},
+		}
+		challenges := []entity.Challenge{
+			{
+				ChallengeId: "",
+				UserId:      "user@microsoft.com",
+				LabId:       "lab1",
+				Status:      entity.ChallengeStatusCreated,
+			},
+		}
+		err := svc.UpsertChallenges(context.Background(), challenges)
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+
+	t.Run("new challenge with invalid status returns error", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{},
+		}
+		challenges := []entity.Challenge{
+			{
+				ChallengeId: "",
+				UserId:      "user@microsoft.com",
+				LabId:       "lab1",
+				Status:      "bogus",
+			},
+		}
+		err := svc.UpsertChallenges(context.Background(), challenges)
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+
+	t.Run("existing challenge skips status transition", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{},
+		}
+		challenges := []entity.Challenge{
+			{
+				ChallengeId: "existing-id",
+				UserId:      "user@microsoft.com",
+				LabId:       "lab1",
+				Status:      "bogus", // invalid but should be skipped since ChallengeId is set
+			},
+		}
+		err := svc.UpsertChallenges(context.Background(), challenges)
+		if err != nil {
+			t.Errorf("expected nil (skipped transition), got %v", err)
+		}
+	})
+
+	t.Run("returns error when upsert fails", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				upsertErr: errors.New("upsert failed"),
+			},
+		}
+		challenges := []entity.Challenge{
+			{
+				ChallengeId: "",
+				UserId:      "user@microsoft.com",
+				LabId:       "lab1",
+				Status:      entity.ChallengeStatusAccepted,
+			},
+		}
+		err := svc.UpsertChallenges(context.Background(), challenges)
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+
+	t.Run("processes multiple challenges and stops on first error", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				upsertErr: errors.New("upsert failed"),
+			},
+		}
+		challenges := []entity.Challenge{
+			{
+				ChallengeId: "",
+				UserId:      "user-a@microsoft.com",
+				LabId:       "lab1",
+				Status:      entity.ChallengeStatusCreated,
+			},
+			{
+				ChallengeId: "",
+				UserId:      "user-b@microsoft.com",
+				LabId:       "lab2",
+				Status:      entity.ChallengeStatusAccepted,
+			},
+		}
+		err := svc.UpsertChallenges(context.Background(), challenges)
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+
+	t.Run("succeeds with empty challenges list", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{},
+		}
+		err := svc.UpsertChallenges(context.Background(), []entity.Challenge{})
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+}
+
+func TestGetAllChallengesOrchestrator(t *testing.T) {
+	t.Run("returns challenges on success", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				challenges: []entity.Challenge{
+					{ChallengeId: "id1", UserId: "user@microsoft.com", LabId: "lab1"},
+					{ChallengeId: "id2", UserId: "user@microsoft.com", LabId: "lab2"},
+				},
+			},
+		}
+		got, err := svc.GetAllChallenges(context.Background())
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+		if len(got) != 2 {
+			t.Errorf("expected 2 challenges, got %d", len(got))
+		}
+	})
+
+	t.Run("returns error when repository fails", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				err: errors.New("db error"),
+			},
+		}
+		_, err := svc.GetAllChallenges(context.Background())
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+
+	t.Run("returns empty slice when no challenges", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				challenges: []entity.Challenge{},
+			},
+		}
+		got, err := svc.GetAllChallenges(context.Background())
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+		if len(got) != 0 {
+			t.Errorf("expected 0 challenges, got %d", len(got))
+		}
+	})
+}
+
+func TestGetChallengeByUserIdAndLabIdOrchestrator(t *testing.T) {
+	t.Run("returns challenge on success", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				challenge: entity.Challenge{ChallengeId: "id1", UserId: "user@microsoft.com", LabId: "lab1"},
+			},
+		}
+		got, err := svc.GetChallengeByUserIdAndLabId(context.Background(), "user@microsoft.com", "lab1")
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+		if got.ChallengeId != "id1" {
+			t.Errorf("expected ChallengeId=id1, got %s", got.ChallengeId)
+		}
+	})
+
+	t.Run("returns error when repository fails", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				err: errors.New("not found"),
+			},
+		}
+		_, err := svc.GetChallengeByUserIdAndLabId(context.Background(), "user@microsoft.com", "lab1")
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+}
+
+func TestGetChallengesByLabIdOrchestrator(t *testing.T) {
+	t.Run("returns challenges on success", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				challenges: []entity.Challenge{
+					{ChallengeId: "id1", LabId: "lab1"},
+					{ChallengeId: "id2", LabId: "lab1"},
+				},
+			},
+		}
+		got, err := svc.GetChallengesByLabId(context.Background(), "lab1")
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+		if len(got) != 2 {
+			t.Errorf("expected 2 challenges, got %d", len(got))
+		}
+	})
+
+	t.Run("returns error when repository fails", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				err: errors.New("db error"),
+			},
+		}
+		_, err := svc.GetChallengesByLabId(context.Background(), "lab1")
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+}
+
+func TestGetChallengesByUserIdOrchestrator(t *testing.T) {
+	t.Run("returns challenges on success", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				challenges: []entity.Challenge{
+					{ChallengeId: "id1", UserId: "user@microsoft.com"},
+					{ChallengeId: "id2", UserId: "user@microsoft.com"},
+				},
+			},
+		}
+		got, err := svc.GetChallengesByUserId(context.Background(), "user@microsoft.com")
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+		if len(got) != 2 {
+			t.Errorf("expected 2 challenges, got %d", len(got))
+		}
+	})
+
+	t.Run("returns error when repository fails", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				err: errors.New("db error"),
+			},
+		}
+		_, err := svc.GetChallengesByUserId(context.Background(), "user@microsoft.com")
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+}
+
+func TestFilterLabsByChallenges(t *testing.T) {
+	tests := []struct {
+		name       string
+		challenges []entity.Challenge
+		labs       []entity.LabType
+		wantIds    []string
+	}{
+		{
+			name: "matches challenges to labs",
+			challenges: []entity.Challenge{
+				{LabId: "lab1"},
+				{LabId: "lab3"},
+			},
+			labs: []entity.LabType{
+				{Id: "lab1", Name: "Lab One"},
+				{Id: "lab2", Name: "Lab Two"},
+				{Id: "lab3", Name: "Lab Three"},
+			},
+			wantIds: []string{"lab1", "lab3"},
+		},
+		{
+			name:       "empty challenges returns empty",
+			challenges: []entity.Challenge{},
+			labs: []entity.LabType{
+				{Id: "lab1"},
+			},
+			wantIds: nil,
+		},
+		{
+			name: "empty labs returns empty",
+			challenges: []entity.Challenge{
+				{LabId: "lab1"},
+			},
+			labs:    []entity.LabType{},
+			wantIds: nil,
+		},
+		{
+			name: "no matching lab ids",
+			challenges: []entity.Challenge{
+				{LabId: "lab99"},
+			},
+			labs: []entity.LabType{
+				{Id: "lab1"},
+				{Id: "lab2"},
+			},
+			wantIds: nil,
+		},
+		{
+			name: "duplicate challenge lab ids only match once",
+			challenges: []entity.Challenge{
+				{LabId: "lab1"},
+				{LabId: "lab1"},
+			},
+			labs: []entity.LabType{
+				{Id: "lab1", Name: "Lab One"},
+			},
+			wantIds: []string{"lab1"},
+		},
+		{
+			name:       "both empty returns empty",
+			challenges: []entity.Challenge{},
+			labs:       []entity.LabType{},
+			wantIds:    nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := filterLabsByChallenges(tt.challenges, tt.labs)
+			var gotIds []string
+			for _, lab := range got {
+				gotIds = append(gotIds, lab.Id)
+			}
+			if len(gotIds) != len(tt.wantIds) {
+				t.Errorf("expected %v, got %v", tt.wantIds, gotIds)
+				return
+			}
+			for i := range gotIds {
+				if gotIds[i] != tt.wantIds[i] {
+					t.Errorf("expected %v, got %v", tt.wantIds, gotIds)
+					return
+				}
+			}
+		})
+	}
+}
+
+func TestGetChallengesLabsRedactedByUserIdOrchestrator(t *testing.T) {
+	t.Run("returns matching redacted labs", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				challenges: []entity.Challenge{
+					{LabId: "lab1", UserId: "user@microsoft.com"},
+					{LabId: "lab2", UserId: "user@microsoft.com"},
+				},
+			},
+			labService: &mockLabService{
+				labs: []entity.LabType{
+					{Id: "lab1", Name: "Lab One", ExtendScript: "secret", IsPublished: true, Message: "msg1"},
+					{Id: "lab2", Name: "Lab Two", ExtendScript: "secret", IsPublished: true, Message: "msg2"},
+					{Id: "lab3", Name: "Lab Three", ExtendScript: "secret", IsPublished: true, Message: "msg3"},
+				},
+			},
+		}
+		got, err := svc.GetChallengesLabsRedactedByUserId(context.Background(), "user@microsoft.com")
+		if err != nil {
+			t.Fatalf("expected nil, got %v", err)
+		}
+		if len(got) != 2 {
+			t.Fatalf("expected 2 labs, got %d", len(got))
+		}
+		// Verify redaction was applied
+		for _, lab := range got {
+			if lab.ExtendScript != "redacted" {
+				t.Errorf("expected ExtendScript=redacted, got %s", lab.ExtendScript)
+			}
+			if lab.Type != "challenge" {
+				t.Errorf("expected Type=challenge, got %s", lab.Type)
+			}
+		}
+	})
+
+	t.Run("returns error when GetChallengesByUserId fails", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				err: errors.New("repo error"),
+			},
+			labService: &mockLabService{},
+		}
+		_, err := svc.GetChallengesLabsRedactedByUserId(context.Background(), "user@microsoft.com")
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+
+	t.Run("returns error when GetAllLabsRedacted fails", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				challenges: []entity.Challenge{{LabId: "lab1"}},
+			},
+			labService: &mockLabService{
+				err: errors.New("lab service error"),
+			},
+		}
+		_, err := svc.GetChallengesLabsRedactedByUserId(context.Background(), "user@microsoft.com")
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+
+	t.Run("returns nil when no challenges", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				challenges: []entity.Challenge{},
+			},
+			labService: &mockLabService{
+				labs: []entity.LabType{
+					{Id: "lab1", IsPublished: true, Message: "msg"},
+				},
+			},
+		}
+		got, err := svc.GetChallengesLabsRedactedByUserId(context.Background(), "user@microsoft.com")
+		if err != nil {
+			t.Fatalf("expected nil, got %v", err)
+		}
+		if got != nil {
+			t.Errorf("expected nil, got %v", got)
+		}
+	})
+
+	t.Run("skips unpublished labs", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				challenges: []entity.Challenge{
+					{LabId: "lab1"},
+					{LabId: "lab2"},
+				},
+			},
+			labService: &mockLabService{
+				labs: []entity.LabType{
+					{Id: "lab1", IsPublished: true, Message: "msg1"},
+					{Id: "lab2", IsPublished: false, Message: "msg2"},
+				},
+			},
+		}
+		got, err := svc.GetChallengesLabsRedactedByUserId(context.Background(), "user@microsoft.com")
+		if err != nil {
+			t.Fatalf("expected nil, got %v", err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("expected 1 lab, got %d", len(got))
+		}
+		if got[0].Id != "lab1" {
+			t.Errorf("expected lab1, got %s", got[0].Id)
+		}
+	})
+
+	t.Run("no matching labs returns nil", func(t *testing.T) {
+		svc := &challengeService{
+			challengeRepository: &mockChallengeRepository{
+				challenges: []entity.Challenge{
+					{LabId: "lab99"},
+				},
+			},
+			labService: &mockLabService{
+				labs: []entity.LabType{
+					{Id: "lab1", IsPublished: true, Message: "msg"},
+				},
+			},
+		}
+		got, err := svc.GetChallengesLabsRedactedByUserId(context.Background(), "user@microsoft.com")
+		if err != nil {
+			t.Fatalf("expected nil, got %v", err)
+		}
+		if got != nil {
+			t.Errorf("expected nil, got %v", got)
+		}
+	})
+}
+
+func TestRedactLabs(t *testing.T) {
+	tests := []struct {
+		name    string
+		labs    []entity.LabType
+		wantLen int
+		check   func(t *testing.T, got []entity.LabType)
+	}{
+		{
+			name: "filters unpublished and redacts published",
+			labs: []entity.LabType{
+				{Id: "lab1", IsPublished: true, ExtendScript: "secret-script", Message: "challenge msg", Description: "original desc"},
+				{Id: "lab2", IsPublished: false, ExtendScript: "secret"},
+				{Id: "lab3", IsPublished: true, ExtendScript: "another-secret", Message: "msg3"},
+			},
+			wantLen: 2,
+			check: func(t *testing.T, got []entity.LabType) {
+				for _, lab := range got {
+					if lab.ExtendScript != "redacted" {
+						t.Errorf("lab %s: expected ExtendScript=redacted, got %s", lab.Id, lab.ExtendScript)
+					}
+					if lab.Type != "challenge" {
+						t.Errorf("lab %s: expected Type=challenge, got %s", lab.Id, lab.Type)
+					}
+					if len(lab.Tags) != 1 || lab.Tags[0] != "challenge" {
+						t.Errorf("lab %s: expected Tags=[challenge], got %v", lab.Id, lab.Tags)
+					}
+				}
+			},
+		},
+		{
+			name: "description replaced with message",
+			labs: []entity.LabType{
+				{Id: "lab1", IsPublished: true, Message: "challenge message", Description: "original"},
+			},
+			wantLen: 1,
+			check: func(t *testing.T, got []entity.LabType) {
+				if got[0].Description != "challenge message" {
+					t.Errorf("expected Description='challenge message', got %s", got[0].Description)
+				}
+			},
+		},
+		{
+			name:    "all unpublished returns nil",
+			labs:    []entity.LabType{{Id: "lab1", IsPublished: false}},
+			wantLen: 0,
+		},
+		{
+			name:    "empty input returns nil",
+			labs:    []entity.LabType{},
+			wantLen: 0,
+		},
+		{
+			name:    "nil input returns nil",
+			labs:    nil,
+			wantLen: 0,
+		},
+		{
+			name: "preserves other fields",
+			labs: []entity.LabType{
+				{Id: "lab1", Name: "My Lab", IsPublished: true, Message: "msg", CreatedBy: "author"},
+			},
+			wantLen: 1,
+			check: func(t *testing.T, got []entity.LabType) {
+				if got[0].Id != "lab1" || got[0].Name != "My Lab" || got[0].CreatedBy != "author" {
+					t.Errorf("expected other fields preserved, got %+v", got[0])
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := redactLabs(tt.labs)
+			if len(got) != tt.wantLen {
+				t.Fatalf("expected %d labs, got %d", tt.wantLen, len(got))
+			}
+			if tt.check != nil {
+				tt.check(t, got)
+			}
+		})
+	}
+}
+
+func TestGetAllLabsRedactedOrchestrator(t *testing.T) {
+	t.Run("returns redacted published labs", func(t *testing.T) {
+		svc := &challengeService{
+			labService: &mockLabService{
+				labs: []entity.LabType{
+					{Id: "lab1", IsPublished: true, ExtendScript: "secret", Message: "msg1"},
+					{Id: "lab2", IsPublished: false, ExtendScript: "secret"},
+				},
+			},
+		}
+		got, err := svc.GetAllLabsRedacted(context.Background())
+		if err != nil {
+			t.Fatalf("expected nil, got %v", err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("expected 1 lab, got %d", len(got))
+		}
+		if got[0].ExtendScript != "redacted" {
+			t.Errorf("expected ExtendScript=redacted, got %s", got[0].ExtendScript)
+		}
+	})
+
+	t.Run("returns error when lab service fails", func(t *testing.T) {
+		svc := &challengeService{
+			labService: &mockLabService{
+				err: errors.New("service error"),
+			},
+		}
+		_, err := svc.GetAllLabsRedacted(context.Background())
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+
+	t.Run("returns nil when no labs", func(t *testing.T) {
+		svc := &challengeService{
+			labService: &mockLabService{
+				labs: []entity.LabType{},
+			},
+		}
+		got, err := svc.GetAllLabsRedacted(context.Background())
+		if err != nil {
+			t.Fatalf("expected nil, got %v", err)
+		}
+		if got != nil {
+			t.Errorf("expected nil, got %v", got)
+		}
+	})
 }

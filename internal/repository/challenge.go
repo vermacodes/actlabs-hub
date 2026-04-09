@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
@@ -88,7 +89,8 @@ func (c *challengeRepository) GetChallengesByLabId(ctx context.Context, labId st
 	challenge := entity.Challenge{}
 	challenges := []entity.Challenge{}
 
-	pager := c.auth.ActlabsChallengesTableClient.NewListEntitiesPager(nil)
+	filter := fmt.Sprintf("PartitionKey eq '%s'", labId)
+	pager := c.auth.ActlabsChallengesTableClient.NewListEntitiesPager(&aztables.ListEntitiesOptions{Filter: &filter})
 	for pager.More() {
 		response, err := pager.NextPage(ctx)
 		if err != nil {
@@ -118,7 +120,8 @@ func (c *challengeRepository) GetChallengesByUserId(ctx context.Context, userId 
 	challenge := entity.Challenge{}
 	challenges := []entity.Challenge{}
 
-	pager := c.auth.ActlabsChallengesTableClient.NewListEntitiesPager(nil)
+	filter := fmt.Sprintf("userId eq '%s'", userId)
+	pager := c.auth.ActlabsChallengesTableClient.NewListEntitiesPager(&aztables.ListEntitiesOptions{Filter: &filter})
 	for pager.More() {
 		response, err := pager.NextPage(ctx)
 		if err != nil {
@@ -137,10 +140,7 @@ func (c *challengeRepository) GetChallengesByUserId(ctx context.Context, userId 
 				)
 				continue
 			}
-
-			if challenge.UserId == userId {
-				challenges = append(challenges, challenge)
-			}
+			challenges = append(challenges, challenge)
 		}
 	}
 
