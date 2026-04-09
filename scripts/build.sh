@@ -32,6 +32,12 @@ for var in "${required_env_vars[@]}"; do
   fi
 done
 
+go test ./... -count=1 -v
+if [ $? -ne 0 ]; then
+  echo "Tests failed"
+  exit 1
+fi
+
 go build -o actlabs-hub ./cmd/actlabs-hub
 if [ $? -ne 0 ]; then
   echo "Failed to build actlabs-hub"
