@@ -247,34 +247,40 @@ function assign_user_access_administrator_role() {
 # Function to call register api to register the subscription with the lab
 function register_subscription() {
   # get access token from cli
-  log "getting access token from cli"
-  ACCESS_TOKEN=$(az account get-access-token --query accessToken -o tsv)
-  log "registering subscription with the lab"
+  # log "getting access token from cli"
+  # ACCESS_TOKEN=$(az account get-access-token --query accessToken -o tsv)
+  # log "registering subscription with the lab"
 
-  OUTPUT=$(curl -X PUT \
-    ${ACTLABS_HUB_ENDPOINT} \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-    -d '{
-        "userAlias": "'"${USER_ALIAS}"'",
-        "userPrincipalId": "'"${USER_PRINCIPAL_ID}"'",
-        "subscriptionId": "'"${SUBSCRIPTION_ID}"'",
-        "tenantId": "'"${TENANT_ID}"'"
-      }' \
-    -w "\n%{http_code}")
+  # OUTPUT=$(curl -X PUT \
+  #   ${ACTLABS_HUB_ENDPOINT} \
+  #   -H "Content-Type: application/json" \
+  #   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  #   -d '{
+  #       "userAlias": "'"${USER_ALIAS}"'",
+  #       "userPrincipalId": "'"${USER_PRINCIPAL_ID}"'",
+  #       "subscriptionId": "'"${SUBSCRIPTION_ID}"'",
+  #       "tenantId": "'"${TENANT_ID}"'"
+  #     }' \
+  #   -w "\n%{http_code}")
 
-  log "Output: $OUTPUT"
+  # log "Output: $OUTPUT"
 
-  HTTP_STATUS="${OUTPUT:(-3)}"
+  # HTTP_STATUS="${OUTPUT:(-3)}"
 
-  if [ "${HTTP_STATUS}" -ne 200 ]; then
-    err "deployment completed, but, failed to automatically register subscription with the lab"
-    log "Next steps: Try re-running the script again. If error persists, please contact support using Help & Feedback option on portal and share your subscription id ${SUBSCRIPTION_ID}"
-    exit 0
-  else
-    log "Output: $OUTPUT"
-    ok "subscription ${SUBSCRIPTION_ID} registered for user ${UPN}"
-  fi
+  # if [ "${HTTP_STATUS}" -ne 200 ]; then
+  #   err "deployment completed, but, failed to automatically register subscription with the lab"
+  #   log "Next steps: Try re-running the script again. If error persists, please contact support using Help & Feedback option on portal and share your subscription id ${SUBSCRIPTION_ID}"
+  #   exit 0
+  # else
+  #   log "Output: $OUTPUT"
+  #   ok "subscription ${SUBSCRIPTION_ID} registered for user ${UPN}"
+  # fi
+  ok "Use the following values to complete registration on the Actlabs portal:"
+  echo -e ""
+  echo -e "${GREEN}User Alias:        ${NC} ${USER_ALIAS}"
+  echo -e "${GREEN}User Principal ID: ${NC} ${USER_PRINCIPAL_ID}"
+  echo -e "${GREEN}Subscription ID:   ${NC} ${SUBSCRIPTION_ID}"
+  echo -e "${GREEN}Tenant ID:         ${NC} ${TENANT_ID}"
 }
 
 # Call the functions
